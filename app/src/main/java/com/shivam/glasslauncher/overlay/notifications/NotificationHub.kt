@@ -1,0 +1,220 @@
+package com.shivam.glasslauncher.overlay.notifications
+
+import android.app.ActivityOptions
+import android.app.Notification
+import android.app.PendingIntent
+import android.app.RemoteInput
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import android.service.notification.NotificationListenerService
+import android.service.notification.StatusBarNotification
+import android.util.Log
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * Live view of the active notifications for the Notification Center and the island, fed by the
+ * launcher's NotificationListenerService (BadgeListenerService). Also performs the actions the
+ * listener is allowed to: dismiss, open, run action buttons and inline replies via RemoteInput.
+ */
+object NotificationHub {
+
+    private const val TAG = "GlassNotifications"
+
+    private val _entries = MutableStateFlow<List<NotifEntry>>(emptyList())
+    val entries: StateFlow<List<NotifEntry>> = _entries.asStateFlow()
+
+    private val _connected = MutableStateFlow(false)
+    /** True while notification access is granted and the listener is bound. */
+    val connected: StateFlow<Boolean> = _connected.asStateFlow()
+
+    private val _posted = MutableSharedFlow<NotifEntry>(extraBufferCapacity = 16)
+    /** Notifications that just arrived (not updates of an existing key), for the island peek. */
+    val posted: SharedFlow<NotifEntry> = _posted.asSharedFlow()
+
+    private val _interruptionFilter = MutableStateFlow(NotificationListenerService.INTERRUPTION_FILTER_UNKNOWN)
+    val interruptionFilter: StateFlow<Int> = _interruptionFilter.asStateFlow()
+
+    @Volatile private var listener: NotificationListenerService? = null
+    private val raw = ConcurrentHashMap<String, StatusBarNotification>()
+    private val labels = ConcurrentHashMap<String, String>()
+
+    // --- fed by BadgeListenerService ---
+
+    fun onConnected(service: NotificationListenerService) {
+        listener = service
+        _connected.value = true
+        _interruptionFilter.value = try { service.currentInterruptionFilter } catch (e: Exception) { NotificationListenerService.INTERRUPTION_FILTER_UNKNOWN }
+        refreshAll(service)
+    }
+
+    fun onDisconnected(service: NotificationListenerService) {
+        if (listener !== service) return
+        listener = null
+        _connected.value = false
+        raw.clear()
+        _entries.value = emptyList()
+    }
+
+    fun onPosted(service: NotificationListenerService, sbn: StatusBarNotification, ranking: NotificationListenerService.RankingMap?) {
+        val isNew = !raw.containsKey(sbn.key)
+        raw[sbn.key] = sbn
+        val entry = parse(service, sbn, ranking)
+        _entries.value = _entries.value.filterNot { it.key == sbn.key } + entry
+        if (isNew) _posted.tryEmit(entry)
+    }
+
+    fun onRemoved(sbn: StatusBarNotification) {
+        raw.remove(sbn.key)
+        _entries.value = _entries.value.filterNot { it.key == sbn.key }
+    }
+
+    fun onInterruptionFilterChanged(filter: Int) { _interruptionFilter.value = filter }
+
+    private fun refreshAll(service: NotificationListenerService) {
+        val active = try { service.activeNotifications } catch (e: Exception) { null } ?: return
+        val ranking = try { service.currentRanking } catch (e: Exception) { null }
+        raw.clear()
+        active.forEach { raw[it.key] = it }
+        _entries.value = active.map { parse(service, it, ranking) }
+    }
+
+    fun label(context: Context, pkg: String): String = labels.getOrPut(pkg) {
+        try {
+            val pm = context.packageManager
+            @Suppress("DEPRECATION")
+            pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+        } catch (e: Exception) { pkg }
+    }
+
+    private fun parse(context: Context, sbn: StatusBarNotification, rankingMap: NotificationListenerService.RankingMap?): NotifEntry {
+        val n = sbn.notification
+        val x = n.extras ?: Bundle.EMPTY
+        val template = x.getString(Notification.EXTRA_TEMPLATE)?.substringAfterLast('$')?.substringAfterLast('.')
+        val text = x.getCharSequence(Notification.EXTRA_BIG_TEXT)?.toString()?.takeIf { it.isNotBlank() }
+            ?: x.getCharSequence(Notification.EXTRA_TEXT)?.toString()
+            ?: lastMessage(x)
+            ?: ""
+        val importance = rankingMap?.let { map ->
+            val r = NotificationListenerService.Ranking()
+            if (map.getRanking(sbn.key, r)) r.importance else null
+        } ?: 3
+        return NotifEntry(
+            key = sbn.key,
+            packageName = sbn.packageName,
+            appLabel = label(context, sbn.packageName),
+            title = (x.getCharSequence(Notification.EXTRA_TITLE_BIG) ?: x.getCharSequence(Notification.EXTRA_TITLE))?.toString().orEmpty(),
+            text = text,
+            postTime = sbn.postTime,
+            subText = x.getCharSequence(Notification.EXTRA_SUB_TEXT)?.toString().orEmpty(),
+            groupKey = sbn.groupKey,
+            isGroupSummary = n.flags and Notification.FLAG_GROUP_SUMMARY != 0,
+            isOngoing = sbn.isOngoing,
+            isClearable = sbn.isClearable,
+            category = n.category,
+            progress = x.getInt(Notification.EXTRA_PROGRESS, 0),
+            progressMax = x.getInt(Notification.EXTRA_PROGRESS_MAX, 0),
+            progressIndeterminate = x.getBoolean(Notification.EXTRA_PROGRESS_INDETERMINATE, false),
+            usesChronometer = x.getBoolean(Notification.EXTRA_SHOW_CHRONOMETER, false),
+            chronometerCountDown = x.getBoolean(Notification.EXTRA_CHRONOMETER_COUNT_DOWN, false),
+            whenTime = n.`when`,
+            template = template,
+            callType = x.getInt(Notification.EXTRA_CALL_TYPE, 0),
+            hasFullScreenIntent = n.fullScreenIntent != null,
+            isMedia = x.containsKey(Notification.EXTRA_MEDIA_SESSION) || template == "MediaStyle" || template == "DecoratedMediaCustomViewStyle",
+            importance = importance,
+            channelId = n.channelId,
+            actions = n.actions.orEmpty().mapIndexed { i, a ->
+                NotifAction(i, a.title?.toString().orEmpty(), a.remoteInputs?.any { it.allowFreeFormInput } == true)
+            }.filter { it.title.isNotBlank() },
+        )
+    }
+
+    @Suppress("DEPRECATION")
+    private fun lastMessage(x: Bundle): String? {
+        val msgs = x.getParcelableArray(Notification.EXTRA_MESSAGES) ?: return null
+        val last = msgs.lastOrNull() as? Bundle ?: return null
+        return last.getCharSequence("text")?.toString()
+    }
+
+    // --- actions ---
+
+    fun notification(key: String): StatusBarNotification? = raw[key]
+
+    fun dismiss(key: String) {
+        try { listener?.cancelNotification(key) } catch (e: Exception) { Log.w(TAG, "dismiss failed", e) }
+    }
+
+    fun dismissAll(keys: List<String>) {
+        if (keys.isEmpty()) return
+        try { listener?.cancelNotifications(keys.toTypedArray()) } catch (e: Exception) { Log.w(TAG, "clear failed", e) }
+    }
+
+    /** Asks the system for a Do Not Disturb filter through the listener (fallback without DND access). */
+    fun requestInterruptionFilter(filter: Int): Boolean {
+        val l = listener ?: return false
+        return try { l.requestInterruptionFilter(filter); true } catch (e: Exception) { false }
+    }
+
+    /**
+     * Options that let a PendingIntent we send start its activity: on Android 14+ the sender must
+     * opt in, and our overlay is what the user is interacting with.
+     */
+    private fun sendOptions(): Bundle? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return null
+        return ActivityOptions.makeBasic()
+            .setPendingIntentBackgroundActivityStartMode(ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED)
+            .toBundle()
+    }
+
+    fun send(context: Context, pi: PendingIntent, fill: Intent? = null): Boolean = try {
+        pi.send(context, 0, fill, null, null, null, sendOptions())
+        true
+    } catch (e: Exception) {
+        Log.w(TAG, "PendingIntent failed", e)
+        false
+    }
+
+    /** Opens the notification like a tap in the shade (falls back to launching the app). */
+    fun open(context: Context, key: String): Boolean {
+        val sbn = raw[key]
+        val pi = sbn?.notification?.contentIntent
+        val ok = if (pi != null) send(context, pi) else sbn?.let { launchApp(context, it.packageName) } ?: false
+        if (ok && sbn != null && sbn.notification.flags and Notification.FLAG_AUTO_CANCEL != 0) dismiss(key)
+        return ok
+    }
+
+    fun launchApp(context: Context, pkg: String): Boolean {
+        val intent = context.packageManager.getLaunchIntentForPackage(pkg) ?: return false
+        return try {
+            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            true
+        } catch (e: Exception) { false }
+    }
+
+    fun runAction(context: Context, key: String, index: Int): Boolean {
+        val action = raw[key]?.notification?.actions?.getOrNull(index) ?: return false
+        val pi = action.actionIntent ?: return false
+        return send(context, pi)
+    }
+
+    /** Inline reply: fills every free-form RemoteInput of the action with [text] and fires it. */
+    fun reply(context: Context, key: String, index: Int, text: String): Boolean {
+        val action = raw[key]?.notification?.actions?.getOrNull(index) ?: return false
+        val inputs = action.remoteInputs?.takeIf { it.isNotEmpty() } ?: return false
+        val pi = action.actionIntent ?: return false
+        val results = Bundle()
+        inputs.forEach { results.putCharSequence(it.resultKey, text) }
+        val fill = Intent().addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+        RemoteInput.addResultsToIntent(inputs, fill, results)
+        RemoteInput.setResultsSource(fill, RemoteInput.SOURCE_FREE_FORM_INPUT)
+        return send(context, pi, fill)
+    }
+}

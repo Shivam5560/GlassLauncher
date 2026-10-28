@@ -43,6 +43,10 @@ import com.shivam.glasslauncher.data.LauncherSettings
 import com.shivam.glasslauncher.gestures.GlassGestureService
 import com.shivam.glasslauncher.icons.IconPack
 import com.shivam.glasslauncher.icons.IconPackInfo
+import com.shivam.glasslauncher.overlay.OverlayIcons
+import com.shivam.glasslauncher.overlay.OverlayScreens
+import com.shivam.glasslauncher.overlay.OverlaySettingsScreen
+import com.shivam.glasslauncher.overlay.overlaySummary
 import com.shivam.glasslauncher.ui.glass.Backdrop
 import com.shivam.glasslauncher.ui.glass.GlassButton
 import com.shivam.glasslauncher.ui.glass.GlassColors
@@ -105,6 +109,7 @@ fun SettingsScreen(
         "check" -> SystemCheckScreen(nav, settings, wallpaper, resumeTick, setupMode = false, onFinish = onFinish)
         "setup" -> SystemCheckScreen(nav, settings, wallpaper, resumeTick, setupMode = true, onFinish = onFinish)
         "about" -> AboutScreen(nav)
+        in OverlayScreens.ALL -> OverlaySettingsScreen(nav, nav.current, resumeTick, toast)
         else -> MainScreen(nav, settings, wallpaper, resumeTick)
     }
 }
@@ -153,6 +158,7 @@ private fun MainScreen(nav: SettingsNav, settings: LauncherSettings, wallpaper: 
         item {
             GlassListGroup(title = "Navigation") {
                 GlassRow("Gestures", subtitle = if (gesturesOn) "On" else "Off", icon = GlassIcons.Hand, iconTint = GlassColors.Accent, onClick = { nav.push("gestures") })
+                GlassRow("Island & Centers", subtitle = overlaySummary(context), icon = OverlayIcons.Island, iconTint = Color(0xFF1C1C1E), onClick = { nav.push(OverlayScreens.ROOT) })
             }
         }
         item {

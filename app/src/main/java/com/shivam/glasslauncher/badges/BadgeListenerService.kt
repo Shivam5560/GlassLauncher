@@ -6,6 +6,9 @@ import android.content.Context
 import android.provider.Settings
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
+import com.shivam.glasslauncher.overlay.OverlayRuntime
+import com.shivam.glasslauncher.overlay.notifications.MediaHub
+import com.shivam.glasslauncher.overlay.notifications.NotificationHub
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -27,13 +30,38 @@ object BadgeStore {
 /**
  * Counts active, clearable, non-summary notifications per package for iOS-style red badges.
  * Uses the notification's `number` when an app sets it (e.g. "5 new messages").
+ *
+ * Phase 3 also feeds the Notification Center and island from here ([NotificationHub]), attaches
+ * the media session controller ([MediaHub]) and hosts the display-over-apps island fallback
+ * ([OverlayRuntime]), since the system keeps this listener bound.
  */
 class BadgeListenerService : NotificationListenerService() {
 
-    override fun onListenerConnected() = recount()
-    override fun onListenerDisconnected() = BadgeStore.publish(emptyMap())
-    override fun onNotificationPosted(sbn: StatusBarNotification?) = recount()
-    override fun onNotificationRemoved(sbn: StatusBarNotification?) = recount()
+    override fun onListenerConnected() {
+        recount()
+        NotificationHub.onConnected(this)
+        MediaHub.attach(this)
+        OverlayRuntime.onListenerConnected(this)
+    }
+
+    override fun onListenerDisconnected() {
+        BadgeStore.publish(emptyMap())
+        NotificationHub.onDisconnected(this)
+        MediaHub.detach()
+        OverlayRuntime.onListenerDisconnected(this)
+    }
+
+    override fun onNotificationPosted(sbn: StatusBarNotification?, rankingMap: NotificationListenerService.RankingMap?) {
+        recount()
+        if (sbn != null) NotificationHub.onPosted(this, sbn, rankingMap)
+    }
+
+    override fun onNotificationRemoved(sbn: StatusBarNotification?, rankingMap: NotificationListenerService.RankingMap?) {
+        recount()
+        if (sbn != null) NotificationHub.onRemoved(sbn)
+    }
+
+    override fun onInterruptionFilterChanged(interruptionFilter: Int) = NotificationHub.onInterruptionFilterChanged(interruptionFilter)
 
     private fun recount() {
         val active = try { activeNotifications } catch (e: Exception) { null } ?: return

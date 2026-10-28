@@ -18,6 +18,8 @@ import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import com.shivam.glasslauncher.data.GestureSettings
 import com.shivam.glasslauncher.data.SettingsRepository
+import com.shivam.glasslauncher.overlay.OverlayController
+import com.shivam.glasslauncher.overlay.OverlayRuntime
 import com.shivam.glasslauncher.ui.glass.GlassBubbleView
 import com.shivam.glasslauncher.ui.glass.GlassPillView
 import kotlinx.coroutines.CoroutineScope
@@ -38,6 +40,9 @@ import kotlin.math.abs
  *  - swipe in from the left/right edge -> BACK (with a glass "stretch" bubble)
  * It also exposes [lockScreen] for the launcher's double-tap-to-lock. It never reads window
  * content (canRetrieveWindowContent=false).
+ *
+ * Phase 3: it also hosts the Dynamic Island, the top-corner swipes for Notification Center (left)
+ * and Control Center (right) and both panels, all as accessibility overlays ([OverlayRuntime]).
  */
 class GlassGestureService : AccessibilityService() {
 
@@ -51,11 +56,13 @@ class GlassGestureService : AccessibilityService() {
     private var pill: GlassPillView? = null
     private var leftBubble: GlassBubbleView? = null
     private var rightBubble: GlassBubbleView? = null
+    private var overlays: OverlayController? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
         wm = getSystemService(WindowManager::class.java)
+        overlays = OverlayRuntime.attachAccessibility(this)
         val repo = SettingsRepository(applicationContext, scope)
         scope.launch {
             repo.flow.map { it.gestures }.distinctUntilChanged().collect {
@@ -80,7 +87,10 @@ class GlassGestureService : AccessibilityService() {
                     packageManager.getActivityInfo(ComponentName(pkg, cls), 0)
                     true
                 } catch (e: Exception) { false }
-                if (isActivity) foregroundPackage = pkg
+                if (isActivity && pkg != foregroundPackage) {
+                    foregroundPackage = pkg
+                    overlays?.onForegroundApp(pkg, pkg in config.excludedApps)
+                }
             }
             AccessibilityEvent.TYPE_WINDOWS_CHANGED -> {
                 keyboardUp = try {
@@ -116,6 +126,8 @@ class GlassGestureService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     override fun onDestroy() {
+        OverlayRuntime.detachAccessibility(this)
+        overlays = null
         removeAll()
         scope.cancel()
         if (instance === this) instance = null
