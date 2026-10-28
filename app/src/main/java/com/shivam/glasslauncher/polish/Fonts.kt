@@ -7,6 +7,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.googlefonts.GoogleFont
+import androidx.compose.ui.text.googlefonts.Font as GoogleFontFont
 import com.shivam.glasslauncher.R
 import com.shivam.glasslauncher.ui.glass.Inter
 
@@ -78,7 +79,7 @@ object Fonts {
             } else {
                 val google = GoogleFont(name)
                 FontFamily(
-                    weights.map { w -> Font(googleFont = google, fontProvider = provider, weight = w) } +
+                    weights.map { w -> GoogleFontFont(googleFont = google, fontProvider = provider, weight = w) } +
                         listOf(
                             Font(R.font.inter_regular, FontWeight.Normal),
                             Font(R.font.inter_medium, FontWeight.Medium),
