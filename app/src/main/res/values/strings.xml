@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Glass Launcher</string>
+    <string name="settings_title">Glass Settings</string>
+    <string name="gesture_service_label">Glass Gestures</string>
+    <string name="gesture_service_description">Adds iOS-style navigation gestures: swipe up from the bottom edge to go home, swipe up and hold for recent apps, and swipe in from the left or right edge to go back. Also lets Glass Launcher lock the screen when you double-tap the home screen. Glass Gestures only checks which app is in front (to honour your exclusion list) and whether the keyboard is showing; it never reads text or screen content.</string>
+    <string name="badge_service_label">Glass Badges</string>
+</resources>
