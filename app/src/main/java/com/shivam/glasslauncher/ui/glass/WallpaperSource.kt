@@ -176,7 +176,7 @@ class WallpaperSource(private val context: Context, private val scope: Coroutine
     private val copyFile get() = java.io.File(context.filesDir, "glass_wallpaper.png")
     private val idFile get() = java.io.File(context.filesDir, "glass_wallpaper.id")
 
-    private fun currentWallpaperId(): Int? = try { wm.getWallpaperId(WallpaperManager.FLAG_SYSTEM) } catch (e: Exception) { null }
+    fun currentWallpaperId(): Int? = try { wm.getWallpaperId(WallpaperManager.FLAG_SYSTEM) } catch (e: Exception) { null }
 
     /** Our saved copy, if the system wallpaper is still the one we set. */
     private fun ownCopy(): Bitmap? {
@@ -199,12 +199,23 @@ class WallpaperSource(private val context: Context, private val scope: Coroutine
             val s = maxOf(sw.toFloat() / info.size.width, sh.toFloat() / info.size.height).coerceAtMost(1f)
             decoder.setTargetSize((info.size.width * s).toInt().coerceAtLeast(1), (info.size.height * s).toInt().coerceAtLeast(1))
         }
+        setWallpaperBitmap(full, alsoLockScreen)
+        Unit
+    }
+
+    /**
+     * Path A for a bitmap we already have (the bundled Glass wallpapers): sets it as the home-screen
+     * wallpaper and keeps a copy for refraction. Returns the system wallpaper id. Blocking.
+     */
+    fun setWallpaperBitmap(full: Bitmap, alsoLockScreen: Boolean): Int {
         val flags = if (alsoLockScreen) WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK else WallpaperManager.FLAG_SYSTEM
         val id = wm.setBitmap(full, null, true, flags)
         val small = Bitmap.createScaledBitmap(full, (full.width / 2).coerceAtLeast(1), (full.height / 2).coerceAtLeast(1), true)
         copyFile.outputStream().use { small.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        idFile.writeText((if (id > 0) id else currentWallpaperId() ?: 0).toString())
+        val saved = if (id > 0) id else currentWallpaperId() ?: 0
+        idFile.writeText(saved.toString())
         refresh()
+        return saved
     }
 
     private fun luminance(r: Float, g: Float, b: Float) = 0.2126f * r + 0.7152f * g + 0.0722f * b

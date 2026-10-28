@@ -85,6 +85,10 @@ fun SettingsScreen(
     onFinish: () -> Unit,
 ) {
     val app = GlassApp.from(LocalContext.current)
+    if (isPolishScreen(nav.current)) {
+        PolishScreen(nav, toast)
+        return
+    }
     when (nav.current) {
         "glass" -> GlassTuningScreen(nav, settings)
         "wallpaper" -> WallpaperScreen(nav, wallpaper, toast)
@@ -135,6 +139,7 @@ private fun MainScreen(nav: SettingsNav, settings: LauncherSettings, wallpaper: 
                 GlassRow("Glass tuning", subtitle = "Variant, blur, tint, refraction, rim, lighting", icon = GlassIcons.Palette, iconTint = Color(0xFF5E5CE6), onClick = { nav.push("glass") })
                 GlassRow("Wallpaper", subtitle = wallpaper.path.title, icon = GlassIcons.Home, iconTint = Color(0xFF64D2FF), onClick = { nav.push("wallpaper") })
                 GlassRow("Icon pack", subtitle = settings.iconPack.ifEmpty { "System icons" }, icon = GlassIcons.Grid, iconTint = GlassColors.Orange, onClick = { nav.push("iconpack") })
+                GlassRow("Customise", subtitle = "Glass wallpapers, theme, font, icon style, backup", icon = GlassIcons.Sparkle, iconTint = Color(0xFFFF375F), onClick = { nav.push("polish") })
             }
         }
         item {
