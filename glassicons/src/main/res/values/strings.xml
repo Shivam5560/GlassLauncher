@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Glass Icons</string>
+    <string name="theme_title">Glass Icons</string>
+    <string name="theme_description">Original iOS 26-style icons in light, dark and tinted variants.</string>
+    <string name="theme_author">Shivam</string>
+</resources>

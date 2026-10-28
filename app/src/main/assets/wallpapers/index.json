@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "width": 1440,
+  "height": 3200,
+  "wallpapers": [
+    {
+      "id": "lagoon",
+      "name": "Lagoon",
+      "category": "Caustics"
+    },
+    {
+      "id": "aurora",
+      "name": "Aurora",
+      "category": "Ribbons"
+    },
+    {
+      "id": "ember",
+      "name": "Ember",
+      "category": "Ribbons"
+    },
+    {
+      "id": "orchid",
+      "name": "Orchid",
+      "category": "Mesh"
+    },
+    {
+      "id": "tide",
+      "name": "Tide",
+      "category": "Ribbons"
+    },
+    {
+      "id": "dune",
+      "name": "Dune",
+      "category": "Ribbons"
+    },
+    {
+      "id": "glacier",
+      "name": "Glacier",
+      "category": "Caustics"
+    },
+    {
+      "id": "nebula",
+      "name": "Nebula",
+      "category": "Mesh"
+    },
+    {
+      "id": "citrus",
+      "name": "Citrus",
+      "category": "Mesh"
+    },
+    {
+      "id": "meadow",
+      "name": "Meadow",
+      "category": "Caustics"
+    },
+    {
+      "id": "prism",
+      "name": "Prism",
+      "category": "Ribbons"
+    },
+    {
+      "id": "dusk",
+      "name": "Dusk",
+      "category": "Mesh"
+    }
+  ]
+}
