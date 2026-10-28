@@ -48,7 +48,7 @@ import com.shivam.glasslauncher.ui.glass.GlassVariant
 
 /** Callbacks from home-screen items up to the launcher root. */
 interface HomeCallbacks {
-    fun launch(entry: AppEntry, bounds: Rect?)
+    fun launch(entry: AppEntry, bounds: android.graphics.Rect?)
     fun openFolder(folder: FolderItem, bounds: Rect)
     fun showMenu(target: MenuTarget)
     fun startDrag(info: DragInfo, at: Offset)

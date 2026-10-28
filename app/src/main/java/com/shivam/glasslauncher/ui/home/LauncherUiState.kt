@@ -28,7 +28,7 @@ data class MenuTarget(
     val anchor: Rect,
 )
 
-data class LockPrompt(val entry: AppEntry, val bounds: Rect?)
+data class LockPrompt(val entry: AppEntry, val bounds: android.graphics.Rect?)
 
 /** Rename an app label ([appKey]) or a folder ([folderId]). */
 data class RenameTarget(val appKey: String?, val folderId: String?, val current: String, val origin: Rect?)
