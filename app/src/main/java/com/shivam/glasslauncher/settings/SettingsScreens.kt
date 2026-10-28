@@ -105,6 +105,7 @@ fun SettingsScreen(
         "check" -> SystemCheckScreen(nav, settings, wallpaper, resumeTick, setupMode = false, onFinish = onFinish)
         "setup" -> SystemCheckScreen(nav, settings, wallpaper, resumeTick, setupMode = true, onFinish = onFinish)
         "about" -> AboutScreen(nav)
+        "widgets" -> com.shivam.glasslauncher.widgets.WidgetsSettingsScreen(nav, resumeTick, toast)
         else -> MainScreen(nav, settings, wallpaper, resumeTick)
     }
 }
@@ -148,6 +149,11 @@ private fun MainScreen(nav: SettingsNav, settings: LauncherSettings, wallpaper: 
                     // docs/CONSTRAINTS.md: hidden until the accessibility service is on.
                     GlassRow("Double-tap to lock", subtitle = "Needs Glass Gestures — tap to set up", icon = GlassIcons.Lock, iconTint = Color(0xFF8E8E93), onClick = { nav.push("check") })
                 }
+            }
+        }
+        item {
+            GlassListGroup(title = "Widgets") {
+                GlassRow("Widgets & Today view", subtitle = "Weather location, units and widget access", icon = com.shivam.glasslauncher.widgets.WidgetGlyphs.Widgets, iconTint = Color(0xFF30B0C7), onClick = { nav.push("widgets") })
             }
         }
         item {
@@ -574,7 +580,7 @@ private fun AboutScreen(nav: SettingsNav) {
     val version = remember { try { context.packageManager.getPackageInfo(context.packageName, 0).versionName } catch (e: Exception) { null } ?: "?" }
     ScreenScaffold("About", nav) {
         item {
-            GlassListGroup(footer = "An original launcher inspired by iOS design. Not affiliated with Apple; no Apple artwork is used. No analytics, ads or network access.") {
+            GlassListGroup(footer = "An original launcher inspired by iOS design. Not affiliated with Apple; no Apple artwork is used. No analytics or ads. The only network use is the weather widget (Open-Meteo) and Google search intents.") {
                 GlassRow("Glass Launcher", subtitle = "Version $version")
                 GlassRow("Inter typeface", subtitle = "© The Inter Project Authors, SIL Open Font License 1.1")
             }

@@ -48,7 +48,8 @@ data class CheckResult(
 
 /**
  * Every permission and HyperOS setting Phase 1 needs (docs/CONSTRAINTS.md), with its live status
- * and a fix. Shared by Settings → System check and the first-run setup guide.
+ * and a fix, followed by the Phase 2 widget rows from `WidgetChecks`. Shared by Settings → System
+ * check and the first-run setup guide.
  */
 object SystemChecks {
 
@@ -236,6 +237,6 @@ object SystemChecks {
                 if (shortcuts) CheckStatus.Ok else CheckStatus.Warning, if (shortcuts) "Available" else "Unavailable",
                 if (shortcuts) null else "Set as default", CheckFix.OpenIntents(homeIntents(context)),
             ),
-        )
+        ) + com.shivam.glasslauncher.widgets.WidgetChecks.all(context)
     }
 }

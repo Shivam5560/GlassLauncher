@@ -5,6 +5,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -79,7 +81,11 @@ data class HomeContext(
     }
 }
 
-/** One 4x6 page. Double-tapping empty space locks the screen. */
+/**
+ * One 4x6 page. Double-tapping empty space locks the screen. Cells in [blocked] belong to widgets
+ * (phase 2 free placement): they hold no icon and are not drop targets; [widgetLayer] draws the
+ * widgets on top, given the cell size.
+ */
 @Composable
 fun HomeGridPage(
     page: Int,
@@ -88,6 +94,8 @@ fun HomeGridPage(
     drag: DragController,
     callbacks: HomeCallbacks,
     doubleTapToLock: Boolean,
+    blocked: BooleanArray? = null,
+    widgetLayer: (@Composable BoxScope.(cellW: Dp, cellH: Dp) -> Unit)? = null,
 ) {
     BoxWithConstraints(
         Modifier
@@ -105,7 +113,10 @@ fun HomeGridPage(
                 Row(Modifier.fillMaxWidth().weight(1f)) {
                     for (c in 0 until GRID_COLUMNS) {
                         val index = r * GRID_COLUMNS + c
-                        Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                        if (blocked?.getOrNull(index) == true) {
+                            SideEffect { drag.pageCells.remove(page to index) }
+                            Spacer(Modifier.weight(1f).fillMaxHeight())
+                        } else Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
                             HomeCell(
                                 slot = Slot.Page(page, index),
                                 item = items.getOrNull(index),
@@ -122,6 +133,7 @@ fun HomeGridPage(
                 }
             }
         }
+        widgetLayer?.invoke(this, cellW, cellH)
     }
 }
 
