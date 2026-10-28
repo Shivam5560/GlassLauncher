@@ -397,5 +397,5 @@ private fun MediaCard(m: MediaInfo, host: PanelHost) {
 private fun relativeTime(t: Long): String {
     val now = System.currentTimeMillis()
     return if (now - t < 60_000) "now"
-    else DateUtils.getRelativeTimeSpanString(t, now, DateUtils.MINUTE_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE).toString()
+    else DateUtils.getRelativeTimeSpanString(t, now, DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE).toString()
 }
