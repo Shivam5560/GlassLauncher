@@ -177,7 +177,7 @@ fun GlassSurface(
                 .graphicsLayer {
                     clip = true
                     this.shape = shape
-                    val blurPx = blurDp.toPx()
+                    val blurPx = if (backdrop?.preBlurred == true) 0f else blurDp.toPx()
                     // Thin surfaces (rows, pills) get a proportionally smaller lens, so flat rows
                     // never show streaky refraction along their long edges.
                     val minSide = minOf(size.width, size.height)

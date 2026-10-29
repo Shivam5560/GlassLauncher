@@ -29,6 +29,8 @@ import androidx.compose.ui.unit.IntSize
 class Backdrop(
     private val layers: List<GraphicsLayer>,
     private val wallpaper: WallpaperSource.Snapshot,
+    /** Layers are already blurred stills (as Smart Launcher 6 does): panels skip their own live blur. */
+    val preBlurred: Boolean = false,
     /** Window position of the node the layers were recorded in (full-screen roots: zero). */
     private val origin: () -> Offset = { Offset.Zero },
 ) {
@@ -43,7 +45,7 @@ class Backdrop(
     fun luminance(rect: Rect): Float = wallpaper.luminance(rect.left, rect.top, rect.right, rect.bottom)
 
     /** A backdrop that additionally includes [layer] on top. */
-    fun plus(layer: GraphicsLayer) = Backdrop(layers + layer, wallpaper, origin)
+    fun plus(layer: GraphicsLayer) = Backdrop(layers + layer, wallpaper, preBlurred, origin)
 
     companion object {
         fun empty(wallpaper: WallpaperSource.Snapshot) = Backdrop(emptyList(), wallpaper)

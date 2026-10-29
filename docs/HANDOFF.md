@@ -67,6 +67,14 @@ the phone's **default Home** (SL6 is still installed).
    13 -> 9 ms (CPU 19 -> 16 / 23 -> 18). Idle home renders 0 frames. Remaining budget: `GlassSurface` lens+blur
    costs ~6 ms in drawer/Spotlight (drawer 8 -> 2 ms with it off); next lead is a smaller blur radius or
    downscaled backdrop for large panels, and a cheaper open animation (home blur still live while opening).
+   **SL6 study (APK read-only, JADX unavailable so dex was inspected with dexdump)**: SL6 uses no window blur and no
+   per-panel live blur. It blurs the wallpaper once (downscale to ~200 px tall, RenderScript radius <= 25, cached as
+   `blurred.png`), and its liquid glass is an AGSL lens that refracts only a thin edge band (interior = one texture
+   fetch) with a 1-sample variant and a 7-sample dispersion variant. Glass here now does the same for overlays:
+   `Backdrop.preBlurred` + blurred stills (wallpaper, frozen home) so overlay panels skip the live blur
+   (drawer GPU 8 -> 7 ms, Spotlight 9 -> 7 ms, CPU 13/14 ms). Experiments: lens shader off saves ~2 ms, smaller
+   blur radius alone saves nothing. Remaining: live blur on home-page panels (dock/widgets), lens interior early-out
+   like SL6 (`if -sd >= refractionHeight return content`), open-animation cost.
 5. Earlier backlog (SL6 parity): popup widgets, widget stack, grid presets, Private Space, Nova import…
 
 ## Device workflow

@@ -204,7 +204,16 @@ fun LauncherScreen(
     val showFrozenBlur by remember(frozenBlurred) {
         androidx.compose.runtime.derivedStateOf { frozenBlurred != null && overlayOpen && overlayAnimState.value > 0.97f && appDepth.value < 0.01f }
     }
-    val overlayBackdrop = remember(hasWallpaper, snapshot, frozen) { Backdrop(if (frozen) base + frozenHomeLayer else base, snapshot) }
+    // Overlay panels refract blurred stills (blurred wallpaper + blurred home) and skip their own live blur.
+    val panelWallLayer = rememberGraphicsLayer()
+    val panelHomeLayer = rememberGraphicsLayer()
+    val panelWall = rememberBlurredCopy(snapshot.image, glass.blurRadius)
+    val panelHome = rememberBlurredCopy(frozenHome, glass.blurRadius)
+    val stills = hasWallpaper && panelWall != null && panelHome != null
+    val overlayBackdrop = remember(hasWallpaper, snapshot, frozen, stills) {
+        if (stills) Backdrop(listOf(panelWallLayer, panelHomeLayer), snapshot, preBlurred = true)
+        else Backdrop(if (frozen) base + frozenHomeLayer else base, snapshot)
+    }
 
     // Status bar icons follow the wallpaper brightness.
     LaunchedEffect(lightWallpaper) {
@@ -436,6 +445,8 @@ fun LauncherScreen(
             WidgetHostLifecycle()
             Box(Modifier.fillMaxSize()) {
                 SnapshotBackdropLayer(frozenHome, frozenHomeLayer)
+                SnapshotBackdropLayer(panelWall, panelWallLayer)
+                SnapshotBackdropLayer(panelHome, panelHomeLayer)
                 WallpaperBackdropLayer(snapshot, wallpaperLayer, hasWallpaper, parallax = if (settings.wallpaperParallax && hasWallpaper && !reduced) ({ tilt.value }) else null)
 
                 // As on iOS the wallpaper blurs behind the App Library and Today view (HyperOS's window blur
