@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -40,6 +42,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.shivam.glasslauncher.ui.glass.LiquidGlassShader.setGlassUniforms
 import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 
 /**
  * The single design primitive of the app: an iOS 26-style Liquid Glass panel.
@@ -104,11 +108,19 @@ fun GlassSurface(
     val windowPos = remember { mutableStateOf(Offset.Zero) }
     val sizePx = remember { mutableStateOf(IntSize.Zero) }
 
-    // Adaptive tone, quantised so scrolling does not recompose every frame.
+    // Adaptive tone follows where the panel settles, not every frame of a swipe: measuring while
+    // moving recomposed each panel (and its content) almost every frame of paging (Turbo 5 trace).
+    val settledPos = remember { mutableStateOf(Offset.Zero) }
+    LaunchedEffect(Unit) {
+        snapshotFlow { windowPos.value }.collectLatest { p ->
+            if (settledPos.value != Offset.Zero) delay(120)
+            settledPos.value = p
+        }
+    }
     val luminance by remember(backdrop, fallbackLum) {
         derivedStateOf {
             val s = sizePx.value
-            val p = windowPos.value
+            val p = settledPos.value
             val l = backdrop?.luminance(Rect(p.x, p.y, p.x + s.width, p.y + s.height)) ?: fallbackLum
             (l * 20f).roundToInt() / 20f
         }
