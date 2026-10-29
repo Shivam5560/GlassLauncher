@@ -1,5 +1,7 @@
 package com.shivam.glasslauncher.data
 
+import com.shivam.glasslauncher.widgets.GridPlacement
+import com.shivam.glasslauncher.widgets.GridRect
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.UUID
@@ -19,6 +21,12 @@ data class AppItem(val appKey: String) : HomeItem {
 
 data class FolderItem(override val id: String, val name: String, val apps: List<String>) : HomeItem
 
+/**
+ * A widget on a home page. It owns [rect] (cells) on [page]; icons never sit in those cells and
+ * reflow around it. [id] refers to the widget instance in the widget store.
+ */
+data class HomeWidget(val id: String, val page: Int, val rect: GridRect)
+
 /** Where an item lives on the home screen. */
 sealed interface Slot {
     data class Page(val page: Int, val index: Int) : Slot
@@ -30,13 +38,24 @@ sealed interface Slot {
  * The home screen layout: pages of a fixed 4x6 grid (null = empty cell), a 4-slot dock,
  * custom labels, and the set of app keys the launcher has already seen (so apps the user
  * removed from the home screen are not re-added, while newly installed apps are).
+ * Phase 2 adds [widgets] placed freely on pages, [keptPages] (pages added in the page manager,
+ * kept while empty) and the [defaultPage] the Home button returns to.
  */
 data class HomeLayout(
     val pages: List<List<HomeItem?>>,
     val dock: List<HomeItem?>,
     val labels: Map<String, String>,
     val known: Set<String>,
+    val widgets: List<HomeWidget> = emptyList(),
+    val keptPages: Set<Int> = emptySet(),
+    val defaultPage: Int = 0,
 ) {
+    fun widgetsOn(page: Int): List<HomeWidget> = widgets.filter { it.page == page }
+
+    /** Row-major mask of the cells on [page] covered by widgets. */
+    fun blockedCells(page: Int): BooleanArray =
+        GridPlacement.blockedMask(widgetsOn(page).map { it.rect }, GRID_COLUMNS, GRID_ROWS)
+
     fun itemAt(slot: Slot): HomeItem? = when (slot) {
         is Slot.Page -> pages.getOrNull(slot.page)?.getOrNull(slot.index)
         is Slot.Dock -> dock.getOrNull(slot.index)
@@ -69,6 +88,11 @@ data class HomeLayout(
         root.put("dock", JSONArray(dock.map { itemJson(it) }))
         root.put("labels", JSONObject(labels))
         root.put("known", JSONArray(known.toList()))
+        root.put("widgets", JSONArray(widgets.map { w ->
+            JSONObject().put("id", w.id).put("p", w.page).put("c", w.rect.col).put("r", w.rect.row).put("w", w.rect.w).put("h", w.rect.h)
+        }))
+        root.put("keptPages", JSONArray(keptPages.toList()))
+        root.put("defaultPage", defaultPage)
         return root.toString()
     }
 
@@ -101,7 +125,21 @@ data class HomeLayout(
             val labels = labelsObj.keys().asSequence().associateWith { labelsObj.getString(it) }
             val knownArr = root.optJSONArray("known") ?: JSONArray()
             val known = List(knownArr.length()) { knownArr.getString(it) }.toSet()
-            return HomeLayout(pages, dock, labels, known)
+            val widgetsArr = root.optJSONArray("widgets") ?: JSONArray()
+            val widgets = ArrayList<HomeWidget>()
+            for (i in 0 until widgetsArr.length()) {
+                val o = widgetsArr.optJSONObject(i) ?: continue
+                val page = o.optInt("p", 0)
+                if (page !in pages.indices) continue
+                val rect = GridPlacement.clamp(GridRect(o.optInt("c"), o.optInt("r"), o.optInt("w", 2), o.optInt("h", 2)), GRID_COLUMNS, GRID_ROWS)
+                // Drop corrupt overlaps instead of rendering widgets on top of each other.
+                if (widgets.any { it.page == page && it.rect.overlaps(rect) }) continue
+                widgets += HomeWidget(o.getString("id"), page, rect)
+            }
+            val keptArr = root.optJSONArray("keptPages") ?: JSONArray()
+            val kept = List(keptArr.length()) { keptArr.getInt(it) }.filter { it in pages.indices }.toSet()
+            val defaultPage = root.optInt("defaultPage", 0).coerceIn(0, pages.size - 1)
+            return HomeLayout(pages, dock, labels, known, widgets, kept, defaultPage)
         }
     }
 }
@@ -121,8 +159,49 @@ object LayoutOps {
         val dock: MutableList<HomeItem?> = layout.dock.toMutableList()
         var labels = layout.labels
         var known = layout.known
+        val widgets: MutableList<HomeWidget> = layout.widgets.toMutableList()
+        val kept: MutableSet<Int> = layout.keptPages.toMutableSet()
+        var defaultPage = layout.defaultPage
 
-        fun build() = HomeLayout(trimPages(pages), dock.toList(), labels, known)
+        fun blocked(page: Int, index: Int): Boolean =
+            widgets.any { it.page == page && it.rect.contains(index % GRID_COLUMNS, index / GRID_COLUMNS) }
+
+        /** Cell indices of [page] not covered by a widget, in reading order. */
+        fun openCells(page: Int): List<Int> = (0 until PAGE_SIZE).filter { !blocked(page, it) }
+
+        fun newPage() { pages += MutableList<HomeItem?>(PAGE_SIZE) { null } }
+
+        fun build(): HomeLayout {
+            reflowAll()
+            // Drop empty pages, except the first, the default page, pages holding widgets and
+            // pages the user added in the page manager. Indices of widgets etc. follow.
+            val keep = pages.indices.filter { i ->
+                i == 0 || i == defaultPage || i in kept || pages[i].any { it != null } || widgets.any { it.page == i }
+            }
+            val remap = keep.withIndex().associate { (newIndex, old) -> old to newIndex }
+            return HomeLayout(
+                pages = keep.map { pages[it].toList() },
+                dock = dock.toList(),
+                labels = labels,
+                known = known,
+                widgets = widgets.mapNotNull { w -> remap[w.page]?.let { w.copy(page = it) } },
+                keptPages = kept.mapNotNull { remap[it] }.toSet(),
+                defaultPage = remap[defaultPage] ?: 0,
+            )
+        }
+
+        /** Moves icons out of cells that a widget now covers, shifting them forward (reflow). */
+        fun reflowAll() {
+            var p = 0
+            while (p < pages.size) {
+                val row = pages[p]
+                val displaced = (0 until PAGE_SIZE).filter { row[it] != null && blocked(p, it) }.map { it to row[it]!! }
+                displaced.forEach { (i, _) -> row[i] = null }
+                // Last first, so each earlier icon is inserted in front of the later ones: order is kept.
+                for ((i, item) in displaced.asReversed()) insertShifting(p, i, item)
+                p++
+            }
+        }
 
         fun replaceFolder(id: String, transform: (FolderItem) -> HomeItem?) {
             for (page in pages) for (i in page.indices) {
@@ -137,26 +216,39 @@ object LayoutOps {
 
         fun placeInFirstFree(item: HomeItem, startPage: Int = 0) {
             for (p in startPage until pages.size) {
-                val i = pages[p].indexOf(null)
-                if (i >= 0) { pages[p][i] = item; return }
+                val i = openCells(p).firstOrNull { pages[p][it] == null }
+                if (i != null) { pages[p][i] = item; return }
             }
-            pages += MutableList<HomeItem?>(PAGE_SIZE) { null }.also { it[0] = item }
+            newPage()
+            pages[pages.size - 1][0] = item
         }
 
-        /** Inserts at [index] on [page], shifting items right and overflowing onto later pages. */
+        /**
+         * Inserts at [index] on [page] (or the next cell a widget does not cover), shifting items
+         * right through the open cells and overflowing onto later pages.
+         */
         fun insertShifting(page: Int, index: Int, item: HomeItem) {
-            while (pages.size <= page) pages += MutableList<HomeItem?>(PAGE_SIZE) { null }
-            val row = pages[page]
-            val empty = (index until PAGE_SIZE).firstOrNull { row[it] == null }
-            if (empty != null) {
-                for (k in empty downTo index + 1) row[k] = row[k - 1]
-                row[index] = item
-                return
+            var p = page
+            var from = index
+            var carry = item
+            while (true) {
+                while (pages.size <= p) newPage()
+                val row = pages[p]
+                val open = openCells(p).filter { it >= from }
+                if (open.isEmpty()) { p++; from = 0; continue }
+                val emptyAt = open.indexOfFirst { row[it] == null }
+                if (emptyAt >= 0) {
+                    for (k in emptyAt downTo 1) row[open[k]] = row[open[k - 1]]
+                    row[open[0]] = carry
+                    return
+                }
+                val overflow = row[open.last()]!!
+                for (k in open.size - 1 downTo 1) row[open[k]] = row[open[k - 1]]
+                row[open[0]] = carry
+                carry = overflow
+                p++
+                from = 0
             }
-            val overflow = row[PAGE_SIZE - 1]!!
-            for (k in PAGE_SIZE - 1 downTo index + 1) row[k] = row[k - 1]
-            row[index] = item
-            insertShifting(page + 1, 0, overflow)
         }
 
         fun removeAt(slot: Slot): HomeItem? = when (slot) {
@@ -179,12 +271,6 @@ object LayoutOps {
         0 -> null
         1 -> AppItem(f.apps[0])
         else -> f
-    }
-
-    private fun trimPages(pages: List<List<HomeItem?>>): List<List<HomeItem?>> {
-        // Drop empty pages except the first.
-        val kept = pages.filterIndexed { i, p -> i == 0 || p.any { it != null } }
-        return kept.map { it.toList() }
     }
 
     /**
@@ -339,4 +425,115 @@ object LayoutOps {
         }
         return w.build()
     }
+
+    // --- Phase 2: widgets on the free-placement grid and the page manager ------------------
+
+    /**
+     * Places widget [id] with a [w] x [h] span on [page], at [at] if given and free of other
+     * widgets, else at the free spot that displaces the fewest icons; if the page is full of
+     * widgets it goes to the next page with room (or a new page). Icons reflow around it.
+     */
+    fun addWidget(layout: HomeLayout, id: String, page: Int, w: Int, h: Int, at: GridRect? = null): HomeLayout {
+        val wk = Working(layout)
+        val span = GridPlacement.clamp(GridRect(0, 0, w, h), GRID_COLUMNS, GRID_ROWS)
+        var p = page.coerceAtLeast(0)
+        while (true) {
+            while (wk.pages.size <= p) wk.newPage()
+            val others = wk.widgets.filter { it.page == p }.map { it.rect }
+            val wanted = at?.let { GridPlacement.clamp(it.copy(w = span.w, h = span.h), GRID_COLUMNS, GRID_ROWS) }
+            val occupied = BooleanArray(PAGE_SIZE) { wk.pages[p][it] != null }
+            val spot = if (wanted != null && p == page && !GridPlacement.collides(wanted, others)) wanted
+            else GridPlacement.firstFree(span.w, span.h, others, GRID_COLUMNS, GRID_ROWS, occupied)
+            if (spot != null) {
+                wk.widgets.removeAll { it.id == id }
+                wk.widgets += HomeWidget(id, p, spot)
+                return wk.build()
+            }
+            p++
+        }
+    }
+
+    /** Moves a widget to [rect] on [page] (nearest free spot if it would overlap another widget). */
+    fun moveWidget(layout: HomeLayout, id: String, page: Int, rect: GridRect): HomeLayout {
+        val current = layout.widgets.firstOrNull { it.id == id } ?: return layout
+        if (page !in layout.pages.indices) return layout
+        val others = layout.widgets.filter { it.page == page && it.id != id }.map { it.rect }
+        val target = GridPlacement.nearestFree(rect, others, GRID_COLUMNS, GRID_ROWS) ?: return layout
+        if (current.page == page && current.rect == target) return layout
+        val wk = Working(layout)
+        wk.widgets.replaceAll { if (it.id == id) HomeWidget(id, page, target) else it }
+        return wk.build()
+    }
+
+    /** Resizes a widget in place; refused (unchanged) if the new span would overlap another widget. */
+    fun resizeWidget(layout: HomeLayout, id: String, w: Int, h: Int): HomeLayout {
+        val current = layout.widgets.firstOrNull { it.id == id } ?: return layout
+        val rect = GridPlacement.clamp(current.rect.copy(w = w, h = h), GRID_COLUMNS, GRID_ROWS)
+        val others = layout.widgets.filter { it.page == current.page && it.id != id }.map { it.rect }
+        if (GridPlacement.collides(rect, others) || rect == current.rect) return layout
+        val wk = Working(layout)
+        wk.widgets.replaceAll { if (it.id == id) it.copy(rect = rect) else it }
+        return wk.build()
+    }
+
+    fun removeWidget(layout: HomeLayout, id: String): HomeLayout {
+        if (layout.widgets.none { it.id == id }) return layout
+        val wk = Working(layout)
+        wk.widgets.removeAll { it.id == id }
+        return wk.build()
+    }
+
+    /** Appends an empty page that is kept while empty. */
+    fun addPage(layout: HomeLayout): HomeLayout {
+        val wk = Working(layout)
+        wk.newPage()
+        wk.kept += wk.pages.size - 1
+        return wk.build()
+    }
+
+    /**
+     * Removes a page. Its icons leave the Home Screen but stay in the App Library (they remain
+     * known, so they are not re-added); its widgets are removed. The last page cannot be removed.
+     */
+    fun removePage(layout: HomeLayout, page: Int): HomeLayout {
+        if (layout.pages.size <= 1 || page !in layout.pages.indices) return layout
+        val wk = Working(layout)
+        wk.pages.removeAt(page)
+        wk.widgets.removeAll { it.page == page }
+        wk.widgets.replaceAll { if (it.page > page) it.copy(page = it.page - 1) else it }
+        val kept = wk.kept.filter { it != page }.map { if (it > page) it - 1 else it }
+        wk.kept.clear()
+        wk.kept += kept
+        wk.defaultPage = when {
+            wk.defaultPage == page -> 0
+            wk.defaultPage > page -> wk.defaultPage - 1
+            else -> wk.defaultPage
+        }
+        // Removing page 0 makes the next page the first one, which is always kept.
+        return wk.build()
+    }
+
+    /** Moves page [from] to position [to], carrying its widgets, kept flag and default flag. */
+    fun movePage(layout: HomeLayout, from: Int, to: Int): HomeLayout {
+        val n = layout.pages.size
+        if (from !in 0 until n || to !in 0 until n || from == to) return layout
+        val order = (0 until n).toMutableList()
+        order.add(to, order.removeAt(from))
+        val newIndexOf = order.withIndex().associate { (newIndex, old) -> old to newIndex }
+        val wk = Working(layout)
+        val pages = order.map { wk.pages[it] }
+        wk.pages.clear()
+        wk.pages += pages
+        wk.widgets.replaceAll { it.copy(page = newIndexOf.getValue(it.page)) }
+        val kept = wk.kept.map { newIndexOf.getValue(it) }
+        wk.kept.clear()
+        wk.kept += kept
+        wk.defaultPage = newIndexOf.getValue(wk.defaultPage)
+        // Keep the old first page, so moving pages never deletes an empty first page silently.
+        if (layout.pages[0].all { it == null } && layout.widgetsOn(0).isEmpty()) wk.kept += newIndexOf.getValue(0)
+        return wk.build()
+    }
+
+    fun setDefaultPage(layout: HomeLayout, page: Int): HomeLayout =
+        if (page !in layout.pages.indices) layout else layout.copy(defaultPage = page)
 }

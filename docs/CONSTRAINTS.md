@@ -34,13 +34,16 @@ Status legend: ✅ works as designed · ⚠️ works with a caveat · ❌ not po
 
 | Feature | Status | Ifs and buts → fallback |
 |---|---|---|
-| Music widget | ⚠️ | `MediaSessionManager.getActiveSessions` needs notification access. Album art and seek only if the player app exposes them. |
-| Weather | ✅ | Open-Meteo, no key. Needs location (coarse is enough); fallback = manually picked city. |
-| Calendar | ✅ | READ_CALENDAR. |
-| Battery (earbuds) | ⚠️ | Phone battery always. Bluetooth earbud battery only via `BluetoothDevice` battery level (Android 13+ BLUETOOTH_CONNECT), and many earbuds don't report it → hide that row. |
-| Photos widget | ✅ | Use the Photo Picker (no storage permission). The user picks an album or photos. |
-| Third-party widgets | ⚠️ | `AppWidgetHost` works; some widgets demand a bind permission dialog the first time. |
-| Fluid / free placement grid | ✅ | Pure layout work. |
+| Music widget | ⚠️ | `MediaSessionManager.getActiveSessions` needs notification access (the existing listener's ComponentName is the token). Album art and seek only if the player app exposes them (`ACTION_SEEK_TO`); otherwise a plain progress line. **Fallback:** without access the widget shows a glass prompt that deep-links to notification access. |
+| Weather | ✅ | Open-Meteo, no key. Needs location (coarse is enough); fallback = manually picked city (Open-Meteo geocoding search). The only network use besides search intents. Cached in `files/weather.json`; refreshed when older than 30 min on screen, every 45 min by WorkManager (network required), or on tap. Offline → last forecast plus an "Offline" note. |
+| Calendar | ✅ | READ_CALENDAR, asked when the user taps the widget's prompt. Denied → the prompt stays and offers App info after a permanent denial. |
+| Battery (earbuds) | ⚠️ | Phone battery always (time-left estimate from the observed drain; charge time from `BatteryManager`). Bluetooth earbud battery only via `BluetoothDevice` battery level (Android 13+ BLUETOOTH_CONNECT), and many earbuds don't report it → hide that row. Without the permission: phone only, with a button to allow it. |
+| Photos widget | ✅ | Use the Photo Picker (no storage permission). The user picks photos; Glass keeps downscaled copies so no long-lived URI grant is needed. Ken Burns motion stops when system animations are off. |
+| Clock / world clock, Notes, Search bar | ✅ | No permissions. World clock uses the system time-zone database. |
+| Smart Stack | ⚠️ | Rotation is by time of day only (calendar mornings, weather daytime, music evenings, batteries at night); there is no on-device usage learning. A manual swipe stays until the next part of the day. |
+| Third-party widgets | ⚠️ | `AppWidgetHost` works; some widgets demand a bind permission dialog the first time (shown through an invisible trampoline activity), and some open a configure activity first; cancelling either frees the id. Resizing follows the provider's resize mode and minimum size. A widget whose provider was uninstalled shows a "no longer available" glass card. |
+| Fluid / free placement grid | ✅ | Pure layout work. Widgets own cells and never overlap; icons reflow around them (overflowing onto the next page). Widgets drag within their page in edit mode; moving one to another page means removing it and adding it there. |
+| Today view, page manager | ✅ | Pure layout work. Removing a page keeps its apps in the App Library and removes its widgets (confirmed first). |
 
 ## Phase 3 — Dynamic Island, Control Center, Notification Center
 

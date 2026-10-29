@@ -5,7 +5,7 @@ panels that float over your wallpaper. Built for the Redmi Turbo 5 on HyperOS (A
 and works on any Android 12+ phone (minSdk 31).
 
 > Original code and artwork. Not affiliated with Apple. No Apple artwork, no code from other launchers.
-> No analytics, ads or network access. Glass never captures your screen.
+> No analytics or ads. The only network use is the weather widget (Open-Meteo, no account). Glass never captures your screen.
 
 ## Features (phase 1)
 

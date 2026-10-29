@@ -55,6 +55,7 @@ import com.shivam.glasslauncher.data.Slot
 import com.shivam.glasslauncher.ui.LauncherViewModel
 import com.shivam.glasslauncher.ui.glass.Backdrop
 import com.shivam.glasslauncher.ui.glass.GlassButton
+import com.shivam.glasslauncher.ui.glass.GlassIconButton
 import com.shivam.glasslauncher.ui.glass.GlassIcons
 import com.shivam.glasslauncher.ui.glass.GlassShape
 import com.shivam.glasslauncher.ui.glass.GlassSurface
@@ -67,14 +68,25 @@ import com.shivam.glasslauncher.ui.glass.rememberCrossWindowBlur
 import com.shivam.glasslauncher.ui.glass.rememberGlassLight
 import com.shivam.glasslauncher.ui.library.AppLibrary
 import com.shivam.glasslauncher.ui.spotlight.SpotlightOverlay
+import com.shivam.glasslauncher.today.TodayView
+import com.shivam.glasslauncher.widgets.HomeWidgetsLayer
+import com.shivam.glasslauncher.widgets.LocalWidgetEnv
+import com.shivam.glasslauncher.widgets.PickerTarget
+import com.shivam.glasslauncher.widgets.WidgetEnv
+import com.shivam.glasslauncher.widgets.WidgetGlyphs
+import com.shivam.glasslauncher.widgets.WidgetHostLifecycle
+import com.shivam.glasslauncher.widgets.WidgetOverlays
+import com.shivam.glasslauncher.widgets.WidgetUiState
+import com.shivam.glasslauncher.widgets.reducedMotion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /**
- * The launcher: wallpaper (drawn by the system behind the transparent window), paged 4x6 grid,
- * App Library page, glass page-dot pill and dock, plus overlays (folders, Spotlight, menus).
+ * The launcher: wallpaper (drawn by the system behind the transparent window), the Today view
+ * (leftmost page), paged 4x6 grid with widgets, App Library page, glass page-dot pill and dock,
+ * plus overlays (folders, Spotlight, menus, widget picker and settings, page manager).
  *
  * Backdrop nesting (no glass ever refracts a layer containing itself):
  *  - glass inside pages (folder icons, drop targets, library) refracts: wallpaper copy
@@ -101,17 +113,31 @@ fun LauncherScreen(
     val screenWidthPx = with(density) { androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp.toPx() }
     val scope = rememberCoroutineScope()
     val ui = remember { LauncherUiState() }
+    val widgetUi = remember(activity) { WidgetUiState(activity, scope, ui.toast) }
+    val reduced = remember { reducedMotion(activity) }
+    val widgetEnv = remember(ui.editMode, reduced) {
+        WidgetEnv(
+            openSpotlight = { ui.openSpotlight(it) },
+            toast = { ui.toast.show(it) },
+            toastAction = { text, label, action -> ui.toast.show(text, label, action) },
+            openSettings = openSettings,
+            editWidget = { widgetUi.editing = it },
+            editMode = ui.editMode,
+            reducedMotion = reduced,
+        )
+    }
 
     val dragging = ui.drag.info != null
     val extraPage = dragging && layout.pages.last().any { it != null }
     val homePageCount = layout.pages.size + if (extraPage) 1 else 0
-    val pagerState = rememberPagerState { homePageCount + 1 }
+    // Pager: [Today] + home pages + [App Library]. Home page p is pager page p + TODAY_PAGES.
+    val pagerState = rememberPagerState(initialPage = layout.defaultPage + TODAY_PAGES) { homePageCount + TODAY_PAGES + 1 }
     val layoutState = rememberUpdatedState(layout)
     val homeCountState = rememberUpdatedState(homePageCount)
 
     val glass = settings.glass
     val light = rememberGlassLight(glass.tiltLighting)
-    val overlayOpen = ui.overlayOpen
+    val overlayOpen = ui.overlayOpen || widgetUi.open
     val crossWindowBlur = rememberCrossWindowBlur(if (overlayOpen) glass.blurRadius else 0f)
     val overlayAnim by animateFloatAsState(if (overlayOpen) 1f else 0f, spring(dampingRatio = 1f, stiffness = 300f), label = "overlay")
     val lightWallpaper = snapshot.globalLuminance > 0.7f
@@ -141,13 +167,22 @@ fun LauncherScreen(
     // Home button: close overlays, else go to the first page.
     LaunchedEffect(homePresses) {
         if (homePresses == 0) return@LaunchedEffect
-        val hadOverlay = ui.overlayOpen || ui.editMode
+        val hadOverlay = ui.overlayOpen || ui.editMode || widgetUi.open
         ui.closeAll()
-        if (!hadOverlay) pagerState.animateScrollToPage(0)
+        widgetUi.closeAll()
+        if (!hadOverlay) pagerState.animateScrollToPage(layoutState.value.defaultPage + TODAY_PAGES)
     }
 
     BackHandler(enabled = true) {
-        if (!ui.closeTop()) scope.launch { pagerState.animateScrollToPage(0) }
+        if (!widgetUi.closeTop() && !ui.closeTop()) {
+            scope.launch { pagerState.animateScrollToPage(layoutState.value.defaultPage + TODAY_PAGES) }
+        }
+    }
+
+    // Once both stores are loaded: drop widget instances and Android widget ids nothing uses.
+    val widgetStore by widgetUi.repo.state.collectAsState()
+    LaunchedEffect(widgetStore != null) {
+        if (widgetStore != null) widgetUi.repo.prune(layoutState.value.widgets.map { it.id }.toSet())
     }
 
     val ctx = HomeContext(
@@ -163,7 +198,7 @@ fun LauncherScreen(
     fun computeHover(at: Offset): DropTarget? {
         val info = ui.drag.info ?: return null
         val lay = layoutState.value
-        val page = pagerState.currentPage
+        val page = pagerState.currentPage - TODAY_PAGES
         var best: DropTarget? = null
         var bestDist = Float.MAX_VALUE
         var bestRect: Rect? = null
@@ -174,7 +209,7 @@ fun LauncherScreen(
                 bestDist = d; best = DropTarget.DockCell(i, false); bestRect = r; bestItem = lay.dock.getOrNull(i)
             }
         }
-        if (page < homeCountState.value) {
+        if (page in 0 until homeCountState.value) {
             for ((key, r) in ui.drag.pageCells) {
                 if (key.first != page || r.width <= 0f) continue
                 val d = (r.center - at).getDistance()
@@ -253,7 +288,7 @@ fun LauncherScreen(
             dwell = if (dir != 0) dwell + 1 else 0
             if (dwell >= 10) {
                 dwell = 0
-                val target = (pagerState.currentPage + dir).coerceIn(0, homeCountState.value - 1)
+                val target = (pagerState.currentPage + dir).coerceIn(TODAY_PAGES, homeCountState.value - 1 + TODAY_PAGES)
                 if (target != pagerState.currentPage) {
                     pagerState.animateScrollToPage(target)
                     callbacks.drag(ui.drag.pointer)
@@ -263,7 +298,8 @@ fun LauncherScreen(
     }
 
     GlassTheme(style = glass, light = light, fallbackLuminance = snapshot.globalLuminance, backdrop = homeBackdrop) {
-        CompositionLocalProvider(LocalIconRenderer provides vm.icons, LocalIconGeneration provides generation) {
+        CompositionLocalProvider(LocalIconRenderer provides vm.icons, LocalIconGeneration provides generation, LocalWidgetEnv provides widgetEnv) {
+            WidgetHostLifecycle()
             Box(Modifier.fillMaxSize()) {
                 WallpaperBackdropLayer(snapshot, wallpaperLayer, hasWallpaper)
 
@@ -300,19 +336,23 @@ fun LauncherScreen(
                                 .weight(1f)
                                 .fillMaxWidth()
                                 .recordBackdrop(pagesLayer)
-                                .swipeDownToSearch(enabled = settings.swipeDownForSpotlight && !dragging && pagerState.currentPage < homePageCount) { origin ->
+                                .swipeDownToSearch(enabled = settings.swipeDownForSpotlight && !dragging && pagerState.currentPage in TODAY_PAGES until homePageCount + TODAY_PAGES) { origin ->
                                     ui.openSpotlight(origin)
                                 },
                         ) {
                             HorizontalPager(
                                 state = pagerState,
                                 modifier = Modifier.fillMaxSize(),
-                                beyondViewportPageCount = homePageCount + 1,
+                                beyondViewportPageCount = homePageCount + TODAY_PAGES + 1,
                                 userScrollEnabled = !dragging,
                                 key = { it },
-                            ) { page ->
+                            ) { pagerPage ->
+                                val page = pagerPage - TODAY_PAGES
                                 CompositionLocalProvider(LocalBackdrop provides wallpaperOnly) {
-                                    if (page < homePageCount) {
+                                    if (pagerPage < TODAY_PAGES) {
+                                        TodayView(widgetUi, ui.editMode, { ui.editMode = it }, lightWallpaper)
+                                    } else if (page < homePageCount) {
+                                        val pageWidgets = layout.widgetsOn(page)
                                         HomeGridPage(
                                             page = page,
                                             items = layout.pages.getOrNull(page) ?: HomeLayout.emptyPage(),
@@ -320,6 +360,8 @@ fun LauncherScreen(
                                             drag = ui.drag,
                                             callbacks = callbacks,
                                             doubleTapToLock = settings.doubleTapToLock,
+                                            blocked = remember(layout, page) { layout.blockedCells(page) },
+                                            widgetLayer = { cellW, cellH -> HomeWidgetsLayer(page, pageWidgets, cellW, cellH, widgetUi, ui.editMode) },
                                         )
                                     } else {
                                         AppLibrary(
@@ -335,9 +377,10 @@ fun LauncherScreen(
                                 }
                             }
                         }
+                        // 0 on home pages, 1 on the App Library or the Today view: the dock and dots fade out.
                         val libraryFraction = {
                             val pos = pagerState.currentPage + pagerState.currentPageOffsetFraction
-                            (pos - (homePageCount - 1)).coerceIn(0f, 1f)
+                            maxOf((pos - (homePageCount - 1 + TODAY_PAGES)).coerceIn(0f, 1f), (TODAY_PAGES - pos).coerceIn(0f, 1f))
                         }
                         Box(
                             Modifier.fillMaxWidth().padding(vertical = 8.dp).graphicsLayer { alpha = 1f - libraryFraction() },
@@ -345,7 +388,7 @@ fun LauncherScreen(
                         ) {
                             PageDots(
                                 homePages = homePageCount,
-                                current = pagerState.currentPage,
+                                current = pagerState.currentPage - TODAY_PAGES,
                                 onClick = { origin -> ui.openSpotlight(origin) },
                             )
                         }
@@ -366,14 +409,23 @@ fun LauncherScreen(
                     }
                 }
 
-                // Edit-mode toolbar ("jiggle mode").
-                if (ui.editMode) {
+                // Edit-mode toolbar ("jiggle mode"); the Today view has its own buttons.
+                if (ui.editMode && pagerState.currentPage >= TODAY_PAGES) {
                     Row(
                         Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
-                        GlassButton("Settings", onClick = { openSettings(null) }, icon = GlassIcons.Gear)
-                        GlassButton("Done", onClick = { ui.editMode = false }, prominent = true)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            GlassButton("Settings", onClick = { openSettings(null) }, icon = GlassIcons.Gear)
+                            GlassIconButton(WidgetGlyphs.Pages, onClick = { widgetUi.pageManager = true })
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            GlassIconButton(GlassIcons.Plus, onClick = {
+                                val home = (pagerState.currentPage - TODAY_PAGES).coerceIn(0, layout.pages.size - 1)
+                                widgetUi.picker = PickerTarget.Home(home)
+                            })
+                            GlassButton("Done", onClick = { ui.editMode = false }, prominent = true)
+                        }
                     }
                 }
 
@@ -406,12 +458,16 @@ fun LauncherScreen(
                     ContextMenuOverlay(ui, vm, layout, ctx, callbacks)
                     RenameOverlay(ui, vm)
                     LockPromptOverlay(ui, vm, ctx)
+                    WidgetOverlays(widgetUi, ui, layout)
                     GlassToastHost(ui.toast)
                 }
             }
         }
     }
 }
+
+/** Pages before the first home page in the pager (the Today view). */
+private const val TODAY_PAGES = 1
 
 /** Swipe down anywhere on the home pages opens Spotlight (only unconsumed, mostly vertical drags). */
 private fun Modifier.swipeDownToSearch(enabled: Boolean, onSwipe: (Rect) -> Unit): Modifier =
