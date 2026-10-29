@@ -61,7 +61,7 @@ private fun opener(activity: Activity, intents: List<android.content.Intent>): (
 fun overlaySummary(context: android.content.Context): String {
     val s = OverlayPrefs.state(context).value
     val on = listOfNotNull(
-        "Island".takeIf { s.island.enabled },
+        "Island".takeIf { s.island.showsGlass },
         "Control Center".takeIf { s.controlCenter },
         "Notification Center".takeIf { s.notificationCenter },
     )
@@ -87,7 +87,7 @@ private fun OverlayRootScreen(nav: SettingsNav, resumeTick: Int, context: androi
         }
         item {
             GlassListGroup {
-                GlassRow("Dynamic Island", subtitle = if (s.island.enabled) "On" else "Off", icon = OverlayIcons.Island, iconTint = Color(0xFF1C1C1E), onClick = { nav.push(OverlayScreens.ISLAND) })
+                GlassRow("Dynamic Island", subtitle = if (s.island.showsGlass) "Glass" else "System / off", icon = OverlayIcons.Island, iconTint = Color(0xFF1C1C1E), onClick = { nav.push(OverlayScreens.ISLAND) })
                 GlassRow("Control Center", subtitle = if (s.controlCenter) "Swipe down from the top-right corner" else "Off", icon = OverlayIcons.ControlCenter, iconTint = GlassColors.Accent, onClick = { nav.push(OverlayScreens.CONTROL_CENTER) })
                 GlassRow("Notification Center", subtitle = if (s.notificationCenter) "Swipe down from the top-left corner" else "Off", icon = GlassIcons.Bell, iconTint = GlassColors.Red, onClick = { nav.push(OverlayScreens.NOTIFICATION_CENTER) })
             }
@@ -108,21 +108,30 @@ private fun IslandSettingsScreen(nav: SettingsNav, resumeTick: Int, toast: Glass
     val activity = context as Activity
     val saved by OverlayPrefs.state(context).collectAsState()
     val host by OverlayRuntime.host.collectAsState()
-    var s by remember { mutableStateOf(saved.island) }
-    LaunchedEffect(s) {
-        delay(120)
-        if (s != OverlayPrefs.state(context).value.island) OverlayPrefs.setIsland(context, s)
+    var s by remember(saved.island) { mutableStateOf(saved.island) }
+    fun update(next: IslandSettings) { s = next; OverlayPrefs.setIsland(context, next) }
+    if (!saved.loaded) {
+        ScreenScaffold("Dynamic Island", nav) { item { GlassListGroup { GlassRow("Loading saved settings…") } } }
+        return
     }
     // Show the idle pill while this screen is open so it can be lined up with the camera.
-    DisposableEffect(Unit) {
-        OverlayRuntime.setCalibrating(true)
+    DisposableEffect(s.showsGlass) {
+        OverlayRuntime.setCalibrating(s.showsGlass)
         onDispose { OverlayRuntime.setCalibrating(false) }
     }
     val canOverlay = remember(resumeTick) { Settings.canDrawOverlays(context) }
     ScreenScaffold("Dynamic Island", nav) {
         item {
             GlassListGroup(footer = "A black pill around the punch-hole camera that shows live activities. Tap to expand, long-press to open the app, swipe it away to hide that activity until it ends. Hidden on the lock screen, in fullscreen video and in games.") {
-                GlassSwitchRow("Dynamic Island", s.enabled, { s = s.copy(enabled = it) })
+                GlassSwitchRow("Enable Glass island", s.enabled, { update(s.copy(enabled = it)) })
+                GlassRow("Compatibility", subtitle = if (s.nativeIsland) "Native island detected · Automatic uses the system island" else "Automatic uses Glass when no native island is detected")
+                androidx.compose.foundation.layout.Box(Modifier.fillMaxWidth()) {
+                    com.shivam.glasslauncher.ui.glass.GlassSegmented(
+                        IslandCompatibility.entries.map { it.title }, s.compatibility.ordinal,
+                        { update(s.copy(compatibility = IslandCompatibility.entries[it])) },
+                    )
+                }
+                GlassRow("Active island", subtitle = if (s.showsGlass) "Glass · disable native live activities in system settings if they overlap" else "Glass stays hidden · your choice is saved for the next restart")
                 GlassRow(
                     "Drawn by",
                     subtitle = host.title,
@@ -138,29 +147,38 @@ private fun IslandSettingsScreen(nav: SettingsNav, resumeTick: Int, toast: Glass
                         onClick = opener(activity, OverlayChecks.overlayPermissionIntent(context)),
                     )
                 }
-                GlassSwitchRow("Show the pill when idle", s.showIdlePill, { s = s.copy(showIdlePill = it) }, subtitle = "Covers the camera like iOS; needs a punch-hole camera")
-                GlassSwitchRow("Camera & mic dots", s.privacyDots, { s = s.copy(privacyDots = it) }, subtitle = "Best effort; HyperOS shows its own dots too")
+                GlassSwitchRow("Show the pill when idle", s.showIdlePill, { update(s.copy(showIdlePill = it)) }, subtitle = "Covers the camera like iOS; needs a punch-hole camera")
+                GlassSwitchRow("Camera & mic dots", s.privacyDots, { update(s.copy(privacyDots = it)) }, subtitle = "Best effort; HyperOS shows its own dots too")
             }
         }
         item {
-            GlassListGroup(title = "Position & size", footer = "Starts from the camera position Android reports (DisplayCutout). Nudge it until the pill sits evenly around the camera; the idle pill shows while this screen is open.") {
-                GlassSliderRow("Horizontal offset", s.offsetX, -60f..60f, { "${it.toInt()} dp" }) { s = s.copy(offsetX = it) }
-                GlassSliderRow("Vertical offset", s.offsetY, -30f..30f, { "${it.toInt()} dp" }) { s = s.copy(offsetY = it) }
-                GlassSliderRow("Size", s.scale, 0.7f..1.5f, { "%.2fx".format(it) }) { s = s.copy(scale = it) }
+            GlassListGroup(title = "Position & size", footer = "Calibration is available when Glass island is active. Automatic mode leaves native islands alone; firmware may reset unsupported system flags after reboot.") {
+                GlassSliderRow("Horizontal offset", s.offsetX, -60f..60f, { "${it.toInt()} dp" }) { update(s.copy(offsetX = it)) }
+                GlassSliderRow("Vertical offset", s.offsetY, -30f..30f, { "${it.toInt()} dp" }) { update(s.copy(offsetY = it)) }
+                GlassSliderRow("Size", s.scale, 0.7f..1.5f, { "%.2fx".format(it) }) { update(s.copy(scale = it)) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                     GlassButton("Preview", onClick = {
-                        OverlayRuntime.preview(context)
+                        if (s.showsGlass) OverlayRuntime.preview(context) else toast.show("Choose Glass island and enable it to preview")
                         if (host == IslandHost.None) toast.show("Turn on Glass Gestures to see the island")
                     })
-                    GlassButton("Reset", onClick = { s = s.copy(offsetX = 0f, offsetY = 0f, scale = 1f) })
+                    GlassButton("Reset", onClick = { update(s.copy(offsetX = 0f, offsetY = 0f, scale = 1f)) })
                 }
+            }
+        }
+        item {
+            GlassListGroup(title = "Notification readability", footer = "The camera has its own reserved area. Expanded titles and messages sit underneath it; compact text stays beside the lens. Tap a notification to open its app.") {
+                GlassSliderRow("Reading time", s.peekSeconds.toFloat(), 4f..15f, { "${it.toInt()} seconds" }) { update(s.copy(peekSeconds = it.toInt())) }
+                GlassRow("Preview notification", icon = GlassIcons.Bell, onClick = {
+                    if (s.showsGlass && s.isOn(IslandKind.Peek)) com.shivam.glasslauncher.overlay.island.IslandEngine.get(context).showNotificationDemo()
+                    else toast.show("Enable Glass island and Notification peek to preview")
+                })
             }
         }
         item {
             GlassListGroup(title = "Activities", footer = "Everything except charging, ringer and the camera/mic dots comes from notifications or media sessions: if an app doesn't post an ongoing or progress notification, nothing shows for it. Timers and stopwatches come from the Clock app; navigation from Google Maps.") {
                 IslandKind.entries.forEach { k ->
                     GlassSwitchRow(k.title, s.isOn(k), { on ->
-                        s = s.copy(disabledKinds = if (on) s.disabledKinds - k else s.disabledKinds + k)
+                        update(s.copy(disabledKinds = if (on) s.disabledKinds - k else s.disabledKinds + k))
                     })
                 }
             }
@@ -260,8 +278,22 @@ private fun NotificationCenterSettingsScreen(nav: SettingsNav, resumeTick: Int, 
             }
         }
         item {
+            GlassListGroup(title = "Lock screen", footer = "Off by default. Turn this on only if you want Glass to show app names and notification counts while locked, even with the system notification list off. Glass never changes system settings. Message content and actions remain hidden.") {
+                GlassSwitchRow("Private glass cards", s.lockScreenCards, { OverlayPrefs.setLockScreenCards(context, it) }, subtitle = "Show app names and counts while locked; no message text or replies")
+                GlassRow("System notification settings", icon = GlassIcons.Bell, onClick = opener(activity, listOf(android.content.Intent(Settings.ACTION_SETTINGS))))
+            }
+        }
+        item {
             GlassListGroup(title = "Limits") {
-                GlassRow("HyperOS pop-up banners", subtitle = "Can't be suppressed by another app, so they still appear at the top.")
+                GlassRow("HyperOS pop-up banners", subtitle = "Managed by the system. Glass no longer disables them.")
+                GlassRow("Restore system banners", subtitle = "If an earlier Glass build disabled pop-up notifications", onClick = {
+                    val restored = try { Settings.Global.putInt(context.contentResolver, "heads_up_notifications_enabled", 1) } catch (_: SecurityException) { false }
+                    if (restored) toast.show("System notification banners restored")
+                    else {
+                        toast.show("Enable floating notifications in system notification settings")
+                        SystemChecks.launchFirst(activity, listOf(android.content.Intent(Settings.ACTION_SETTINGS)))
+                    }
+                })
                 GlassRow("Status bar pull", subtitle = "A pull from the middle of the status bar may still open the HyperOS shade.")
             }
         }

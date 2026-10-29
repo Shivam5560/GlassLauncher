@@ -97,6 +97,9 @@ fun WidgetContent(inst: WidgetInstance, modifier: Modifier = Modifier, size: Wid
         WidgetKind.GLANCE -> GlanceWidget(modifier)
         WidgetKind.COMPASS -> CompassWidget(modifier)
         WidgetKind.ICON_GROUP -> IconGroupWidget(inst, size, modifier)
+        WidgetKind.CHECKLIST -> ChecklistWidget(inst, size, modifier)
+        WidgetKind.FOCUS -> FocusWidget(inst, modifier)
+        WidgetKind.QUICK_ACTIONS -> QuickActionsWidget(inst, modifier)
         WidgetKind.APP_WIDGET -> AppWidgetContent(inst, modifier)
     }
 }

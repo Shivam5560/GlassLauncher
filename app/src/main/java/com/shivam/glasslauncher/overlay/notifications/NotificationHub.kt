@@ -76,6 +76,12 @@ object NotificationHub {
         _entries.value = _entries.value.filterNot { it.key == sbn.key }
     }
 
+    /** Channel/privacy changes can arrive without a new notification being posted. */
+    fun onRankingUpdated(service: NotificationListenerService, ranking: NotificationListenerService.RankingMap) {
+        if (listener !== service) return
+        _entries.value = raw.values.toList().map { parse(service, it, ranking) }
+    }
+
     fun onInterruptionFilterChanged(filter: Int) { _interruptionFilter.value = filter }
 
     private fun refreshAll(service: NotificationListenerService) {
@@ -102,10 +108,13 @@ object NotificationHub {
             ?: x.getCharSequence(Notification.EXTRA_TEXT)?.toString()
             ?: lastMessage(x)
             ?: ""
-        val importance = rankingMap?.let { map ->
-            val r = NotificationListenerService.Ranking()
-            if (map.getRanking(sbn.key, r)) r.importance else null
-        } ?: 3
+        val ranking = rankingMap?.let { map ->
+            val value = NotificationListenerService.Ranking()
+            try { value.takeIf { map.getRanking(sbn.key, it) } } catch (_: RuntimeException) { null }
+        }
+        val importance = ranking?.importance ?: 3
+        val visibilityOverride = try { ranking?.lockscreenVisibilityOverride } catch (_: RuntimeException) { null }
+        val channelVisibility = try { ranking?.channel?.lockscreenVisibility } catch (_: RuntimeException) { null }
         return NotifEntry(
             key = sbn.key,
             packageName = sbn.packageName,
@@ -131,6 +140,7 @@ object NotificationHub {
             isMedia = x.containsKey(Notification.EXTRA_MEDIA_SESSION) || template == "MediaStyle" || template == "DecoratedMediaCustomViewStyle",
             importance = importance,
             channelId = n.channelId,
+            visibility = effectiveLockScreenVisibility(n.visibility, visibilityOverride, channelVisibility),
             actions = n.actions.orEmpty().mapIndexed { i, a ->
                 NotifAction(i, a.title?.toString().orEmpty(), a.remoteInputs?.any { it.allowFreeFormInput } == true)
             }.filter { it.title.isNotBlank() },

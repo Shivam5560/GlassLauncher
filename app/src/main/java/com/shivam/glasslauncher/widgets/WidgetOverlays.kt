@@ -130,6 +130,10 @@ private fun WidgetEditSheet(widgets: WidgetUiState, layout: HomeLayout) {
                 }
             }
             when (inst.kind) {
+                WidgetKind.CHECKLIST -> item("checklist") { ChecklistSettings(widgets, inst) }
+                WidgetKind.FOCUS, WidgetKind.QUICK_ACTIONS -> item("actions") {
+                    GlassListGroup { GlassRow(inst.kind.description) }
+                }
                 WidgetKind.CLOCK -> clockSettings(widgets, inst)
                 WidgetKind.WEATHER -> item("weather") { WeatherLocationSettings() }
                 WidgetKind.PHOTOS -> item("photos") { PhotoSettings(widgets, inst) }

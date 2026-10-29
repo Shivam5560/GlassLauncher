@@ -32,6 +32,7 @@ class IslandSignals(context: Context) {
     private val battery = ctx.getSystemService(BatteryManager::class.java)
     private val audio = ctx.getSystemService(AudioManager::class.java)
     private val cameras = ctx.getSystemService(CameraManager::class.java)
+    private val power = ctx.getSystemService(android.os.PowerManager::class.java)
     private val keyguard = ctx.getSystemService(KeyguardManager::class.java)
 
     private val _battery = MutableStateFlow(BatteryInfo(0, false, null, false))
@@ -49,6 +50,9 @@ class IslandSignals(context: Context) {
     val cameraInUse: StateFlow<Boolean> = _cameraInUse.asStateFlow()
     private val _micInUse = MutableStateFlow(false)
     val micInUse: StateFlow<Boolean> = _micInUse.asStateFlow()
+
+    private val _interactive = MutableStateFlow(power?.isInteractive == true)
+    val interactive: StateFlow<Boolean> = _interactive.asStateFlow()
 
     private val _locked = MutableStateFlow(false)
     val locked: StateFlow<Boolean> = _locked.asStateFlow()
@@ -131,6 +135,7 @@ class IslandSignals(context: Context) {
     }
 
     fun updateLocked() {
+        _interactive.value = power?.isInteractive == true
         _locked.value = keyguard?.isKeyguardLocked == true
     }
 

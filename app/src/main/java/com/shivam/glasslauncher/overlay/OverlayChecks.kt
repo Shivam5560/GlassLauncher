@@ -46,18 +46,18 @@ object OverlayChecks {
                 "p3_island", "Dynamic Island overlay",
                 "Drawn by Glass Gestures as an accessibility overlay (no extra permission). Without it, \"Display over other apps\" is the fallback, drawn below the status bar. Hidden on the lock screen, in fullscreen video and in games.",
                 when {
-                    !s.island.enabled -> CheckStatus.Info
+                    !s.island.showsGlass -> CheckStatus.Info
                     gestures -> CheckStatus.Ok
                     canOverlay && listener -> CheckStatus.Warning
                     else -> CheckStatus.Off
                 },
                 when {
-                    !s.island.enabled -> "Turned off"
+                    !s.island.showsGlass -> if (s.island.enabled) "System island preferred — no overlapping Glass pill" else "Turned off"
                     gestures -> "Accessibility overlay"
                     canOverlay && listener -> "Fallback: display over other apps"
                     else -> "Not shown — turn on Glass Gestures"
                 },
-                if (s.island.enabled && !gestures) "Turn on" else null,
+                if (s.island.showsGlass && !gestures) "Turn on" else null,
                 CheckFix.OpenIntents(SystemChecks.accessibilityIntents(context)),
             ),
             CheckResult(

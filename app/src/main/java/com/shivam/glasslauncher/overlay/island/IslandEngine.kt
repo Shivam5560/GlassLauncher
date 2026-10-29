@@ -15,6 +15,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -69,22 +72,28 @@ class IslandEngine private constructor(context: Context) {
             scope.launch {
                 NotificationHub.posted.collect { e ->
                     val s = settings.value.island
-                    if (s.enabled && s.isOn(IslandKind.Peek) && IslandClassifier.isPeekCandidate(e, ctx.packageName)) {
+                    if (s.showsGlass && signals.interactive.value && !signals.locked.value && s.isOn(IslandKind.Peek) && IslandClassifier.isPeekCandidate(e, ctx.packageName)) {
                         val now = SystemClock.elapsedRealtime()
                         peeks.removeAll { it.second < now }
                         peeks.removeAll { it.first.notificationKey == e.key }
-                        peeks.add(IslandClassifier.peek(e, System.currentTimeMillis()) to now + PEEK_MS)
+                        peeks.add(IslandClassifier.peek(e, System.currentTimeMillis()) to now + s.peekSeconds.coerceIn(4, 15) * 1000L)
+                        while (peeks.size > 4) peeks.removeAt(0)
                         recompute()
                     }
                 }
             },
             // Ticker: expires transient activities, paused music and refreshes the charging watts.
             scope.launch {
-                while (isActive) {
-                    delay(1000)
-                    val now = SystemClock.elapsedRealtime()
-                    if (chargingVisible(now)) signals.refreshBattery()
+                combine(settings, signals.interactive, signals.locked) { prefs, interactive, locked ->
+                    prefs.island.showsGlass && interactive && !locked
+                }.distinctUntilChanged().collectLatest { enabled ->
                     recompute()
+                    if (enabled) while (isActive) {
+                        delay(1000)
+                        val now = SystemClock.elapsedRealtime()
+                        if (chargingVisible(now)) signals.refreshBattery()
+                        recompute()
+                    }
                 }
             },
         )
@@ -109,6 +118,15 @@ class IslandEngine private constructor(context: Context) {
         recompute()
     }
 
+    fun showNotificationDemo() {
+        val now = SystemClock.elapsedRealtime()
+        peeks.removeAll { it.first.id == "demo-notification" }
+        peeks.add(IslandActivity("demo-notification", IslandKind.Peek, System.currentTimeMillis(),
+            IslandContent.Peek("Glass Launcher", "A little more space for what matters", "Your notification stays below the camera, with a clear title and room to read."),
+            sourcePackage = ctx.packageName) to now + 10_000L)
+        recompute()
+    }
+
     private fun chargingVisible(now: Long): Boolean {
         val plugged = signals.pluggedAt.value
         return plugged > 0 && now - plugged < CHARGING_MS && signals.batteryInfo.value.charging
@@ -118,6 +136,11 @@ class IslandEngine private constructor(context: Context) {
         val now = SystemClock.elapsedRealtime()
         val settings: OverlaySettings = OverlayPrefs.state(ctx).value
         val island = settings.island
+        if (!island.showsGlass || !signals.interactive.value || signals.locked.value) {
+            peeks.clear()
+            _ui.value = IslandUi(battery = signals.batteryInfo.value)
+            return
+        }
         val list = ArrayList<IslandActivity>()
 
         NotificationHub.entries.value.forEach { e: NotifEntry -> IslandClassifier.classify(e)?.let { list.add(it) } }
@@ -150,7 +173,7 @@ class IslandEngine private constructor(context: Context) {
 
         val state = IslandReducer.reduce(IslandState(dismissed = dismissed), IslandEvent.Sync(list))
         dismissed = state.dismissed
-        val slots = if (island.enabled) {
+        val slots = if (island.showsGlass) {
             IslandArbiter.resolve(state.activities, enabled = { island.isOn(it) || it == IslandKind.Charging && demoUntil > now }, dismissed = dismissed)
         } else IslandSlots.EMPTY
         _ui.value = IslandUi(
@@ -163,7 +186,6 @@ class IslandEngine private constructor(context: Context) {
     }
 
     companion object {
-        private const val PEEK_MS = 4500L
         private const val RINGER_MS = 2200L
         private const val CHARGING_MS = 6000L
         private const val PAUSED_MUSIC_MS = 60_000L

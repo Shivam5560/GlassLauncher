@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -27,6 +28,9 @@ private val Context.overlayStore: DataStore<Preferences> by preferencesDataStore
 
 data class IslandSettings(
     val enabled: Boolean = true,
+    val compatibility: IslandCompatibility = IslandCompatibility.AUTO,
+    val nativeIsland: Boolean = false,
+    val peekSeconds: Int = 8,
     /** Activity kinds the user switched off. */
     val disabledKinds: Set<IslandKind> = emptySet(),
     val privacyDots: Boolean = true,
@@ -38,10 +42,13 @@ data class IslandSettings(
     /** Size multiplier for the pill. */
     val scale: Float = 1f,
 ) {
+    val showsGlass: Boolean get() = enabled && compatibility.allowsGlass(nativeIsland)
     fun isOn(kind: IslandKind) = kind !in disabledKinds
 }
 
 data class OverlaySettings(
+    val loaded: Boolean = true,
+    val lockScreenCards: Boolean = false,
     val island: IslandSettings = IslandSettings(),
     val controlCenter: Boolean = true,
     val notificationCenter: Boolean = true,
@@ -57,6 +64,9 @@ data class OverlaySettings(
 object OverlayPrefs {
 
     private object K {
+        val peekSeconds = intPreferencesKey("island_peek_seconds")
+        val compatibility = stringPreferencesKey("island_compatibility")
+        val lockCards = booleanPreferencesKey("lock_cards")
         val islandOn = booleanPreferencesKey("island_on")
         val islandOff = stringSetPreferencesKey("island_disabled_kinds")
         val dots = booleanPreferencesKey("island_dots")
@@ -82,11 +92,18 @@ object OverlayPrefs {
         synchronized(this) {
             flow?.let { return it }
             appContext = context.applicationContext
-            val d = OverlaySettings()
+            val nativeIsland = try {
+                android.provider.Settings.Global.getInt(appContext.contentResolver, "support_dynamic_island", 0) == 1
+            } catch (_: Exception) { false }
+            val d = OverlaySettings(island = IslandSettings(nativeIsland = nativeIsland))
             val f = appContext.overlayStore.data.map { p ->
                 OverlaySettings(
+                    lockScreenCards = p[K.lockCards] ?: d.lockScreenCards,
                     island = IslandSettings(
                         enabled = p[K.islandOn] ?: d.island.enabled,
+                        compatibility = IslandCompatibility.entries.firstOrNull { it.name == p[K.compatibility] } ?: IslandCompatibility.AUTO,
+                        nativeIsland = nativeIsland,
+                        peekSeconds = (p[K.peekSeconds] ?: 8).coerceIn(4, 15),
                         disabledKinds = p[K.islandOff]?.mapNotNull { n -> IslandKind.entries.firstOrNull { it.name == n } }?.toSet() ?: emptySet(),
                         privacyDots = p[K.dots] ?: d.island.privacyDots,
                         showIdlePill = p[K.idle] ?: d.island.showIdlePill,
@@ -101,7 +118,7 @@ object OverlayPrefs {
                     cornerHeight = p[K.cornerH] ?: d.cornerHeight,
                     writeSettingsAsked = p[K.asked] ?: false,
                 )
-            }.stateIn(scope, SharingStarted.Eagerly, d)
+            }.stateIn(scope, SharingStarted.Eagerly, d.copy(loaded = false, island = d.island.copy(enabled = false), controlCenter = false, notificationCenter = false))
             flow = f
             return f
         }
@@ -114,6 +131,8 @@ object OverlayPrefs {
 
     fun setIsland(context: Context, s: IslandSettings) = edit(context) {
         it[K.islandOn] = s.enabled
+        it[K.compatibility] = s.compatibility.name
+        it[K.peekSeconds] = s.peekSeconds.coerceIn(4, 15)
         it[K.islandOff] = s.disabledKinds.mapTo(HashSet()) { k -> k.name }
         it[K.dots] = s.privacyDots
         it[K.idle] = s.showIdlePill
@@ -121,6 +140,8 @@ object OverlayPrefs {
         it[K.dy] = s.offsetY
         it[K.scale] = s.scale
     }
+
+    fun setLockScreenCards(context: Context, on: Boolean) = edit(context) { it[K.lockCards] = on }
 
     fun setControlCenter(context: Context, on: Boolean) = edit(context) { it[K.cc] = on }
     fun setNotificationCenter(context: Context, on: Boolean) = edit(context) { it[K.nc] = on }

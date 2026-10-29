@@ -14,6 +14,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -80,6 +81,8 @@ data class IslandFrame(
     val bubble: Rect?,
     /** Compact pill height: the corner radius in compact form and the slot size. */
     val compactHeight: Float,
+    /** Physical exclusion bounds, independent of the user's visual offset and scale. */
+    val camera: Rect? = null,
 )
 
 interface IslandCallbacks {
@@ -154,12 +157,12 @@ fun IslandSurface(frame: IslandFrame, windowOrigin: Offset, callbacks: IslandCal
         ) {
             if (primary != null) {
                 if (expand < 0.98f) {
-                    CompactRow(primary, frame.ui, frame.compactHeight, Modifier.alpha(1f - expand))
+                    CompactRow(primary, frame.ui, frame.compactHeight, frame.camera, left, Modifier.alpha(1f - expand))
                 }
                 if (expand > 0.02f) {
-                    // Non-music content starts below the camera band; music's art and waves flank the camera.
-                    val contentTop = if (primary.kind == IslandKind.Music) 14.dp
-                    else with(density) { frame.compactHeight.toDp() }.coerceAtLeast(14.dp)
+                    // Reserve the physical cutout even when the user offsets or scales the pill.
+                    val contentTop = if (primary.kind == IslandKind.Music) 14.dp else
+                        IslandGeometry.contentTop(frame.camera?.bottom?.div(density.density), top / density.density, frame.compactHeight / density.density).dp
                     Box(Modifier.fillMaxSize().alpha(expand).padding(start = 18.dp, end = 18.dp, top = contentTop, bottom = 14.dp)) {
                         ExpandedContent(primary, frame.ui)
                     }
@@ -200,15 +203,19 @@ fun IslandSurface(frame: IslandFrame, windowOrigin: Offset, callbacks: IslandCal
 }
 
 @Composable
-private fun CompactRow(a: IslandActivity, ui: IslandUi, compactHeightPx: Float, modifier: Modifier) {
-    val h = with(LocalDensity.current) { compactHeightPx.toDp() }
-    Row(
-        modifier.fillMaxWidth().height(h).padding(horizontal = h * 0.28f),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Leading(a, ui, h * 0.62f)
-        Spacer(Modifier.weight(1f))
-        Trailing(a, ui, h)
+private fun CompactRow(a: IslandActivity, ui: IslandUi, compactHeightPx: Float, camera: Rect?, pillLeft: Float, modifier: Modifier) {
+    val density = LocalDensity.current.density
+    val h = (compactHeightPx / density).dp
+    BoxWithConstraints(modifier.fillMaxWidth().height(h)) {
+        val glyphLane = h * 1.05f
+        val start = IslandGeometry.trailingStart(camera?.right?.div(density), pillLeft / density, maxWidth.value, glyphLane.value).dp
+        val leftRoom = camera?.let { ((it.left - pillLeft) / density - 8f).dp } ?: glyphLane
+        if (leftRoom >= 16.dp) Box(Modifier.width(minOf(leftRoom, glyphLane)).height(h), contentAlignment = Alignment.Center) {
+            Leading(a, ui, minOf(h * 0.58f, leftRoom - 4.dp))
+        }
+        Box(Modifier.fillMaxSize().padding(start = start, end = 12.dp), contentAlignment = Alignment.CenterEnd) {
+            Trailing(a, ui, h)
+        }
     }
 }
 
@@ -237,7 +244,7 @@ private fun Trailing(a: IslandActivity, ui: IslandUi, h: Dp) {
         is IslandContent.Clock -> if (c.hasChronometer) LiveClock(c.base, c.countDown, small, Orange) else IslandLabel(IslandText.clean(c.text), style = small, color = Orange, maxLines = 1)
         is IslandContent.Navigation -> IslandLabel(IslandText.clean(c.primary), Modifier.padding(start = 8.dp), style = small, color = Color.White, maxLines = 1)
         is IslandContent.Progress -> ProgressRing(if (c.indeterminate) 0.25f else c.fraction, Blue, h * 0.5f, stroke = 2.5.dp)
-        is IslandContent.Peek -> IslandLabel(IslandText.clean(c.title), Modifier.padding(start = 8.dp), style = small, color = Color.White, maxLines = 1)
+        is IslandContent.Peek -> IslandLabel(IslandText.orFallback(c.title, c.appLabel), Modifier.padding(start = 4.dp), style = small, color = Color.White, maxLines = 1)
         is IslandContent.Ringer -> IslandLabel(ringerLabel(c.mode), style = small, color = if (c.mode == RingerMode.Normal) Color.White else GlassColors.Red, maxLines = 1)
     }
 }
@@ -316,14 +323,17 @@ private fun ExpandedContent(a: IslandActivity, ui: IslandUi) {
             Spacer(Modifier.height(12.dp))
             LinearBar(if (c.indeterminate) null else c.fraction, Blue)
         }
-        is IslandContent.Peek -> Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            a.sourcePackage?.let { OverlayAppIcon(it, 38.dp) }
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                IslandLabel(IslandText.clean(c.appLabel), style = GlassType.Caption, color = white.copy(alpha = 0.55f), maxLines = 1)
-                IslandLabel(IslandText.clean(c.title), style = GlassType.Headline, color = white, maxLines = 1)
-                if (IslandText.clean(c.text).isNotEmpty()) IslandLabel(IslandText.clean(c.text), style = GlassType.Footnote, color = white.copy(alpha = 0.75f), maxLines = 2)
+        is IslandContent.Peek -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                a.sourcePackage?.let { OverlayAppIcon(it, 26.dp) }
+                Spacer(Modifier.width(8.dp))
+                IslandLabel(IslandText.orFallback(c.appLabel, "Notification"), Modifier.weight(1f),
+                    style = GlassType.Subhead, color = white.copy(alpha = 0.78f), maxLines = 1)
+                IslandLabel("now", style = GlassType.Caption, color = white.copy(alpha = 0.6f), maxLines = 1)
             }
+            IslandLabel(IslandText.orFallback(c.title, c.appLabel), style = GlassType.Headline.copy(lineHeight = 22.sp), color = white, maxLines = 2)
+            val message = IslandText.clean(c.text)
+            if (message.isNotEmpty()) IslandLabel(message, style = GlassType.Callout.copy(lineHeight = 20.sp), color = white.copy(alpha = 0.84f), maxLines = 2)
         }
         is IslandContent.Ringer -> Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             GlassIcon(ringerIcon(c.mode), size = 30.dp, tint = if (c.mode == RingerMode.Normal) white else GlassColors.Red)

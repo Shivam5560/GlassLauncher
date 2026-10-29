@@ -95,6 +95,19 @@ Behaviour observed from using Smart Launcher 6 on the device, reimplemented from
 | Share your home screen | ✅ | Renders Glass's own recorded home layer (pages, widgets, icons, dock) over Glass's wallpaper copy into a PNG in `cache/share/`, shared through a FileProvider with `ACTION_SEND`. No screen capture. Without a readable wallpaper (Path C, live wallpapers) a neutral gradient replaces it. |
 | HyperOS navigation | ⚠️ | HyperOS forces 3-button navigation for ANY third-party default launcher (Smart Launcher too). Onboarding says so plainly; Glass Gestures is the fix (System check row). |
 
+## Widget and overlay refinement — compiled / device verification pending
+
+| Feature | Status | Implementation and fallback |
+|---|---|---|
+| Native island coexistence | ⚠️ | Automatic mode reads the observed HyperOS `support_dynamic_island` capability flag and yields to the native island. System mode always hides Glass; Glass mode is an explicit override. No OEM flags are written. Other OEM islands may require System mode manually. Settings load before overlays become active, and calibration cannot bypass Off or lock-screen hiding. Reboot behavior still needs verification on the target firmware. |
+| Island notification text | ✅ | Physical camera bounds reserve a text-free lane. Expanded peeks scale their height with system font size and show app, title and message on separate rows. Reading time is adjustable from 4–15 seconds with a sample preview. Compiled only; device typography verification pending. |
+| System banners | ⚠️ | Glass no longer writes system banner or lock-notification settings during attach, hide, or detach. An explicit Restore system banners action can repair older builds' setting when secure-settings access exists; otherwise it opens system settings with an explanation. |
+| Private lock cards | ⚠️ | Off by default; explicit opt-in permits app names/counts only when the native lock-notification list is already off. Notification, ranking and channel privacy overrides are respected; secret notifications and media are omitted; all message text and actions are redacted. The system keyguard remains responsible for authentication. Locked panel requests open the system shade. |
+| Checklist | ✅ | Up to 20 local tasks per widget, saved in widgets.json and covered by existing widget backup. Medium and Large layouts scroll; no permissions or background work. |
+| Focus launchpad | ⚠️ | Opens 25/50/5-minute timer requests in the installed Clock app with the normal SET_ALARM permission. Clock owns timing and alerts; no launcher countdown or background service. Missing handlers show a glass message. |
+| Quick actions | ⚠️ | Internet and volume open Android panels; Bluetooth opens its settings; Alarms opens Clock. No direct radio toggles. Missing handlers show a glass message. |
+| Notification material and lists | ✅ | Shared GlassSurface follows appearance/contrast preferences. All / Alerting / Quiet filters use Android channel importance. Both panel and lock lists are lazy. Clear actions preserve non-clearable activities. |
+
 ## Definition of done for every phase
 1. CI green, APK artifact uploaded.
 2. Each feature row in this file marked as verified on a real device, or as compiled only.

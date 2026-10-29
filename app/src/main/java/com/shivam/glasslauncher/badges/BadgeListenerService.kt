@@ -56,6 +56,10 @@ class BadgeListenerService : NotificationListenerService() {
         if (sbn != null) NotificationHub.onPosted(this, sbn, rankingMap)
     }
 
+    override fun onNotificationRankingUpdate(rankingMap: NotificationListenerService.RankingMap?) {
+        rankingMap?.let { com.shivam.glasslauncher.overlay.notifications.NotificationHub.onRankingUpdated(this, it) }
+    }
+
     override fun onNotificationRemoved(sbn: StatusBarNotification?, rankingMap: NotificationListenerService.RankingMap?) {
         recount()
         if (sbn != null) NotificationHub.onRemoved(sbn)

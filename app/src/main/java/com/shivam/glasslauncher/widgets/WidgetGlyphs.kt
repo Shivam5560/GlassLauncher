@@ -110,6 +110,9 @@ object WidgetGlyphs {
         WidgetKind.GLANCE -> Glance
         WidgetKind.COMPASS -> Compass
         WidgetKind.ICON_GROUP -> Widgets
+        WidgetKind.CHECKLIST -> Notes
+        WidgetKind.FOCUS -> Clock
+        WidgetKind.QUICK_ACTIONS -> Sliders
         WidgetKind.APP_WIDGET -> Widgets
     }
 }

@@ -36,6 +36,8 @@ data class NotifEntry(
     val importance: Int = 3,
     val channelId: String? = null,
     val actions: List<NotifAction> = emptyList(),
+    val visibility: Int = 0, // Notification.VISIBILITY_PRIVATE; -1 is secret
+
 )
 
 data class NotifAction(val index: Int, val title: String, val hasRemoteInput: Boolean)
@@ -89,3 +91,27 @@ object NotificationGrouping {
     /** Keys removed by "Clear All": every clearable notification that is listed. */
     fun clearAllKeys(entries: List<NotifEntry>): List<String> = visible(entries).filter { it.isClearable }.map { it.key }
 }
+
+/** Lock overlays never expose message content, actions, progress or private group metadata. */
+fun lockScreenEntries(entries: List<NotifEntry>): List<NotifEntry> = entries
+    .filter { it.visibility != -1 && !it.isMedia }
+    .map { it.copy(title = it.appLabel, text = "Unlock to view notification", subText = "",
+        actions = emptyList(), progress = 0, progressMax = 0, progressIndeterminate = false) }
+
+/** These are Android channel importance buckets, never an inferred AI priority. */
+enum class NotificationFilter(val title: String) {
+    ALL("All"), ALERTING("Alerting"), QUIET("Quiet");
+    fun select(entries: List<NotifEntry>): List<NotifEntry> = when (this) {
+        ALL -> entries
+        ALERTING -> entries.filter { it.importance >= 3 }
+        QUIET -> entries.filter { it.importance < 3 }
+    }
+}
+
+/** No lock-screen surface is enabled merely because Android's own notification list is hidden. */
+fun shouldShowLockCards(optedIn: Boolean, nativeNotificationsShown: Boolean, locked: Boolean, ready: Boolean): Boolean =
+    optedIn && !nativeNotificationsShown && locked && ready
+
+/** Preserve the most private valid setting; VISIBILITY_NO_OVERRIDE is not a visibility value. */
+fun effectiveLockScreenVisibility(notification: Int, rankingOverride: Int?, channel: Int?): Int =
+    listOfNotNull(notification, rankingOverride, channel).filter { it in -1..1 }.minOrNull() ?: -1

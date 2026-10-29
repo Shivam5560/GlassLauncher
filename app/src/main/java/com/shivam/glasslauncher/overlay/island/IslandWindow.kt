@@ -23,7 +23,7 @@ import kotlin.math.max
 import kotlin.math.min
 
 /** Where the camera is, in screen pixels (from DisplayCutout), or null without a cutout. */
-data class CutoutInfo(val centerX: Float, val centerY: Float, val width: Float, val height: Float)
+data class CutoutInfo(val centerX: Float, val centerY: Float, val width: Float, val height: Float, val safeBottom: Float = centerY + height / 2f)
 
 /**
  * Owns the island's overlay window: sizes it to the current shape (so touches elsewhere pass
@@ -67,7 +67,7 @@ class IslandWindow(
     }
 
     private var ui = IslandUi()
-    private var settings = IslandSettings()
+    private var settings = IslandSettings(enabled = false)
     private var cutout: CutoutInfo? = null
     private var screenW = 0
     private var hiddenReason: String? = null
@@ -82,7 +82,7 @@ class IslandWindow(
     private var targetRect = Rect.Zero
     private val autoCollapse = Runnable {
         val p = slots().primary
-        if (p != null && p.kind != IslandKind.IncomingCall && SystemClock.elapsedRealtime() - expandedAt >= AUTO_COLLAPSE_MS - 50) {
+        if (p != null && p.kind != IslandKind.IncomingCall && p.kind != IslandKind.Peek && SystemClock.elapsedRealtime() - expandedAt >= AUTO_COLLAPSE_MS - 50) {
             collapse()
         }
     }
@@ -120,8 +120,8 @@ class IslandWindow(
     fun setCalibrating(on: Boolean) { calibrating = on; render() }
 
     private fun presentation(): IslandPresentation {
-        if (hiddenReason != null && !calibrating) return IslandPresentation.Hidden
-        if (!settings.enabled && !calibrating) return IslandPresentation.Hidden
+        if (hiddenReason != null) return IslandPresentation.Hidden
+        if (!settings.showsGlass) return IslandPresentation.Hidden
         val p = slots().primary
         if (p == null) {
             return if ((settings.showIdlePill && cutout != null) || calibrating) IslandPresentation.Idle else IslandPresentation.Hidden
@@ -144,7 +144,7 @@ class IslandWindow(
         val idleW = h * 3.1f
         val slots = slots()
         val primary = slots.primary
-        val compactW = when (primary?.kind) {
+        val desiredCompactW = when (primary?.kind) {
             // Music keeps the idle pill's size: art and waves fit either side of the camera.
             null, IslandKind.Music -> idleW
             IslandKind.Navigation, IslandKind.Peek -> h * 6.4f
@@ -152,17 +152,23 @@ class IslandWindow(
             else -> h * 5.6f
         }
         val margin = dp(10f)
+        val compactW = min(desiredCompactW, screenW - 2 * margin)
         val pill = when (pres) {
             IslandPresentation.Expanded -> {
                 val w = min(screenW - 2 * margin, dp(420f))
-                val eh = dp(expandedHeight(primary?.kind)) * s.scale.coerceIn(0.85f, 1.3f)
+                val cameraBand = IslandGeometry.contentTop(c?.safeBottom?.div(density), (cy - h / 2f) / density, h / density)
+                val eh = if (primary?.kind == IslandKind.Peek) dp(IslandGeometry.peekHeight(cameraBand, context.resources.configuration.fontScale))
+                    else max(dp(expandedHeight(primary?.kind)) * s.scale.coerceIn(0.85f, 1.3f), dp(cameraBand + 80f))
                 val left = (cx - w / 2f).coerceIn(margin, screenW - margin - w)
                 Rect(left, cy - h / 2f, left + w, cy - h / 2f + eh)
             }
-            IslandPresentation.Compact -> Rect(cx - compactW / 2f, cy - h / 2f, cx + compactW / 2f, cy + h / 2f)
+            IslandPresentation.Compact -> {
+                val left = (cx - compactW / 2f).coerceIn(margin, screenW - margin - compactW)
+                Rect(left, cy - h / 2f, left + compactW, cy + h / 2f)
+            }
             else -> Rect(cx - idleW / 2f, cy - h / 2f, cx + idleW / 2f, cy + h / 2f)
         }
-        val bubble = if (pres == IslandPresentation.Compact && slots.secondary != null) {
+        val bubble = if (pres == IslandPresentation.Compact && slots.secondary != null && pill.right + dp(6f) + h <= screenW - margin) {
             val l = pill.right + dp(6f)
             Rect(l, pill.top, l + h, pill.bottom)
         } else null
@@ -190,7 +196,8 @@ class IslandWindow(
             window.update()
         }
         window.setVisible(visible || frame.presentation != IslandPresentation.Hidden)
-        frame = IslandFrame(pres, ui.copy(slots = slots), pill, bubble, h)
+        val camera = c?.let { Rect(it.centerX - it.width / 2f, it.centerY - it.height / 2f, it.centerX + it.width / 2f, it.safeBottom) }
+        frame = IslandFrame(pres, ui.copy(slots = slots), pill, bubble, h, camera)
         if (!visible) main.postDelayed({ if (presentation() == IslandPresentation.Hidden) window.setVisible(false) }, 400)
 
         main.removeCallbacks(autoCollapse)

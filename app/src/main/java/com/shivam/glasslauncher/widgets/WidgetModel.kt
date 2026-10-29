@@ -40,6 +40,9 @@ enum class WidgetKind(val title: String, val description: String, val sizes: Lis
     GLANCE("At a glance", "Big clock with the date, weather and your next event. No panel.", listOf(WidgetSize.MEDIUM)),
     COMPASS("Compass", "Heading from the rotation sensor.", listOf(WidgetSize.SMALL)),
     ICON_GROUP("Icon group", "Several apps on one glass card.", listOf(WidgetSize.SMALL, WidgetSize.LARGE)),
+    CHECKLIST("Checklist", "Your priorities, with one-tap completion. Saved on this device.", listOf(WidgetSize.MEDIUM, WidgetSize.LARGE)),
+    FOCUS("Focus", "25-minute focus, 50-minute deep work or a 5-minute break in Clock.", listOf(WidgetSize.MEDIUM)),
+    QUICK_ACTIONS("Quick actions", "Internet, volume, Bluetooth and alarms in one place.", listOf(WidgetSize.MEDIUM)),
     APP_WIDGET("App widget", "", emptyList());
 
     companion object {
@@ -52,6 +55,8 @@ enum class WidgetKind(val title: String, val description: String, val sizes: Lis
 object WidgetKeys {
     const val CLOCK_STYLE = "style" // digital | analog | world
     const val CLOCK_ZONES = "zones" // comma-separated ZoneIds
+    const val CHECKLIST = "checklist"
+    const val FOCUS_MINUTES = "focusMinutes"
     const val NOTE_TEXT = "text"
     const val PHOTO_COUNT = "photos"
     const val STACK_CHILDREN = "children" // comma-separated instance ids

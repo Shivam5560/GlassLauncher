@@ -67,7 +67,8 @@ class OverlayController(
     private var leftCorner: View? = null
     private var rightCorner: View? = null
 
-    private var locked = false
+    private var screenInteractive = service.getSystemService(android.os.PowerManager::class.java)?.isInteractive == true
+    private var locked = service.getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true
     private var statusBarHidden = false
     private var landscape = false
     private var gameInFront = false
@@ -94,18 +95,18 @@ class OverlayController(
         service.registerComponentCallbacks(configCallbacks)
         scope.launch { engine.ui.collect { island?.update(it) } }
         scope.launch { settingsFlow.map { it.island }.distinctUntilChanged().collect { island?.setSettings(it); updateHidden() } }
-        scope.launch { engine.signals.locked.collect { locked = it; updateHidden(); updateLockScreen() } }
+        scope.launch { engine.signals.locked.collect { locked = it; updateHidden(); updateLockScreen(); rebuildCorners() } }
+        scope.launch { engine.signals.interactive.collect { screenInteractive = it; updateHidden(); updateLockScreen(); rebuildCorners() } }
         if (accessibility != null) {
             scope.launch {
-                settingsFlow.map { Triple(it.controlCenter, it.notificationCenter, it.cornerWidth to it.cornerHeight) }
+                settingsFlow.map { listOf(it.loaded, it.controlCenter, it.notificationCenter, it.lockScreenCards, it.cornerWidth, it.cornerHeight) }
                     .distinctUntilChanged()
                     .collect { rebuildCorners(); updateLockScreen() }
             }
         }
         OverlayRuntime.calibrating.let { flow -> scope.launch { flow.collect { island?.setCalibrating(it) } } }
         if (accessibility != null) {
-            // An incoming call while Glass home is in front opens the dialer's full call screen (HyperOS
-            // banners are off while the island shows, so on home the call must not be just a pill).
+            // Preserve the dialer's incoming-call experience while Glass home is in front.
             scope.launch {
                 com.shivam.glasslauncher.overlay.notifications.NotificationHub.posted.collect { e ->
                     if (homeInFront && com.shivam.glasslauncher.overlay.island.IslandClassifier.classify(e)?.kind == IslandKind.IncomingCall) {
@@ -117,8 +118,6 @@ class OverlayController(
     }
 
     fun detach() {
-        setSystemBanners(true)
-        setSystemLockNotifications(true)
         lockWindow?.destroy()
         lockWindow = null
         closePanel(immediate = true)
@@ -147,7 +146,7 @@ class OverlayController(
             ?.minByOrNull { abs(it.centerX() - bounds.width() / 2) }
         // HyperOS declares the punch hole as a strip down to the status bar's bottom (80 x 156 px on
         // the Turbo 5); the hole is round, so its width is the real size.
-        val info = rect?.let { CutoutInfo(it.exactCenterX(), it.exactCenterY(), it.width().toFloat(), minOf(it.width(), it.height()).toFloat()) }
+        val info = rect?.let { CutoutInfo(it.exactCenterX(), it.exactCenterY(), it.width().toFloat(), minOf(it.width(), it.height()).toFloat(), it.bottom.toFloat()) }
         island?.setScreen(bounds.width(), info)
         updateHidden()
     }
@@ -209,6 +208,10 @@ class OverlayController(
 
     private fun updateHidden() {
         val reason = when {
+            !settingsFlow.value.loaded -> "loading"
+            !screenInteractive -> "screen-off"
+            locked -> "locked"
+            excludedInFront -> "excluded"
             panelKind != null -> "panel"
             landscape -> "landscape"
             fullscreen -> "fullscreen"
@@ -216,14 +219,11 @@ class OverlayController(
             else -> null
         }
         island?.setHidden(reason)
-        val s = settingsFlow.value.island
-        setSystemBanners(!(accessibility != null && reason == null && s.enabled && s.isOn(IslandKind.Peek)))
     }
 
     // --- lock screen notifications (accessibility host only) ---
 
     private var lockWindow: ComposeOverlayWindow? = null
-    private var systemLockNotifications: Boolean? = null
 
     private val lockHost = object : PanelHost {
         override val context: Context get() = service
@@ -234,8 +234,7 @@ class OverlayController(
     }
 
     /**
-     * Glass draws the lock screen's notifications (widget glass) while Notification Center is on, and
-     * HyperOS's own lock-screen list is switched off so they don't show twice (WRITE_SECURE_SETTINGS).
+     * Privacy-safe glass cards supplement the lock screen only when its native list is off.
      */
     private var wasLocked = false
 
@@ -243,9 +242,16 @@ class OverlayController(
         // A panel left open when the phone locks would sit behind the lock cards (two backgrounds).
         if (locked && !wasLocked) closePanel(immediate = true)
         wasLocked = locked
-        val ours = accessibility != null && settingsFlow.value.notificationCenter
-        setSystemLockNotifications(!ours)
-        val show = ours && locked
+        val prefs = settingsFlow.value
+        // Never disable SystemUI's notifications. Only supplement a lock screen whose native list
+        // is already off; otherwise leave its layout and privacy policy in control.
+        val nativeList = try {
+            android.provider.Settings.Secure.getInt(service.contentResolver, "lock_screen_show_notifications", 1) != 0
+        } catch (_: Exception) { true }
+        val show = com.shivam.glasslauncher.overlay.notifications.shouldShowLockCards(
+            optedIn = prefs.lockScreenCards, nativeNotificationsShown = nativeList, locked = locked,
+            ready = prefs.loaded && prefs.notificationCenter && accessibility != null && screenInteractive,
+        )
         if (show == (lockWindow != null)) return
         if (!show) {
             lockJob?.cancel()
@@ -299,30 +305,6 @@ class OverlayController(
 
     private var lockJob: Job? = null
 
-    private fun setSystemLockNotifications(on: Boolean) {
-        // Only the accessibility host owns system settings (the island-only fallback must not fight it).
-        if (accessibility == null || on == systemLockNotifications) return
-        systemLockNotifications = on
-        try {
-            android.provider.Settings.Secure.putInt(service.contentResolver, "lock_screen_show_notifications", if (on) 1 else 0)
-        } catch (_: SecurityException) { }
-    }
-
-    private var systemBanners: Boolean? = null
-
-    /**
-     * HyperOS heads-up banners are off while the island is showing (its peek replaces them) and back
-     * on whenever the island hides (games, video, landscape, lock screen), so calls are never missed.
-     * Needs WRITE_SECURE_SETTINGS (granted over adb); without it HyperOS banners just keep showing.
-     */
-    private fun setSystemBanners(on: Boolean) {
-        if (accessibility == null || on == systemBanners) return
-        systemBanners = on
-        try {
-            android.provider.Settings.Global.putInt(service.contentResolver, "heads_up_notifications_enabled", if (on) 1 else 0)
-        } catch (_: SecurityException) { }
-    }
-
     /** From the accessibility service whenever the foreground app changes. */
     fun onForegroundApp(pkg: String?, excluded: Boolean) {
         engine.signals.updateLocked()
@@ -357,7 +339,7 @@ class OverlayController(
         if (accessibility == null) return
         val s = settingsFlow.value
         // Keep the corners out of fullscreen games and video and the user's excluded apps.
-        if (fullscreen || gameInFront || excludedInFront) return
+        if (!s.loaded || !screenInteractive || locked || fullscreen || gameInFront || excludedInFront) return
         val width = (wm.currentWindowMetrics.bounds.width() * s.cornerWidth.coerceIn(0.1f, 0.45f)).toInt()
         val height = dp(s.cornerHeight.coerceIn(12f, 60f))
         if (s.notificationCenter) leftCorner = addCorner(Gravity.TOP or Gravity.START, width, height, PanelKind.NotificationCenter)
@@ -435,7 +417,11 @@ class OverlayController(
     }
 
     fun openPanel(kind: PanelKind) {
-        if (accessibility == null) return
+        if (accessibility == null || !settingsFlow.value.loaded) return
+        if (service.getSystemService(android.app.KeyguardManager::class.java)?.isKeyguardLocked == true) {
+            accessibility.performGlobalAction(AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS)
+            return
+        }
         // Glass's Control Center is retired (it could hang): HyperOS's own control centre opens instead.
         if (kind == PanelKind.ControlCenter) {
             closePanel(immediate = true)
