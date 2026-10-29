@@ -103,18 +103,18 @@ data class RoleStyle(
 data class GlassStyle(
     /** Variant used by large panels. Small controls always use [GlassVariant.Clear]. */
     val variant: GlassVariant = GlassVariant.Regular,
-    val blurRadius: Float = 28f,
+    val blurRadius: Float = 24f,
     /** ARGB base tint; its alpha is ignored in favour of [tintOpacity]. */
     val tintColor: Int = 0xFF16171D.toInt(),
-    val tintOpacity: Float = 0.42f,
+    val tintOpacity: Float = 0.34f,
     /** Strength of the rim light, inner glow and sheen (0..1). */
-    val specular: Float = 0.45f,
+    val specular: Float = 0.6f,
     /** Lens displacement strength (0..1). */
-    val refraction: Float = 0.3f,
+    val refraction: Float = 0.4f,
     /** Width of the curved rim where refraction happens. */
-    val rimWidth: Float = 14f,
+    val rimWidth: Float = 16f,
     /** Colour fringing on the rim (0..1). */
-    val chromaticAberration: Float = 0.15f,
+    val chromaticAberration: Float = 0.12f,
     val tone: GlassTone = GlassTone.Dark,
     /** Specular angle follows the device tilt. */
     val tiltLighting: Boolean = false,

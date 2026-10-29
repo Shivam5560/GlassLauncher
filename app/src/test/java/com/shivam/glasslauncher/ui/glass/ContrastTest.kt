@@ -58,9 +58,9 @@ class ContrastTest {
     @Test
     fun toneDefaultsAreToneDownAndRolesRoundTrip() {
         val d = GlassStyle()
-        assertEquals(0.3f, d.refraction, 0f)
-        assertEquals(0.15f, d.chromaticAberration, 0f)
-        assertEquals(0.45f, d.specular, 0f)
+        assertEquals(0.4f, d.refraction, 0f)
+        assertEquals(0.12f, d.chromaticAberration, 0f)
+        assertEquals(0.6f, d.specular, 0f)
         val roles = mapOf(
             SurfaceKind.Panel to RoleStyle(color = 0xFF112233.toInt(), opacity = 0.6f, contentColor = 0xFFFFFFFF.toInt(), blur = 12f, stroke = 1f, accent = 0xFFFF9F0A.toInt()),
             SurfaceKind.Widget to RoleStyle(stroke = 2f),
