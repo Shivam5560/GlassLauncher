@@ -63,7 +63,8 @@ import com.shivam.glasslauncher.ui.glass.GlassIcons
 import com.shivam.glasslauncher.ui.glass.GlassListGroup
 import com.shivam.glasslauncher.ui.glass.GlassMorph
 import com.shivam.glasslauncher.ui.glass.GlassRow
-import com.shivam.glasslauncher.ui.glass.GlassScrim
+import com.shivam.glasslauncher.ui.glass.PremiumDim
+import com.shivam.glasslauncher.ui.glass.premiumDim
 import com.shivam.glasslauncher.ui.glass.GlassShape
 import com.shivam.glasslauncher.ui.glass.GlassSurface
 import com.shivam.glasslauncher.ui.glass.GlassText
@@ -93,6 +94,10 @@ fun SpotlightOverlay(
     val origin = rememberLast(ui.spotlight)
     val query by vm.query.collectAsState()
     val results by vm.results.collectAsState()
+    val wallpaper by vm.wallpaper.collectAsState()
+    val spotlightDim = remember(wallpaper) {
+        PremiumDim.alphaFor(wallpaper.luminance(0f, 0f, wallpaper.screenWidth.toFloat(), wallpaper.screenHeight.toFloat()))
+    }
     val suggestions by vm.suggestions.collectAsState()
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
@@ -133,9 +138,9 @@ fun SpotlightOverlay(
     }
 
     Box(Modifier.fillMaxSize()) {
-        // Darker than other scrims so results read clearly over the blurred home (as iOS Spotlight).
+        // Balanced dim (PremiumDim) so the results read over the blurred home and the wallpaper stays visible.
         if (visible || progress > 0.01f) Box(
-            Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.38f * progress.coerceIn(0f, 1f)))
+            Modifier.fillMaxSize().premiumDim(spotlightDim * progress.coerceIn(0f, 1f))
                 .pointerInput(Unit) { detectTapGestures { close() } },
         )
         GlassMorph(
