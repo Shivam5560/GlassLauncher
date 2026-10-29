@@ -127,4 +127,30 @@ object GridPlacement {
         val h = Math.round(rawH).coerceIn(minH.coerceAtMost(limitH), limitH)
         return rect.copy(w = w, h = h)
     }
+
+    /**
+     * Resizes from any edge, like SL6's free rectangle: each side moves by a (fractional) number of cells
+     * and snaps with the same rounding, so left and top handles shift the widget's origin as well.
+     */
+    fun resizeEdges(
+        rect: GridRect,
+        dLeft: Float,
+        dTop: Float,
+        dRight: Float,
+        dBottom: Float,
+        cols: Int,
+        rows: Int,
+        minW: Int = 1,
+        minH: Int = 1,
+        maxW: Int = cols,
+        maxH: Int = rows,
+    ): GridRect {
+        var left = Math.round(rect.col + dLeft).coerceIn(0, rect.right - minW.coerceAtMost(rect.right))
+        var top = Math.round(rect.row + dTop).coerceIn(0, rect.bottom - minH.coerceAtMost(rect.bottom))
+        var right = Math.round(rect.right + dRight).coerceIn(minOf(left + minW, cols), cols)
+        var bottom = Math.round(rect.bottom + dBottom).coerceIn(minOf(top + minH, rows), rows)
+        if (right - left > maxW) { if (dLeft != 0f) left = right - maxW else right = left + maxW }
+        if (bottom - top > maxH) { if (dTop != 0f) top = bottom - maxH else bottom = top + maxH }
+        return GridRect(left, top, right - left, bottom - top)
+    }
 }

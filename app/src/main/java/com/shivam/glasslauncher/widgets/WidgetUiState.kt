@@ -169,17 +169,17 @@ class WidgetUiState(
     fun moveWidget(id: String, page: Int, rect: GridRect) = layoutRepo.update { LayoutOps.moveWidget(it, id, page, rect) }
 
     /** Resizes on the home grid; our widgets also switch to the matching iOS size. */
-    fun resizeWidget(id: String, w: Int, h: Int) {
+    fun resizeWidget(id: String, w: Int, h: Int, col: Int? = null, row: Int? = null) {
         val current = layoutRepo.layout.value
         val placed = current?.widgets?.firstOrNull { it.id == id }
         if (placed != null && current != null) {
-            val next = LayoutOps.resizeWidget(current, id, w, h)
-            if (next.widgets.firstOrNull { it.id == id }?.rect == placed.rect && (placed.rect.w != w || placed.rect.h != h)) {
+            val next = LayoutOps.resizeWidget(current, id, w, h, col, row)
+            if (next.widgets.firstOrNull { it.id == id }?.rect == placed.rect && (placed.rect.w != w || placed.rect.h != h || (col != null && placed.rect.col != col) || (row != null && placed.rect.row != row))) {
                 toast.show("Not enough room here — move other widgets first")
                 return
             }
         }
-        layoutRepo.update { LayoutOps.resizeWidget(it, id, w, h) }
+        layoutRepo.update { LayoutOps.resizeWidget(it, id, w, h, col, row) }
         val inst = repo.instance(id) ?: return
         if (inst.kind == WidgetKind.APP_WIDGET) {
             repo.setConfig(id, WidgetKeys.TODAY_ROWS, h.toString())

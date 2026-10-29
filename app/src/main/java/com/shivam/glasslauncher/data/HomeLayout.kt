@@ -492,9 +492,9 @@ object LayoutOps {
     }
 
     /** Resizes a widget in place; refused (unchanged) if the new span would overlap another widget. */
-    fun resizeWidget(layout: HomeLayout, id: String, w: Int, h: Int): HomeLayout {
+    fun resizeWidget(layout: HomeLayout, id: String, w: Int, h: Int, col: Int? = null, row: Int? = null): HomeLayout {
         val current = layout.widgets.firstOrNull { it.id == id } ?: return layout
-        val rect = GridPlacement.clamp(current.rect.copy(w = w, h = h), GRID_COLUMNS, GRID_ROWS)
+        val rect = GridPlacement.clamp(current.rect.copy(col = col ?: current.rect.col, row = row ?: current.rect.row, w = w, h = h), GRID_COLUMNS, GRID_ROWS)
         val others = layout.widgets.filter { it.page == current.page && it.id != id }.map { it.rect }
         if (GridPlacement.collides(rect, others) || rect == current.rect) return layout
         val wk = Working(layout)

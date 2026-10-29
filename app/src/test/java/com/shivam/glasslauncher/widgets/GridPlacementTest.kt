@@ -61,4 +61,19 @@ class GridPlacementTest {
         assertEquals(GridRect(1, 1, 3, 5), GridPlacement.resize(r, 5f, 9f, 4, 6))
         assertEquals(GridRect(1, 1, 2, 1), GridPlacement.resize(r, -3f, -3f, 4, 6, minW = 2, minH = 1))
     }
+
+    @Test
+    fun resizeEdgesMovesOriginFromLeftAndTop() {
+        val r = GridRect(col = 1, row = 2, w = 3, h = 3)
+        // Dragging the left edge one cell right shrinks from the left: origin shifts, right edge stays.
+        assertEquals(GridRect(2, 2, 2, 3), GridPlacement.resizeEdges(r, 1f, 0f, 0f, 0f, cols = 4, rows = 6))
+        // Dragging the top edge up grows upward.
+        assertEquals(GridRect(1, 1, 3, 4), GridPlacement.resizeEdges(r, 0f, -1f, 0f, 0f, cols = 4, rows = 6))
+        // Left edge cannot pass the grid edge or the minimum span.
+        assertEquals(GridRect(0, 2, 4, 3), GridPlacement.resizeEdges(r, -5f, 0f, 0f, 0f, cols = 4, rows = 6))
+        assertEquals(GridRect(2, 2, 2, 3), GridPlacement.resizeEdges(r, 5f, 0f, 0f, 0f, cols = 4, rows = 6, minW = 2))
+        // Rounds like a span: 0.4 cells stays, 0.6 cells moves.
+        assertEquals(r, GridPlacement.resizeEdges(r, 0.4f, 0f, 0f, 0f, cols = 4, rows = 6))
+        assertEquals(GridRect(2, 2, 2, 3), GridPlacement.resizeEdges(r, 0.6f, 0f, 0f, 0f, cols = 4, rows = 6))
+    }
 }

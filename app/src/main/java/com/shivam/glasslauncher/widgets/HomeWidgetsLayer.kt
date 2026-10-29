@@ -174,23 +174,29 @@ private fun HomeWidgetFrame(
             if (drag == null && inst != null) {
                 val spec = resizeSpec(inst, context, cellW.value, cellH.value)
                 if (spec != null) {
-                    val dragResize: (Offset) -> Unit = { total ->
-                        resize = GridPlacement.resize(
-                            rect, total.x / cellWPx, total.y / cellHPx, GRID_COLUMNS, GRID_ROWS,
+                    // Each handle moves one or two edges (cells, fractional); the rect snaps like SL6's free rectangle.
+                    fun dragEdges(dl: Float, dt: Float, dr: Float, db: Float) {
+                        resize = GridPlacement.resizeEdges(
+                            rect, dl, dt, dr, db, GRID_COLUMNS, GRID_ROWS,
                             minW = spec.minW, minH = spec.minH,
                             maxW = if (spec.horizontal) GRID_COLUMNS else rect.w,
                             maxH = if (spec.vertical) GRID_ROWS else rect.h,
-                            allowed = spec.allowed,
                         ).let { r -> if (GridPlacement.collides(r, others)) resize ?: rect else r }
                     }
                     val endResize: () -> Unit = {
                         val r = resize
                         resize = null
-                        if (r != null && (r.w != rect.w || r.h != rect.h)) ui.resizeWidget(w.id, r.w, r.h)
+                        if (r != null && r != rect) ui.resizeWidget(w.id, r.w, r.h, r.col, r.row)
                     }
-                    ResizeHandle(Modifier.align(Alignment.BottomEnd).offset(6.dp, 6.dp), dragResize, endResize)
-                    if (spec.horizontal) ResizeHandle(Modifier.align(Alignment.CenterEnd).offset(6.dp, 0.dp), dragResize, endResize, axisY = false, size = 24.dp)
-                    if (spec.vertical) ResizeHandle(Modifier.align(Alignment.BottomCenter).offset(0.dp, 6.dp), dragResize, endResize, axisX = false, size = 24.dp)
+                    ResizeHandle(Modifier.align(Alignment.BottomEnd).offset(6.dp, 6.dp), { t -> dragEdges(0f, 0f, t.x / cellWPx, t.y / cellHPx) }, endResize)
+                    if (spec.horizontal) {
+                        ResizeHandle(Modifier.align(Alignment.CenterEnd).offset(6.dp, 0.dp), { t -> dragEdges(0f, 0f, t.x / cellWPx, 0f) }, endResize, axisY = false, size = 24.dp)
+                        ResizeHandle(Modifier.align(Alignment.CenterStart).offset((-6).dp, 0.dp), { t -> dragEdges(t.x / cellWPx, 0f, 0f, 0f) }, endResize, axisY = false, size = 24.dp)
+                    }
+                    if (spec.vertical) {
+                        ResizeHandle(Modifier.align(Alignment.BottomCenter).offset(0.dp, 6.dp), { t -> dragEdges(0f, 0f, 0f, t.y / cellHPx) }, endResize, axisX = false, size = 24.dp)
+                        ResizeHandle(Modifier.align(Alignment.TopCenter).offset(0.dp, (-6).dp), { t -> dragEdges(0f, t.y / cellHPx, 0f, 0f) }, endResize, axisX = false, size = 24.dp)
+                    }
                 }
             }
         }
