@@ -46,6 +46,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material3.Text
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -62,7 +65,6 @@ import com.shivam.glasslauncher.ui.glass.GlassIcon
 import com.shivam.glasslauncher.ui.glass.GlassIconButton
 import com.shivam.glasslauncher.ui.glass.GlassIcons
 import com.shivam.glasslauncher.ui.glass.GlassShape
-import com.shivam.glasslauncher.ui.glass.GlassText
 import com.shivam.glasslauncher.ui.glass.GlassType
 import kotlinx.coroutines.delay
 import kotlin.math.abs
@@ -155,7 +157,10 @@ fun IslandSurface(frame: IslandFrame, windowOrigin: Offset, callbacks: IslandCal
                     CompactRow(primary, frame.ui, frame.compactHeight, Modifier.alpha(1f - expand))
                 }
                 if (expand > 0.02f) {
-                    Box(Modifier.fillMaxSize().alpha(expand).padding(horizontal = 18.dp, vertical = 14.dp)) {
+                    // Non-music content starts below the camera band; music's art and waves flank the camera.
+                    val contentTop = if (primary.kind == IslandKind.Music) 14.dp
+                    else with(density) { frame.compactHeight.toDp() }.coerceAtLeast(14.dp)
+                    Box(Modifier.fillMaxSize().alpha(expand).padding(start = 18.dp, end = 18.dp, top = contentTop, bottom = 14.dp)) {
                         ExpandedContent(primary, frame.ui)
                     }
                 }
@@ -227,13 +232,13 @@ private fun Trailing(a: IslandActivity, ui: IslandUi, h: Dp) {
     val small = GlassType.Subhead.copy(fontWeight = FontWeight.SemiBold)
     when (val c = a.content) {
         is IslandContent.Music -> AudioBars(c.playing, Modifier.size(width = h * 0.5f, height = h * 0.36f), ui.media?.art)
-        is IslandContent.Charging -> GlassText("${c.level}%", style = small, color = Green, maxLines = 1)
-        is IslandContent.Call -> if (c.incoming) GlassText("Incoming", style = small, color = Green, maxLines = 1) else LiveClock(c.since, false, small, Green)
-        is IslandContent.Clock -> if (c.hasChronometer) LiveClock(c.base, c.countDown, small, Orange) else GlassText(c.text, style = small, color = Orange, maxLines = 1)
-        is IslandContent.Navigation -> GlassText(c.primary, Modifier.padding(start = 8.dp), style = small, color = Color.White, maxLines = 1)
+        is IslandContent.Charging -> IslandLabel("${c.level}%", style = small, color = Green, maxLines = 1)
+        is IslandContent.Call -> if (c.incoming) IslandLabel("Incoming", style = small, color = Green, maxLines = 1) else LiveClock(c.since, false, small, Green)
+        is IslandContent.Clock -> if (c.hasChronometer) LiveClock(c.base, c.countDown, small, Orange) else IslandLabel(IslandText.clean(c.text), style = small, color = Orange, maxLines = 1)
+        is IslandContent.Navigation -> IslandLabel(IslandText.clean(c.primary), Modifier.padding(start = 8.dp), style = small, color = Color.White, maxLines = 1)
         is IslandContent.Progress -> ProgressRing(if (c.indeterminate) 0.25f else c.fraction, Blue, h * 0.5f, stroke = 2.5.dp)
-        is IslandContent.Peek -> GlassText(c.title, Modifier.padding(start = 8.dp), style = small, color = Color.White, maxLines = 1)
-        is IslandContent.Ringer -> GlassText(ringerLabel(c.mode), style = small, color = if (c.mode == RingerMode.Normal) Color.White else GlassColors.Red, maxLines = 1)
+        is IslandContent.Peek -> IslandLabel(IslandText.clean(c.title), Modifier.padding(start = 8.dp), style = small, color = Color.White, maxLines = 1)
+        is IslandContent.Ringer -> IslandLabel(ringerLabel(c.mode), style = small, color = if (c.mode == RingerMode.Normal) Color.White else GlassColors.Red, maxLines = 1)
     }
 }
 
@@ -249,8 +254,8 @@ private fun ExpandedContent(a: IslandActivity, ui: IslandUi) {
                 AudioBars(c.playing, Modifier.size(width = 22.dp, height = 16.dp), ui.media?.art)
             }
             Column(Modifier.fillMaxWidth()) {
-                GlassText(c.title.ifBlank { ui.media?.appLabel ?: "Now playing" }, style = GlassType.Headline, color = white, maxLines = 1)
-                GlassText(c.artist, style = GlassType.Callout, color = white.copy(alpha = 0.6f), maxLines = 1)
+                IslandLabel(IslandText.musicTitle(c.title, ui.media?.appLabel), style = GlassType.Headline, color = white, maxLines = 1)
+                IslandLabel(IslandText.musicArtist(c.artist), style = GlassType.Callout, color = white.copy(alpha = 0.6f), maxLines = 1)
             }
             MusicProgress(ui.media)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
@@ -262,13 +267,13 @@ private fun ExpandedContent(a: IslandActivity, ui: IslandUi) {
         is IslandContent.Charging -> Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
             Box(contentAlignment = Alignment.Center) {
                 ProgressRing(c.level / 100f, Green, 64.dp, stroke = 5.dp)
-                GlassText("${c.level}%", style = GlassType.Headline, color = white, maxLines = 1)
+                IslandLabel("${c.level}%", style = GlassType.Headline, color = white, maxLines = 1)
             }
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                GlassText("Charging", style = GlassType.Title, color = white, maxLines = 1)
+                IslandLabel("Charging", style = GlassType.Title, color = white, maxLines = 1)
                 val w = c.watts
-                GlassText(
+                IslandLabel(
                     if (w != null) ChargingEstimate.format(w) + " (estimated)" else if (ui.battery.wattsSupported) "Measuring…" else "This phone doesn't report charging current",
                     style = GlassType.Footnote, color = white.copy(alpha = 0.6f), maxLines = 2,
                 )
@@ -279,8 +284,8 @@ private fun ExpandedContent(a: IslandActivity, ui: IslandUi) {
                 a.sourcePackage?.let { OverlayAppIcon(it, 40.dp) }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    GlassText(c.name, style = GlassType.Headline, color = white, maxLines = 1)
-                    if (c.incoming) GlassText("Incoming call", style = GlassType.Footnote, color = white.copy(alpha = 0.6f), maxLines = 1)
+                    IslandLabel(IslandText.clean(c.name), style = GlassType.Headline, color = white, maxLines = 1)
+                    if (c.incoming) IslandLabel("Incoming call", style = GlassType.Footnote, color = white.copy(alpha = 0.6f), maxLines = 1)
                     else LiveClock(c.since, false, GlassType.Footnote, Green)
                 }
             }
@@ -289,24 +294,24 @@ private fun ExpandedContent(a: IslandActivity, ui: IslandUi) {
         is IslandContent.Clock -> Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
             GlassIcon(OverlayIcons.Timer, size = 40.dp, tint = Orange)
             Spacer(Modifier.width(12.dp))
-            GlassText(c.label, Modifier.weight(1f), style = GlassType.Headline, color = white, maxLines = 2)
+            IslandLabel(IslandText.clean(c.label), Modifier.weight(1f), style = GlassType.Headline, color = white, maxLines = 2)
             val big = GlassType.LargeTitle.copy(fontSize = 36.sp, fontWeight = FontWeight.Medium)
-            if (c.hasChronometer) LiveClock(c.base, c.countDown, big, Orange) else GlassText(c.text, style = big, color = Orange, maxLines = 1)
+            if (c.hasChronometer) LiveClock(c.base, c.countDown, big, Orange) else IslandLabel(IslandText.clean(c.text), style = big, color = Orange, maxLines = 1)
         }
         is IslandContent.Navigation -> Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
             GlassIcon(OverlayIcons.Navigate, size = 44.dp, tint = Blue)
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                GlassText(c.primary, style = GlassType.Title, color = white, maxLines = 2)
-                if (c.secondary.isNotBlank()) GlassText(c.secondary, style = GlassType.Callout, color = white.copy(alpha = 0.65f), maxLines = 2)
+                IslandLabel(IslandText.clean(c.primary), style = GlassType.Title, color = white, maxLines = 2)
+                if (IslandText.clean(c.secondary).isNotEmpty()) IslandLabel(IslandText.clean(c.secondary), style = GlassType.Callout, color = white.copy(alpha = 0.65f), maxLines = 2)
             }
         }
         is IslandContent.Progress -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 GlassIcon(if (c.upload) OverlayIcons.ArrowUp else OverlayIcons.ArrowDown, size = 28.dp, tint = Blue)
                 Spacer(Modifier.width(10.dp))
-                GlassText(c.title, Modifier.weight(1f), style = GlassType.Headline, color = white, maxLines = 1)
-                if (!c.indeterminate) GlassText("${(c.fraction * 100).roundToInt()}%", style = GlassType.Callout, color = white.copy(alpha = 0.7f))
+                IslandLabel(IslandText.clean(c.title), Modifier.weight(1f), style = GlassType.Headline, color = white, maxLines = 1)
+                if (!c.indeterminate) IslandLabel("${(c.fraction * 100).roundToInt()}%", style = GlassType.Callout, color = white.copy(alpha = 0.7f))
             }
             Spacer(Modifier.height(12.dp))
             LinearBar(if (c.indeterminate) null else c.fraction, Blue)
@@ -315,15 +320,15 @@ private fun ExpandedContent(a: IslandActivity, ui: IslandUi) {
             a.sourcePackage?.let { OverlayAppIcon(it, 38.dp) }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                GlassText(c.appLabel, style = GlassType.Caption, color = white.copy(alpha = 0.55f), maxLines = 1)
-                GlassText(c.title, style = GlassType.Headline, color = white, maxLines = 1)
-                if (c.text.isNotBlank()) GlassText(c.text, style = GlassType.Footnote, color = white.copy(alpha = 0.75f), maxLines = 2)
+                IslandLabel(IslandText.clean(c.appLabel), style = GlassType.Caption, color = white.copy(alpha = 0.55f), maxLines = 1)
+                IslandLabel(IslandText.clean(c.title), style = GlassType.Headline, color = white, maxLines = 1)
+                if (IslandText.clean(c.text).isNotEmpty()) IslandLabel(IslandText.clean(c.text), style = GlassType.Footnote, color = white.copy(alpha = 0.75f), maxLines = 2)
             }
         }
         is IslandContent.Ringer -> Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             GlassIcon(ringerIcon(c.mode), size = 30.dp, tint = if (c.mode == RingerMode.Normal) white else GlassColors.Red)
             Spacer(Modifier.width(10.dp))
-            GlassText(ringerLabel(c.mode), style = GlassType.Headline, color = white)
+            IslandLabel(ringerLabel(c.mode), style = GlassType.Headline, color = white)
         }
     }
 }
@@ -409,9 +414,9 @@ private fun MusicProgress(media: MediaInfo?) {
     // iOS: elapsed and remaining time either side of the bar.
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         val time = GlassType.Caption.copy(fontWeight = FontWeight.Medium)
-        GlassText(mmss(pos), style = time, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
+        IslandLabel(mmss(pos), style = time, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
         Box(Modifier.weight(1f).padding(horizontal = 10.dp)) { LinearBar(pos.toFloat() / media.durationMs, Color.White) }
-        GlassText("-" + mmss(media.durationMs - pos), style = time, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
+        IslandLabel("-" + mmss(media.durationMs - pos), style = time, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
     }
 }
 
@@ -448,7 +453,7 @@ private fun LiveClock(base: Long, countDown: Boolean, style: androidx.compose.ui
         }
     }
     val ms = if (countDown) base - now else now - base
-    GlassText((if (ms < 0 && countDown) "-" else "") + formatDuration(abs(ms)), style = style, color = color, maxLines = 1)
+    IslandLabel((if (ms < 0 && countDown) "-" else "") + formatDuration(abs(ms)), style = style, color = color, maxLines = 1)
 }
 
 @Composable
@@ -510,4 +515,26 @@ internal fun waveColors(art: android.graphics.Bitmap?): List<Color> {
         top.size == 1 -> listOf(vivid(top[0]), androidx.compose.ui.graphics.lerp(vivid(top[0]), Color.White, 0.45f))
         else -> listOf(vivid(top[0]), vivid(top[1]))
     }
+}
+
+/**
+ * Island text: always ellipsised at its line limit (GlassText clips mid-glyph instead).
+ * Input goes through [IslandText.clean] at the call sites.
+ */
+@Composable
+private fun IslandLabel(
+    text: String,
+    modifier: Modifier = Modifier,
+    style: TextStyle,
+    color: Color = Color.White,
+    maxLines: Int = 1,
+) {
+    Text(
+        text = text,
+        modifier = modifier,
+        style = style,
+        color = color,
+        maxLines = maxLines,
+        overflow = TextOverflow.Ellipsis,
+    )
 }

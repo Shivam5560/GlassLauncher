@@ -56,7 +56,9 @@ class IslandWindow(
             "GlassIsland",
         ).apply { gravity = Gravity.TOP or Gravity.START },
     ) {
-        OverlayTheme { IslandSurface(frame, origin, this) }
+        // The True Tone veil fills the whole window, including the transparent margin, so over a dark app
+        // it reads as a square around the pill. The island draws its own black pill and needs no veil.
+        OverlayTheme(trueTone = false) { IslandSurface(frame, origin, this) }
     }
 
     init {
@@ -166,7 +168,9 @@ class IslandWindow(
         } else null
 
         val visible = pres != IslandPresentation.Hidden
-        val pad = dp(8f)
+        // The window is the only clip boundary: a pill whose spring overshoots past it is cut into a
+        // straight edge. The margin must exceed the spring's overshoot (about 4% of the travel).
+        val pad = dp(24f)
         var target = if (bubble != null) Rect(pill.left, pill.top, bubble.right, pill.bottom) else pill
         target = Rect(target.left - pad, (target.top - pad).coerceAtLeast(0f), target.right + pad, target.bottom + pad)
         targetRect = target
