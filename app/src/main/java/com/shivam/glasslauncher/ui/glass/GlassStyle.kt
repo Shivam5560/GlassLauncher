@@ -113,7 +113,7 @@ data class GlassStyle(
     val chromaticAberration: Float = 0.15f,
     val tone: GlassTone = GlassTone.Auto,
     /** Specular angle follows the device tilt. */
-    val tiltLighting: Boolean = true,
+    val tiltLighting: Boolean = false,
     /** Draw a copy of the wallpaper behind in-window panels when it is readable. */
     val wallpaperBackdrop: Boolean = true,
     /** Master switch for the AGSL lens shader; off = blur + tint + edge highlight only. */

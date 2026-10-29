@@ -54,6 +54,7 @@ data class GestureSettings(
 enum class DrawerLaunchView(val title: String) { LastCategory("Last opened"), First("First category") }
 
 /** How drawer category pages change. */
+enum class DrawerSwipe(val title: String) { Both("Both"), Screen("Screen"), Bar("Icons"), Off("Tap only") }
 enum class DrawerTransition(val title: String) { Slide("Slide"), Fade("Fade"), Depth("Depth"), None("None") }
 
 /** Home page transition (Settings → Appearance → Home animation). */
@@ -95,6 +96,7 @@ data class LauncherSettings(
     val appearance: Appearance = Appearance(),
     val drawerLaunchView: DrawerLaunchView = DrawerLaunchView.LastCategory,
     val drawerTransition: DrawerTransition = DrawerTransition.Slide,
+    val drawerSwipe: DrawerSwipe = DrawerSwipe.Both,
     /** Category id the drawer showed last. */
     val drawerLastCategory: String? = null,
     /** Ultra-immersive: hide the status bar (and nav bar with Glass gestures) on home and drawer. */
@@ -154,6 +156,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         val homeAnim = stringPreferencesKey("ap_home_anim")
         val drawerLaunch = stringPreferencesKey("drawer_launch_view")
         val drawerTransition = stringPreferencesKey("drawer_transition")
+        val drawerSwipe = stringPreferencesKey("drawer_swipe")
         val drawerLast = stringPreferencesKey("drawer_last_category")
         val immersive = booleanPreferencesKey("immersive")
     }
@@ -230,6 +233,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
                 homeAnimation = p[K.homeAnim]?.let { v -> HomeAnimation.entries.firstOrNull { it.name == v } } ?: d.appearance.homeAnimation,
             ),
             drawerLaunchView = p[K.drawerLaunch]?.let { v -> DrawerLaunchView.entries.firstOrNull { it.name == v } } ?: d.drawerLaunchView,
+            drawerSwipe = p[K.drawerSwipe]?.let { v -> DrawerSwipe.entries.firstOrNull { it.name == v } } ?: d.drawerSwipe,
             drawerTransition = p[K.drawerTransition]?.let { v -> DrawerTransition.entries.firstOrNull { it.name == v } } ?: d.drawerTransition,
             drawerLastCategory = p[K.drawerLast],
             immersive = p[K.immersive] ?: d.immersive,
@@ -297,6 +301,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         it[K.homeAnim] = a.homeAnimation.name
     }
     fun setDrawerLaunchView(v: DrawerLaunchView) = edit { it[K.drawerLaunch] = v.name }
+    fun setDrawerSwipe(v: DrawerSwipe) = edit { it[K.drawerSwipe] = v.name }
     fun setDrawerTransition(v: DrawerTransition) = edit { it[K.drawerTransition] = v.name }
     fun setDrawerLastCategory(id: String) = edit { it[K.drawerLast] = id }
     fun setImmersive(v: Boolean) = edit { it[K.immersive] = v }

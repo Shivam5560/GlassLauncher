@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -266,6 +267,8 @@ fun AppDrawerOverlay(
                     modifier = Modifier.fillMaxSize(),
                     key = { cats[it].id },
                     beyondViewportPageCount = 1,
+                    userScrollEnabled = settings.drawerSwipe == com.shivam.glasslauncher.data.DrawerSwipe.Both ||
+                        settings.drawerSwipe == com.shivam.glasslauncher.data.DrawerSwipe.Screen,
                 ) { index ->
                     val cat = cats[index]
                     Box(Modifier.fillMaxSize().graphicsLayer { pageTransition(settings.drawerTransition, pagerState, index) }) {
@@ -300,6 +303,8 @@ fun AppDrawerOverlay(
                 CategoryTabBar(
                     cats = cats,
                     pagerState = pagerState,
+                    swipeable = settings.drawerSwipe == com.shivam.glasslauncher.data.DrawerSwipe.Both ||
+                        settings.drawerSwipe == com.shivam.glasslauncher.data.DrawerSwipe.Bar,
                     onSelect = { i ->
                         scope.launch {
                             if (settings.drawerTransition == DrawerTransition.None) pagerState.scrollToPage(i) else pagerState.animateScrollToPage(i)
@@ -534,10 +539,25 @@ private fun DrawerCell(
 
 /** Floating glass category bar: one glyph per category, the active one underlined. */
 @Composable
-private fun CategoryTabBar(cats: List<DrawerCategory>, pagerState: PagerState, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+private fun CategoryTabBar(cats: List<DrawerCategory>, pagerState: PagerState, swipeable: Boolean, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     GlassSurface(modifier.widthIn(max = 380.dp), shape = GlassShape.Capsule, kind = SurfaceKind.Panel, variant = GlassVariant.Regular, role = null) {
         Row(
-            Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 6.dp),
+            (if (swipeable) {
+                // Drag across the icons to move through categories, one per ~46dp.
+                Modifier.pointerInput(cats.size) {
+                    var acc = 0f
+                    detectHorizontalDragGestures(onDragStart = { acc = 0f }) { change, dx ->
+                        change.consume()
+                        acc += dx
+                        val step = 46.dp.toPx()
+                        while (kotlin.math.abs(acc) >= step) {
+                            val next = (pagerState.targetPage + if (acc > 0) 1 else -1).coerceIn(0, cats.lastIndex)
+                            acc -= if (acc > 0) step else -step
+                            if (next != pagerState.targetPage) onSelect(next)
+                        }
+                    }
+                }
+            } else Modifier.horizontalScroll(rememberScrollState())).padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             val content = LocalGlassContentColor.current

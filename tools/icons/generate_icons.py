@@ -154,6 +154,11 @@ class Icon:
 WHITE_TILE = ("#FFFFFF", "#E9EAEE")
 DARK_GLASS = ("#2F3034", "#121214")
 
+def P(*pkgs):
+    """Placeholder components for apps whose launcher activity we don't pin down; the pack is matched by package."""
+    return [f"{p}/{p}.MainActivity" for p in pkgs]
+
+
 ICONS = [
     # ---------------------------------------------------------------- system apps
     Icon("phone", "Phone", ("#5EE07A", "#1FB54A"), ("#7CF29A", "#2FCB5B"), [F(handset())], [
@@ -592,6 +597,225 @@ ICONS = [
     ], [
         "com.flipkart.android/com.flipkart.android.activity.HomeFragmentHolderActivity",
     ], fg="#FFD84A"),
+    # ---------------------------------------------------------------- more popular + requested apps
+    # Glass Launcher maps by package, so P() builds a placeholder component for each package; apps
+    # whose real launcher activity is known are listed explicitly above.
+    Icon("claude", "Claude", ("#E8875F", "#C4572F"), ("#F0A07E", "#DA6C42"), [
+        S("M50,22V78M22,50H78M30,30L70,70M70,30L30,70", 7, cap="round"),
+    ], P("com.anthropic.claude")),
+    Icon("chatgpt", "ChatGPT", ("#2FC9A0", "#0E8F73"), ("#4FE0B8", "#16A585"), [
+        S(poly((50, 22), (73, 36), (73, 64), (50, 78), (27, 64), (27, 36)), 5.5, join="round"),
+        S("M50,22V50L73,64M50,50L27,64", 5.5, cap="round", join="round"),
+    ], P("com.openai.chatgpt")),
+    Icon("gemini", "Gemini", ("#6C8CFF", "#7B4FE0"), ("#8FA8FF", "#9F6BF5"), [
+        F(sparkle(50, 50, 30)), F(sparkle(73, 27, 8), "fg2"),
+    ], P("com.google.android.apps.bard")),
+    Icon("perplexity", "Perplexity", ("#2A8F9E", "#0F5F6E"), ("#4FC4D4", "#2A9FB0"), [
+        S("M50,22V78M30,34L50,50L70,34M30,66L50,50L70,66M30,34V66M70,34V66", 5, cap="round", join="round"),
+    ], P("ai.perplexity.app.android")),
+    Icon("hotstar", "JioHotstar", ("#2A3A9E", "#0B1033"), ("#8FA0FF", "#5C70F0"), [
+        F(sparkle(50, 50, 26)), S(arc(50, 50, 33, 200, 340), 4, "fg2", cap="round"),
+    ], P("in.startv.hotstar", "in.startv.hotstar.dplus", "com.jio.media.ondemand")),
+    Icon("sonyliv", "SonyLIV", ("#3A3A3F", "#050506"), ("#FFFFFF", "#C7C7CC"), [
+        S(circle(50, 50, 25), 5.5), F("M44,38L62,50L44,62Z"),
+    ], P("com.sonyliv")),
+    Icon("primevideo", "Prime Video", ("#26B6F0", "#0C6FA8"), ("#5CCBFF", "#2AA2E0"), [
+        F("M40,28L68,44L40,60Z"), S("M30,70Q50,82 70,70", 5, cap="round"),
+    ], P("com.amazon.avod.thirdpartyclient")),
+    Icon("appletv", "TV", ("#46474D", "#0C0C0E"), ("#FFFFFF", "#C7C7CC"), [
+        S(rrect(24, 30, 52, 36, 8), 5), F("M45,40L58,48L45,56Z"), S(line((38, 76), (62, 76)), 5),
+    ], P("com.apple.atve.androidtv.appletv")),
+    Icon("applemusic", "Apple Music", ("#FF6E8A", "#F0213F"), ("#FF8FA3", "#FF4766"), [
+        F(circle(36, 70, 8.5) + circle(66, 64, 8.5)),
+        F(rrect(40.5, 30, 5, 41, 2) + rrect(70.5, 24, 5, 41, 2)),
+        F(poly((40.5, 30), (75.5, 22), (75.5, 31), (40.5, 39))),
+    ], P("com.apple.android.music")),
+    Icon("wynk", "Wynk", ("#FF5C86", "#D81B60"), ("#FF86A8", "#F23B78"), [
+        S("M26,40Q38,58 50,42Q62,58 74,40", 7, cap="round"), S(line((50, 60), (50, 76)), 6, cap="round"),
+    ], P("tv.accedo.airtel.wynk")),
+    Icon("airtel", "Airtel", ("#FF4A4A", "#CE0A1C"), ("#FF7070", "#F0303A"), [
+        S(circle(45, 54, 15), 7), S(line((60, 36), (60, 76)), 7),
+    ], P("com.myairtelapp")),
+    Icon("cricket", "Cricket", ("#2FB07A", "#0E6B48"), ("#52D49C", "#25A777"), [
+        S(line((28, 72), (60, 34)), 9, cap="round"), F(circle(66, 66, 9)),
+    ], P("in.cricketexchange.app.cricketexchange")),
+    Icon("pubg", "BGMI", ("#3A3F49", "#101216"), ("#FFC247", "#FF9F1A"), [
+        S(circle(50, 50, 22), 5), S("M50,20V36M50,64V80M20,50H36M64,50H80", 5, cap="round"), F(circle(50, 50, 4)),
+    ], P("com.pubg.imobile", "com.tencent.ig", "com.pubg.krmobile")),
+    Icon("dominos", "Domino's", ("#2B85D0", "#0A4A85"), ("#58A8F0", "#2C86DA"), [
+        S(rrect(27, 27, 46, 46, 10), 5), S(line((30, 50), (70, 50)), 4, "fg2"),
+        F(circle(39, 38, 3.4) + circle(61, 38, 3.4) + circle(39, 62, 3.4) + circle(61, 62, 3.4)),
+    ], P("com.Dominos")),
+    Icon("myntra", "Myntra", ("#FF73A8", "#E0206A"), ("#FF93BC", "#F0488A"), [
+        S("M28,72V30L50,56L72,30V72", 8, join="round", cap="round"),
+    ], P("com.myntra.android")),
+    Icon("groww", "Groww", ("#2FD8AE", "#0A9E7B"), ("#52EBC4", "#1FBE96"), [
+        S("M24,68L42,48L54,58L74,34", 7, cap="round", join="round"), F(poly((62, 32), (78, 30), (76, 46))),
+    ], P("com.nextbillion.groww")),
+    Icon("rapido", "Rapido", ("#FFE05A", "#F2B100"), ("#FFD84A", "#F5B800"), [
+        S("M36,74V28H54Q68,28 68,41Q68,54 54,54H36M52,54L68,74", 8, "#1C1C1E", cap="round", join="round"),
+    ], P("com.rapido.passenger"), fg="#1C1C1E"),
+    Icon("zepto", "Zepto", ("#9246F0", "#5410C0"), ("#B070FF", "#7A2DE0"), [
+        S("M30,32H70L30,68H70", 8, join="round", cap="round"),
+    ], P("com.zeptoconsumerapp")),
+    Icon("blinkit", "Blinkit", ("#FFE45C", "#F5B800"), ("#FFE45C", "#F5C200"), [
+        S("M34,28L66,28L52,50H68L36,76L46,54H32Z", 5, "#1C1C1E", join="round"),
+    ], P("com.grofers.customerapp"), fg="#1C1C1E"),
+    Icon("brave", "Brave", ("#FF7A3D", "#D93A00"), ("#FF9A66", "#F2561C"), [
+        F("M50,22L73,30L70,57Q68,69 50,79Q32,69 30,57L27,30Z"), S("M39,46L50,54L61,46", 5, "#D93A00", ta=1, cap="round"),
+    ], P("com.brave.browser")),
+    Icon("firefox", "Firefox", ("#FF9540", "#E0361F"), ("#FFA866", "#F25A2A"), [
+        S(circle(50, 50, 24), 7), F("M62,30Q78,32 76,52"),
+    ], P("org.mozilla.firefox", "org.mozilla.firefox_beta")),
+    Icon("edge", "Edge", ("#2FA8E0", "#1F6BD0"), ("#52C4F5", "#2F8CE8"), [
+        S("M26,54Q28,28 52,26Q76,26 76,48H44Q44,64 58,64Q68,64 74,58", 7, cap="round", join="round"),
+    ], P("com.microsoft.emmx")),
+    Icon("upi", "BHIM", ("#FF9A3D", "#E0630B"), ("#FFB066", "#F27C1E"), [
+        S("M30,30L50,50L30,70", 8, cap="round", join="round"), S("M50,30L70,50L50,70", 8, "#26B45A", ta=1, cap="round", join="round"),
+    ], P("in.org.npci.upiapp")),
+    Icon("irctc", "Rail", ("#F58A3A", "#C9480F"), ("#FFA060", "#E56420"), [
+        F(rrect(31, 24, 38, 42, 9) + rrect(37, 31, 26, 14, 4) + circle(40, 56, 3.2) + circle(60, 56, 3.2), evenodd=True),
+        S("M36,76L42,66M64,76L58,66", 5, cap="round"),
+    ], P("com.ixigo.train.ixitrain", "com.whereismytrain.android", "cris.org.in.prs.ima", "org.cris.aikyam", "com.irctc.railconnect")),
+    Icon("indriver", "inDriver", ("#C9F23A", "#7DB500"), ("#D4F55C", "#9ACB10"), [
+        S(circle(50, 50, 24), 6, "#1C1C1E"), S("M26,50H42M58,50H74M50,58V76", 6, "#1C1C1E", cap="round"),
+    ], P("sinet.startup.inDriver"), fg="#1C1C1E"),
+    Icon("axis", "Axis Bank", ("#B8205A", "#6E0A33"), ("#E0508A", "#B8205A"), [
+        S("M28,74L50,26L72,74", 7, cap="round", join="round"), S(line((38, 58), (62, 58)), 6, cap="round"),
+    ], P("com.axis.mobile")),
+    Icon("sbi", "SBI", ("#35A0F5", "#1050B8"), ("#58BAFF", "#2878DC"), [
+        F(circle(50, 44, 17)), F(poly((44, 56), (56, 56), (60, 78), (40, 78))),
+    ], P("com.sbi.lotusintouch", "com.sbi.SBIFreedomPlus", "com.sbi.upi")),
+    Icon("cred", "CRED", ("#3A3A3F", "#050506"), ("#FFFFFF", "#C7C7CC"), [
+        S(poly((50, 24), (74, 50), (50, 76), (26, 50)), 5.5, join="round"), F(poly((50, 38), (62, 50), (50, 62), (38, 50)), "fg2"),
+    ], P("com.dreamplug.androidapp")),
+    Icon("kite", "Kite", ("#FF7A4A", "#D8381A"), ("#FF9A70", "#F2552E"), [
+        F(poly((50, 22), (76, 50), (50, 78), (24, 50))), S(line((36, 64), (64, 36)), 4, "#D8381A", ta=1),
+    ], P("com.zerodha.kite3", "com.upstox.pro")),
+    Icon("boo", "Boo", ("#A56CFF", "#6B2FE0"), ("#BC8DFF", "#8450F2"), [
+        F("M31,76V46Q31,24 50,24Q69,24 69,46V76L60,68L50,76L40,68Z" + circle(42, 46, 4.5) + circle(58, 46, 4.5), evenodd=True),
+    ], P("enterprises.dating.boo")),
+    Icon("localsend", "LocalSend", ("#33BDAE", "#0C807B"), ("#5ADBCD", "#22A89C"), [
+        S(arc(50, 62, 14, 215, 325), 6, cap="round"), S(arc(50, 62, 26, 215, 325), 6, cap="round"), F(circle(50, 62, 5)),
+    ], P("org.localsend.localsend_app")),
+    Icon("swiggyinstamart", "Instamart", ("#FF9A3D", "#E55A0B"), ("#FFB066", "#F77A1E"), [
+        F("M26,36H34L40,62H66L72,42H38"), F(circle(44, 72, 4.5) + circle(64, 72, 4.5)),
+    ], P("in.swiggy.android.toing", "com.swiggy.instamart")),
+    Icon("mshop", "Amazon Shopping", ("#FFAE2B", "#E67700"), ("#FFC247", "#F59300"), [
+        F("M26,36H34L40,62H66L72,42H38"), F(circle(44, 72, 4.5) + circle(64, 72, 4.5)),
+    ], P("in.amazon.mShop.android.shopping", "com.amazon.mShop.android.shopping", "in.amazon.mShop.android.shopping.lite")),
+    Icon("kiwi", "Kiwi", ("#8EDC4A", "#3E9E1B"), ("#A8EE68", "#5FBF2E"), [
+        S("M34,28V72M34,50L64,28M44,44L66,72", 7, cap="round", join="round"),
+    ], P("in.gokiwi.kiwitpap")),
+    Icon("mxplayer", "MX Player", ("#2F9BEF", "#1058B8"), ("#58B6FF", "#2A7CE0"), [
+        F("M38,30L72,50L38,70Z"),
+    ], P("com.mxtech.videoplayer.ad", "com.mxtech.videoplayer.pro")),
+    Icon("vlc", "VLC", ("#FF9A2E", "#E0630B"), ("#FFB04F", "#F57D14"), [
+        F(poly((50, 24), (68, 70), (32, 70))), F(rrect(26, 70, 48, 8, 3), "fg2"),
+    ], P("org.videolan.vlc")),
+    Icon("reddit", "Reddit", ("#FF6A3A", "#E02D00"), ("#FF8A5E", "#F24E1A"), [
+        F(ellipse(50, 56, 25, 17)), F(circle(34, 44, 6) + circle(66, 44, 6)),
+        F(circle(42, 55, 3.3) + circle(58, 55, 3.3), "#E02D00", ta=1), S("M42,64Q50,70 58,64", 3.5, "#E02D00", ta=1, cap="round"),
+        S("M50,40L54,26L66,30", 3.5, cap="round", join="round"),
+    ], P("com.reddit.frontpage")),
+    Icon("threads", "Threads", ("#4A4A50", "#0A0A0C"), ("#FFFFFF", "#C7C7CC"), [
+        S("M64,40Q60,28 48,28Q32,28 32,52Q32,74 50,74Q66,74 66,58Q66,46 52,46Q42,46 42,55Q42,62 51,62Q61,62 61,50", 6, cap="round", join="round"),
+    ], P("com.instagram.barcelona")),
+    Icon("twitch", "Twitch", ("#A56CFF", "#6B2FE0"), ("#BC8DFF", "#8450F2"), [
+        S("M30,26H74V56L62,68H52L42,78V68H30Z", 5.5, join="round"), S("M47,38V52M60,38V52", 5.5, cap="round"),
+    ], P("tv.twitch.android.app")),
+    Icon("slack", "Slack", ("#5C3A8E", "#2B124C"), ("#B590F0", "#8450D8"), [
+        S(line((42, 28), (38, 72)), 7, "#36C5F0", cap="round"), S(line((62, 28), (58, 72)), 7, "#2EB67D", cap="round"),
+        S(line((28, 42), (72, 42)), 7, "#ECB22E", cap="round"), S(line((28, 60), (72, 60)), 7, "#E01E5A", cap="round"),
+    ], P("com.Slack")),
+    Icon("teams", "Teams", ("#6C6FE0", "#3A3DA8"), ("#8F92F5", "#5C60D8"), [
+        S("M32,36H68M50,36V72", 8, cap="round"), F(circle(70, 34, 6), "fg2"),
+    ], P("com.microsoft.teams")),
+    Icon("outlook", "Outlook", ("#2F96E8", "#0F5CB5"), ("#58B2FF", "#2A7CE0"), [
+        S(ellipse(46, 50, 17, 20), 6), S("M62,36H76V64H62M62,44L76,52", 4, "fg2", cap="round", join="round"),
+    ], P("com.microsoft.office.outlook")),
+    Icon("onedrive", "OneDrive", ("#3A9CF0", "#1058B8"), ("#58B6FF", "#2A7CE0"), [
+        F("M30,66Q20,66 22,54Q24,44 36,44Q38,30 54,30Q68,30 70,44Q82,44 80,56Q78,66 66,66Z"),
+    ], P("com.microsoft.skydrive")),
+    Icon("dropbox", "Dropbox", ("#3A8CFF", "#0A52D6"), ("#58A6FF", "#2A74F0"), [
+        F(poly((34, 28), (50, 38), (34, 48), (18, 38))), F(poly((66, 28), (82, 38), (66, 48), (50, 38))),
+        F(poly((34, 52), (50, 62), (34, 72), (18, 62))), F(poly((66, 52), (82, 62), (66, 72), (50, 62))),
+    ], P("com.dropbox.android")),
+    Icon("gphotos", "Photos", WHITE_TILE, ("#FFC247", "#F0443A"), [
+        F(ellipse(50, 33, 11, 16), "#F0443A", ta=0.9), F(ellipse(67, 50, 16, 11), "#2F7BF2", ta=0.9),
+        F(ellipse(50, 67, 11, 16), "#26B45A", ta=0.9), F(ellipse(33, 50, 16, 11), "#FFC530", ta=0.9),
+    ], P("com.google.android.apps.photos"), fg="#2F7BF2"),
+    Icon("meet", "Meet", ("#2FB07A", "#0E7A4D"), ("#52D49C", "#25A777"), [
+        F(rrect(20, 33, 40, 34, 8)), F("M62,45L80,34V66L62,55Z"),
+    ], P("com.google.android.apps.tachyon")),
+    Icon("gdocs", "Docs", ("#4A90F0", "#1F5CD0"), ("#6AAEFF", "#3A7CE8"), [
+        S("M34,24H56L68,36V76H34Z", 5, join="round"), S("M42,50H60M42,60H60M42,70H52", 4.5, "fg2", cap="round"),
+    ], P("com.google.android.apps.docs.editors.docs")),
+    Icon("gsheets", "Sheets", ("#34B86C", "#0E8044"), ("#52D88C", "#25A55C"), [
+        S("M34,24H56L68,36V76H34Z", 5, join="round"), S("M42,52H60M42,62H60M51,46V70", 4.5, "fg2", cap="round"),
+    ], P("com.google.android.apps.docs.editors.sheets")),
+    Icon("keep", "Keep", ("#FFCB3A", "#E8A100"), ("#FFD960", "#F5B800"), [
+        F(rrect(32, 24, 36, 52, 9) + circle(50, 46, 9), evenodd=True),
+    ], P("com.google.android.keep"), fg="#FFFFFF"),
+    Icon("translate", "Translate", ("#4A90F0", "#1F5CD0"), ("#6AAEFF", "#3A7CE8"), [
+        S("M26,34H54M40,28V34M32,52Q42,48 48,34M34,42Q42,56 52,58", 5, cap="round", join="round"),
+        S("M58,76L66,44L74,76M61,67H71", 5, "fg2", cap="round", join="round"),
+    ], P("com.google.android.apps.translate")),
+    Icon("lens", "Lens", WHITE_TILE, ("#58A6FF", "#2F7BF2"), [
+        S("M28,40V30H38M62,30H72V40M72,60V70H62M38,70H28V60", 5.5, "#2F7BF2", ta=1, cap="round", join="round"),
+        F(circle(50, 50, 8), "#F0443A", ta=1),
+    ], P("com.google.ar.lens"), fg="#2F7BF2"),
+    Icon("github", "GitHub", ("#3C3F46", "#0D0F12"), ("#FFFFFF", "#C7C7CC"), [
+        S(circle(50, 50, 24), 5.5), S("M40,76V68Q40,62 46,60M60,76V68Q60,62 54,60", 5, cap="round"),
+        F(poly((34, 32), (44, 38), (34, 42))), F(poly((66, 32), (56, 38), (66, 42))),
+    ], P("com.github.android")),
+    Icon("notion", "Notion", WHITE_TILE, ("#FFFFFF", "#C7C7CC"), [
+        S(rrect(28, 26, 44, 48, 6), 5, "#1C1C1E", ta=1), S("M40,66V36L60,64V36", 5.5, "#1C1C1E", ta=1, cap="round", join="round"),
+    ], P("notion.id"), fg="#1C1C1E"),
+    Icon("canva", "Canva", ("#2FC8D8", "#6B3FE0"), ("#58E0F0", "#8A5CF5"), [
+        S("M64,40Q58,30 48,30Q32,32 32,52Q32,70 48,70Q58,70 64,60", 7, cap="round"),
+    ], P("com.canva.editor")),
+    Icon("duolingo", "Duolingo", ("#7ED63A", "#3FA010"), ("#98EA58", "#58B81E"), [
+        F(rrect(28, 32, 44, 40, 18)), F(circle(41, 48, 5.5) + circle(59, 48, 5.5), "#3FA010", ta=1),
+        F(poly((44, 58), (56, 58), (50, 66)), "#FFB020", ta=1),
+    ], P("com.duolingo")),
+    Icon("steam", "Steam", ("#3A5A7E", "#0E1E32"), ("#7AA6D8", "#4A7CB8"), [
+        S(circle(54, 44, 14), 5.5), F(circle(54, 44, 5)), S(line((28, 62), (44, 56)), 5.5, cap="round"), F(circle(34, 68, 7)),
+    ], P("com.valvesoftware.android.steam.community")),
+    Icon("ola", "Ola", ("#3A3A3F", "#050506"), ("#D6F54A", "#B4DC20"), [
+        S(circle(50, 50, 22), 9),
+    ], P("com.olacabs.customer")),
+    Icon("bigbasket", "bigbasket", ("#8FD13A", "#4E9A10"), ("#A8E458", "#6DB820"), [
+        F("M26,42H74L68,72H32Z"), S("M36,42Q36,26 50,26Q64,26 64,42", 5, cap="round"),
+    ], P("com.bigbasket.mobileapp")),
+    Icon("meesho", "Meesho", ("#F0509A", "#B0166A"), ("#FF76B8", "#D8348A"), [
+        S("M28,72V32L50,58L72,32V72", 7, cap="round", join="round"),
+    ], P("com.meesho.supply")),
+    Icon("nykaa", "Nykaa", ("#FF5C9A", "#D8165E"), ("#FF80B4", "#F03A7C"), [
+        S("M32,72V30L68,72V30", 8, cap="round", join="round"),
+    ], P("com.fsn.nykaa")),
+    Icon("makemytrip", "MakeMyTrip", ("#F0443A", "#B0140C"), ("#FF6E64", "#D8302A"), [
+        F("M22,56L78,28L58,76L50,58Z"),
+    ], P("com.makemytrip")),
+    Icon("airbnb", "Airbnb", ("#FF6A7A", "#E0204C"), ("#FF8A96", "#F2405E"), [
+        S("M50,26Q58,36 66,56Q74,76 58,74Q50,72 50,64Q50,72 42,74Q26,76 34,56Q42,36 50,26Z", 5.5, join="round"),
+    ], P("com.airbnb.android")),
+    Icon("shazam", "Shazam", ("#2FA2FF", "#0E56E0"), ("#58BEFF", "#2A7CF0"), [
+        S("M56,32Q44,28 38,36Q32,46 44,52L56,48Q68,54 62,64Q56,72 44,68", 6.5, cap="round", join="round"),
+    ], P("com.shazam.android")),
+    Icon("authenticator", "Authenticator", ("#4A90F0", "#1F5CD0"), ("#6AAEFF", "#3A7CE8"), [
+        F("M50,22L72,30V50Q72,68 50,78Q28,68 28,50V30Z" + "M46,46V42Q46,36 50,36Q54,36 54,42V46H56V58H44V46Z", evenodd=True),
+    ], P("com.google.android.apps.authenticator2", "com.azure.authenticator")),
+    Icon("proton", "Proton", ("#8A6CFF", "#5230D8"), ("#A58FFF", "#7050F0"), [
+        S("M30,70V30L66,30Q72,30 72,40Q72,50 66,50H30", 7, cap="round", join="round"),
+    ], P("ch.protonmail.android", "ch.protonvpn.android")),
+    Icon("sharechat", "ShareChat", ("#FF9A3D", "#E55A0B"), ("#FFB066", "#F77A1E"), [
+        S(circle(34, 50, 8), 5.5), S(circle(66, 34, 8), 5.5), S(circle(66, 66, 8), 5.5),
+        S("M41,46L59,38M41,54L59,62", 4.5, cap="round"),
+    ], P("in.mohalla.sharechat")),
+    Icon("flowerlauncher", "Launcher", ("#6C8CFF", "#3A4CD8"), ("#8FA8FF", "#5C70F0"), [
+        F(rrect(28, 28, 18, 18, 5) + rrect(54, 28, 18, 18, 5) + rrect(28, 54, 18, 18, 5) + rrect(54, 54, 18, 18, 5)),
+    ], P("ginlemon.flowerfree", "ginlemon.iconpackstudio")),
 ]
 
 

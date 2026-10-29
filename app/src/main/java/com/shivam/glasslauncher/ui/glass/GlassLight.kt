@@ -98,7 +98,7 @@ private class TiltTracker(context: Context, private val onLight: (Offset) -> Uni
         val ly = DefaultLight.y + (fy - 0.7f) * 0.9f
         val len = sqrt(lx * lx + ly * ly).coerceAtLeast(0.001f)
         val next = Offset(lx / len, ly / len)
-        if (abs(next.x - last.x) + abs(next.y - last.y) > 0.004f) {
+        if (abs(next.x - last.x) + abs(next.y - last.y) > 0.03f) {
             last = next
             onLight(next)
         }

@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -63,6 +64,8 @@ import com.shivam.glasslauncher.ui.glass.GlassVariant
 import com.shivam.glasslauncher.ui.home.AppIconImage
 import com.shivam.glasslauncher.ui.home.LauncherUiState
 import com.shivam.glasslauncher.ui.home.rememberLast
+
+private var askedContacts = false
 
 /**
  * Spotlight: a full-screen glass sheet that grows out of where it was summoned (swipe-down
@@ -98,8 +101,20 @@ fun SpotlightOverlay(
     LaunchedEffect(visible) {
         if (visible) {
             vm.query.value = ""
-            try { focus.requestFocus() } catch (_: Exception) { }
+            // the field only exists once GlassMorph has composed it, so retry until focus sticks
+            var focused = false
+            repeat(20) {
+                if (!focused) {
+                    try { focus.requestFocus(); focused = true } catch (_: Exception) { delay(40) }
+                }
+            }
             keyboard?.show()
+            if (activity.checkSelfPermission(Manifest.permission.READ_CONTACTS) != android.content.pm.PackageManager.PERMISSION_GRANTED &&
+                !askedContacts
+            ) {
+                askedContacts = true
+                permissionLauncher.launch(arrayOf(Manifest.permission.READ_CONTACTS, Manifest.permission.CALL_PHONE))
+            }
         }
     }
     if (visible) BackHandler { close() }

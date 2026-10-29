@@ -41,6 +41,7 @@ import com.shivam.glasslauncher.data.Appearance
 import com.shivam.glasslauncher.data.DrawerCategorizer
 import com.shivam.glasslauncher.data.DrawerLaunchView
 import com.shivam.glasslauncher.data.DrawerSort
+import com.shivam.glasslauncher.data.DrawerSwipe
 import com.shivam.glasslauncher.data.DrawerTransition
 import com.shivam.glasslauncher.data.HomeAnimation
 import com.shivam.glasslauncher.data.LauncherSettings
@@ -346,6 +347,13 @@ private fun DrawerSettingsScreen(nav: SettingsNav, settings: LauncherSettings) {
                     GlassRow(v.title, onClick = { app.settings.setDrawerLaunchView(v) }, showChevron = false) {
                         if (settings.drawerLaunchView == v) GlassIcon(GlassIcons.Check, size = 18.dp, tint = currentAccent())
                     }
+                }
+            }
+        }
+        item("swipe") {
+            GlassListGroup(title = "Swipe to switch category", footer = "Swipe on the screen, on the category icons, or both. No need to tap.") {
+                Column(Modifier.padding(12.dp)) {
+                    GlassSegmented(DrawerSwipe.entries.map { it.title }, settings.drawerSwipe.ordinal, { app.settings.setDrawerSwipe(DrawerSwipe.entries[it]) })
                 }
             }
         }
