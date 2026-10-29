@@ -19,13 +19,9 @@ class PremiumDimTest {
     }
 
     @Test
-    fun whiteWallpaperGetsTheAaSolutionNotTheCeiling() {
-        // Least dim that keeps white text at exactly 4.5:1 on a white wallpaper: 1 - (1.05 / 4.5 - 0.05).
-        val a = PremiumDim.alphaFor(1f)
-        assertEquals(0.8167f, a, 1e-3f)
-        assertTrue("white wallpaper must not hit the ceiling", a < PremiumDim.MAX_ALPHA)
-        val ratio = Contrast.ratio(Contrast.LIGHT_TEXT, Contrast.gammaToLinear(1f) * (1f - a))
-        assertTrue("white text ratio=$ratio below AA", ratio >= Contrast.AA - 0.01f)
+    fun brightWallpaperIsCappedAtTheCeiling() {
+        // The AA solution on white would be about 0.82; the ceiling keeps the picture visible.
+        assertEquals(PremiumDim.MAX_ALPHA, PremiumDim.alphaFor(1f), 1e-6f)
     }
 
     @Test

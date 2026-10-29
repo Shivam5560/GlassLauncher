@@ -14,8 +14,11 @@ object PremiumDim {
     /** Floor: dark wallpapers keep nearly all their detail. */
     const val MIN_ALPHA = 0.12f
 
-    /** Ceiling guard. The AA formula never exceeds about 0.817 for luminance <= 1, so this only backs the clamp. */
-    const val MAX_ALPHA = 0.85f
+    /**
+     * Ceiling: the AA solution reaches about 0.82 on a white wallpaper, which blacks out the picture.
+     * Capped so bright wallpapers stay visible (page 2's dim is 0.3); text on glass cards has its own scrim.
+     */
+    const val MAX_ALPHA = 0.5f
 
     /** Largest linear luminance under the dim that still gives white text AA: (1.05 / AA) - 0.05. */
     private val MAX_WHITE_TEXT_LINEAR = 1.05f / Contrast.AA - 0.05f
