@@ -95,6 +95,32 @@ To change the pack, edit `tools/icons/generate_icons.py` and run it; CI checks t
 3. Copy it to the phone and open it. Allow "Install unknown apps" for your file manager when asked.
 4. Open Glass and follow **Set up Glass** (it opens on first launch).
 
+## Features (phase 5 — Smart Launcher parity, own code and design)
+
+Behaviour observed from using Smart Launcher 6, reimplemented from scratch (no code, resources or
+artwork taken from it). The RSS/news feed page is out of scope.
+
+- **Readable glass:** dark-tinted glass by default; text and icons pick white or near-black from
+  the measured backdrop luminance (WCAG AA, never white on light). Gentler lens defaults
+  (refraction 0.3, chroma 0.15, specular 0.45). Settings sections are one glass card with divider
+  rows. Glass Icons (dark) is the default pack when installed.
+- **Clean default home:** a large centred clock / date / weather / next-event header, rounded photo
+  and calendar widgets, a label-free 4-column grid, the floating glass dock and page pill.
+- **App drawer (swipe up):** apps sorted automatically into Internet, Media, Social, Games,
+  Utilities, Settings and Other; one page per category with a big title and Search / Play Store /
+  ⋮ buttons; few apps sit at the bottom for thumb reach; a floating glass category bar. ⋮ adds
+  shortcuts, folders and categories, edits the category bar, sorting and hidden apps. Long-press
+  an app → Move to category. Settings → App drawer: launch view and transition.
+- **Widgets:** At a glance, Compass (rotation-vector sensor), Icon group (2×2 / 4×4), Smart search,
+  alongside the existing ones.
+- **Ultra-immersive mode:** hides the status bar (and the nav bar with Glass Gestures).
+- **Appearance:** one screen with a live preview: Solid / Frosted / Liquid Glass presets, per-role
+  colours (Background, Cards & buttons, Widget, Panel), icon shape and size, labels, widget corner
+  radius, font, folders and home page animation.
+- **Kustom:** KWGT widgets via the normal widget host; KLWP scrolls with the pages.
+- **Share your home screen:** edit mode → share button renders Glass's own home layers to a PNG
+  (no screen capture) and opens the share sheet.
+
 ## HyperOS setup (the in-app guide deep-links each step)
 
 1. **Default Home:** Settings → Apps → Default apps → Home app → Glass Launcher.
@@ -109,7 +135,8 @@ To change the pack, edit `tools/icons/generate_icons.py` and run it; CI checks t
 
 ### Optional ADB alternative for native HyperOS gestures
 
-HyperOS turns off its own full-screen gestures while a third-party launcher is default. Some users
+HyperOS forces 3-button navigation whenever any third-party launcher (Smart Launcher too) is the
+default Home app. Glass Gestures is the fix. Some users
 force them back on with:
 
 ```bash

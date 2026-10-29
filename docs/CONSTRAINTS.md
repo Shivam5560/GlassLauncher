@@ -74,6 +74,28 @@ Status legend: ✅ works as designed · ⚠️ works with a caveat · ❌ not po
 | Backup / restore | ✅ | Storage Access Framework, one JSON file: home layout and other `files/*.json` state, every setting in the `settings` and `polish` DataStores (hidden and locked lists included), per-app icons (base64 PNG), pinned shortcuts. Restore shows a preview first. Not encrypted (stated in the UI). Wallpaper bitmaps are not included. Other phases' DataStores are not included unless added to `BackupManager.stores`. |
 | Theme from wallpaper | ⚠️ | Palette from the wallpaper bitmap when readable (Path A/B), else from `WallpaperColors` (Path C). Applies the accent everywhere and writes the glass tint. Manual theme editor (accent + tint) as the alternative. |
 
+## Phase 5 — Smart Launcher parity (own code and design)
+
+Behaviour observed from using Smart Launcher 6 on the device, reimplemented from scratch: no decompiled code, resources or artwork. The RSS/news feed page is out of scope.
+
+| Feature | Status | Ifs and buts → fallback |
+|---|---|---|
+| UI contrast | ✅ | Glass is dark-tinted by default and every surface picks white or near-black text from the measured backdrop luminance mixed with its tint (WCAG AA, never white on light). Settings and the drawer get a Background-role dim so titles drawn on the wallpaper stay legible. When the wallpaper can't be read (Path C) the estimate uses `WallpaperColors`, so contrast is approximate there. |
+| Toned-down lens | ✅ | Defaults refraction 0.3, chroma 0.15, specular 0.45; thin surfaces get a proportionally smaller lens so flat rows never streak. Users still on the old defaults are migrated once (`glass_style_version`). |
+| Grouped settings | ✅ | One glass card per section, plain rows with hairline dividers. |
+| Glass Icons default | ⚠️ | Default pack whenever `com.shivam.glassicons` is installed and the user hasn't chosen a pack (dark variant by default). Its Apply button writes the pack synchronously so HyperOS killing the short-lived process can't lose it. A pack chosen by the user (including "System icons") is never overridden. |
+| Auto-categorised drawer | ✅ | Category from `ApplicationInfo.category`, then `FLAG_IS_GAME`, then a built-in package/keyword map, then Other. Apps that declare no category and match no keyword land in Other; users move them with long-press → Move to category. Categories, moves, folders, shortcuts and sorting live in `layout.json` (backed up). |
+| Drawer shortcuts | ⚠️ | Deep shortcuts can be listed and started only while Glass is the default Home app (`LauncherApps`). Otherwise the Add shortcut sheet explains it, and tapping an existing one shows a glass toast. System check row. |
+| Drawer "most used" sorting | ⚠️ | Learns only from launches made through Glass (no usage-stats permission). |
+| Widgets: Note, Smart search, Icon group | ✅ | No permissions. Icon group launches through the launcher, so locked apps still ask first. |
+| Widget: At a glance header | ⚠️ | Weather and next event reuse the weather (location/city) and calendar (READ_CALENDAR) rows above; without them the header shows the clock and date only. |
+| Widget: Compass | ⚠️ | Needs a rotation-vector sensor (no permission). Without one the widget is not offered in the picker, an existing one shows a note, and System check says so. |
+| Ultra-immersive mode | ⚠️ | `WindowInsetsControllerCompat` hides the status bar on Home and in the drawer with transient swipe-to-reveal. The navigation bar is hidden only while Glass Gestures is on: HyperOS forces 3-button navigation for every third-party default launcher, so without our gesture service the buttons are the only navigation. |
+| Global appearance | ✅ | Presets Solid / Frosted / Liquid Glass and per-role overrides (Background, Cards & buttons, Widget, Panel: colour, opacity, text colour, blur, stroke, accent) flow through `GlassStyle`/`LocalGlassStyle`; icon shape, size, labels, folders and home animation through `Appearance`. Icon shape only applies to icons Glass masks itself; icon-pack artwork keeps its own shape. |
+| Kustom (KWGT / KLWP) | ⚠️ | KWGT widgets are ordinary app widgets hosted by our `AppWidgetHost` (bind dialog and configure activity included). KLWP is a live wallpaper: Glass sends wallpaper offsets as pages scroll when a live wallpaper is set, but refraction falls back to Path C (no readable bitmap). Kustom's launcher integration beyond that is not publicly documented, so it is not implemented. |
+| Share your home screen | ✅ | Renders Glass's own recorded home layer (pages, widgets, icons, dock) over Glass's wallpaper copy into a PNG in `cache/share/`, shared through a FileProvider with `ACTION_SEND`. No screen capture. Without a readable wallpaper (Path C, live wallpapers) a neutral gradient replaces it. |
+| HyperOS navigation | ⚠️ | HyperOS forces 3-button navigation for ANY third-party default launcher (Smart Launcher too). Onboarding says so plainly; Glass Gestures is the fix (System check row). |
+
 ## Definition of done for every phase
 1. CI green, APK artifact uploaded.
 2. Each feature row in this file marked as verified on a real device, or as compiled only.
