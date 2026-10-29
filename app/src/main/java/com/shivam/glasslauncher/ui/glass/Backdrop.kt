@@ -6,6 +6,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -125,18 +128,26 @@ fun SnapshotBackdropLayer(image: androidx.compose.ui.graphics.ImageBitmap?, laye
 }
 
 /**
- * For overlay windows smaller than the screen (lock-screen cards): records the part of the wallpaper
- * under this window, so glass inside [content] frosts the wallpaper the way home widgets do.
+ * Records the wallpaper under an overlay window. Lock cards keep the system background visible;
+ * full-screen panels can draw a softly blurred copy, excluding underlying app UI from the backdrop.
  */
 @Composable
-fun OverlayWallpaperBackdrop(snapshot: WallpaperSource.Snapshot, content: @Composable () -> Unit) {
+fun OverlayWallpaperBackdrop(
+    snapshot: WallpaperSource.Snapshot,
+    drawToScreen: Boolean = false,
+    blurRadius: Dp = 0.dp,
+    dimAlpha: Float = 0f,
+    content: @Composable () -> Unit,
+) {
     val image = snapshot.image
     if (image == null) { content(); return }
     val layer = androidx.compose.ui.graphics.rememberGraphicsLayer()
     val view = androidx.compose.ui.platform.LocalView.current
-    val backdrop = androidx.compose.runtime.remember(snapshot) { Backdrop(listOf(layer), snapshot) }
+    val backdrop = androidx.compose.runtime.remember(snapshot, blurRadius) {
+        Backdrop(listOf(layer), snapshot, preBlurred = blurRadius > 0.dp)
+    }
     androidx.compose.foundation.layout.Box {
-        Canvas(Modifier.matchParentSize().recordBackdrop(layer, drawToScreen = false)) {
+        Canvas(Modifier.matchParentSize().recordBackdrop(layer, drawToScreen = drawToScreen).blur(blurRadius)) {
             val loc = IntArray(2).also(view::getLocationOnScreen)
             val sx = image.width.toFloat() / snapshot.screenWidth
             val sy = image.height.toFloat() / snapshot.screenHeight
@@ -147,6 +158,7 @@ fun OverlayWallpaperBackdrop(snapshot: WallpaperSource.Snapshot, content: @Compo
                 dstOffset = IntOffset.Zero,
                 dstSize = IntSize(size.width.toInt(), size.height.toInt()),
             )
+            if (dimAlpha > 0f) drawRect(Color.Black.copy(alpha = dimAlpha.coerceIn(0f, 1f)))
         }
         androidx.compose.runtime.CompositionLocalProvider(LocalBackdrop provides backdrop, content = content)
     }

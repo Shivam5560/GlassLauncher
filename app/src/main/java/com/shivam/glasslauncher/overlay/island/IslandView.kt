@@ -333,7 +333,7 @@ private fun ExpandedContent(a: IslandActivity, ui: IslandUi) {
             }
             IslandLabel(IslandText.orFallback(c.title, c.appLabel), style = GlassType.Headline.copy(lineHeight = 22.sp), color = white, maxLines = 2)
             val message = IslandText.clean(c.text)
-            if (message.isNotEmpty()) IslandLabel(message, style = GlassType.Callout.copy(lineHeight = 20.sp), color = white.copy(alpha = 0.84f), maxLines = 2)
+            if (message.isNotEmpty()) IslandLabel(message, style = GlassType.Callout.copy(lineHeight = 20.sp), color = white.copy(alpha = 0.84f), maxLines = IslandGeometry.peekMessageLines(LocalDensity.current.fontScale))
         }
         is IslandContent.Ringer -> Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             GlassIcon(ringerIcon(c.mode), size = 30.dp, tint = if (c.mode == RingerMode.Normal) white else GlassColors.Red)

@@ -20,7 +20,9 @@ class IslandGeometryTest {
     @Test fun largerFontsGetMoreReadingRoomRatherThanSmallerText() {
         val normal = IslandGeometry.peekHeight(48f, 1f)
         val large = IslandGeometry.peekHeight(48f, 2f)
-        assertTrue(normal >= 200f)
+        assertEquals(186f, normal, 0.01f)
+        assertEquals(2, IslandGeometry.peekMessageLines(1f))
+        assertEquals(3, IslandGeometry.peekMessageLines(1.5f))
         assertTrue(large > normal)
         assertEquals(normal, IslandGeometry.peekHeight(48f, 0.8f), 0.01f)
     }

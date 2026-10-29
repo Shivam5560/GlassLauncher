@@ -39,6 +39,8 @@ fun AppWidgetContent(inst: WidgetInstance, modifier: Modifier = Modifier) {
         )
         return
     }
+    val blend = ProviderGlass.enabled(inst)
+    val backgroundOpacity = ProviderGlass.backgroundOpacity(inst)
     WidgetFrame(modifier, padding = 4.dp) {
         BoxWithConstraints(Modifier.fillMaxSize().clip(GlassShape.rounded(
             (com.shivam.glasslauncher.ui.glass.LocalGlassStyle.current.widgetCornerRadius - 4f).coerceAtLeast(0f).dp,
@@ -48,9 +50,12 @@ fun AppWidgetContent(inst: WidgetInstance, modifier: Modifier = Modifier) {
             key(id) {
                 AndroidView(
                     factory = { ctx -> host.createView(ctx, id, info) },
-                    // Third-party widgets paint an opaque card; fading it lets the liquid glass frame show through.
-                    modifier = Modifier.fillMaxSize().alpha(com.shivam.glasslauncher.ui.glass.LocalGlassStyle.current.appWidgetOpacity),
-                    update = { view -> host.updateSize(view, w, h) },
+                    // Blend only compatible background paint; preserve full-opacity provider content.
+                    modifier = Modifier.fillMaxSize().alpha(if (blend) 1f else com.shivam.glasslauncher.ui.glass.LocalGlassStyle.current.appWidgetOpacity),
+                    update = { view ->
+                        (view as? GlassAppWidgetHostView)?.setGlassBlend(blend, backgroundOpacity)
+                        host.updateSize(view, w, h)
+                    },
                 )
             }
         }

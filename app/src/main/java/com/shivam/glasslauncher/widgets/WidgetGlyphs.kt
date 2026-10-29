@@ -92,6 +92,7 @@ object WidgetGlyphs {
     val Widgets = icon("widgets", "M4,4h7v7h-7z", "M13,4h7v7h-7z", "M4,13h16v7h-16z")
     val Pages = icon("pages", "M7,4h10v16h-10z", "M4,6.5V17.5", "M20,6.5V17.5")
     val Resize = icon("resize", "M9,20H20V9", "M14,20H20V14")
+    val Quote = icon("quote", "M4,7h6v6H6c0,3 1,4 3,5", "M14,7h6v6h-4c0,3 1,4 3,5")
     val Sliders = icon("sliders", "M4,7H20", "M4,17H20", "M9,4.5V9.5", "M15,14.5V19.5")
 
     val Compass = icon("compass", "M12,3a9,9 0 1,0 0,18a9,9 0 1,0 0,-18z", "M14.8,9.2L13.2,13.2L9.2,14.8L10.8,10.8Z")
@@ -113,6 +114,7 @@ object WidgetGlyphs {
         WidgetKind.CHECKLIST -> Notes
         WidgetKind.FOCUS -> Clock
         WidgetKind.QUICK_ACTIONS -> Sliders
+        WidgetKind.QUOTES -> Quote
         WidgetKind.APP_WIDGET -> Widgets
     }
 }

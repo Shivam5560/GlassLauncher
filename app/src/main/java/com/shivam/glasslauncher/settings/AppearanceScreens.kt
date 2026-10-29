@@ -153,7 +153,7 @@ private fun GlobalAppearanceScreen(nav: SettingsNav, settings: LauncherSettings)
                 }
             }
             item("widget") {
-                GlassListGroup(title = "Widget") {
+                GlassListGroup(title = "Widget", footer = "App widget opacity fades the whole provider widget. For crisp text, enable Glass blend in that widget’s Edit Widget menu instead.") {
                     GlassSliderRow("Corner radius", draft.widgetCornerRadius, 0f..40f, { "${it.toInt()} dp" }) { draft = draft.copy(widgetCornerRadius = it) }
                     GlassSliderRow("App widget opacity", draft.appWidgetOpacity, 0.3f..1f, { "${(it * 100).toInt()}%" }) { draft = draft.copy(appWidgetOpacity = it) }
                 }

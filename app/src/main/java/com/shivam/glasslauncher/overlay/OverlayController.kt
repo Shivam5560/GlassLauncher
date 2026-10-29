@@ -489,7 +489,9 @@ class OverlayController(
     private fun animatePanel(target: Float) {
         panelJob?.cancel()
         val blurOk = wm.isCrossWindowBlurEnabled
-        val maxBlur = dp(36f)
+        // Notification Center already blurs its wallpaper once; avoid blurring the covered app too.
+        val hasOwnBackdrop = panelKind == PanelKind.NotificationCenter && com.shivam.glasslauncher.GlassApp.from(service).wallpaper.snapshot.value.image != null
+        val maxBlur = if (hasOwnBackdrop) 0 else dp(36f)
         // AndroidUiDispatcher.Main carries the frame clock Compose animations need outside composition.
         // Blur is set once per open/close: updating the window every frame (an IPC to the window
         // manager) stalled HyperOS and left frozen, blurred panels on screen.

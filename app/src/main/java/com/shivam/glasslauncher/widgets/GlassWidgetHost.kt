@@ -33,7 +33,9 @@ data class ProviderEntry(
 class GlassWidgetHost private constructor(private val context: Context) {
 
     val manager: AppWidgetManager = AppWidgetManager.getInstance(context)
-    private val host = AppWidgetHost(context, HOST_ID)
+    private val host = object : AppWidgetHost(context, HOST_ID) {
+        override fun onCreateView(context: Context, appWidgetId: Int, appWidget: AppWidgetProviderInfo): AppWidgetHostView = GlassAppWidgetHostView(context)
+    }
     private var listeners = 0
 
     fun startListening() {

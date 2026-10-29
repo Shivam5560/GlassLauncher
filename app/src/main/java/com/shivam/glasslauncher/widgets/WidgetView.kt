@@ -100,6 +100,7 @@ fun WidgetContent(inst: WidgetInstance, modifier: Modifier = Modifier, size: Wid
         WidgetKind.CHECKLIST -> ChecklistWidget(inst, size, modifier)
         WidgetKind.FOCUS -> FocusWidget(inst, modifier)
         WidgetKind.QUICK_ACTIONS -> QuickActionsWidget(inst, modifier)
+        WidgetKind.QUOTES -> QuotesWidget(inst, size, modifier)
         WidgetKind.APP_WIDGET -> AppWidgetContent(inst, modifier)
     }
 }

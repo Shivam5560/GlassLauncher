@@ -43,6 +43,7 @@ enum class WidgetKind(val title: String, val description: String, val sizes: Lis
     CHECKLIST("Checklist", "Your priorities, with one-tap completion. Saved on this device.", listOf(WidgetSize.MEDIUM, WidgetSize.LARGE)),
     FOCUS("Focus", "25-minute focus, 50-minute deep work or a 5-minute break in Clock.", listOf(WidgetSize.MEDIUM)),
     QUICK_ACTIONS("Quick actions", "Internet, volume, Bluetooth and alarms in one place.", listOf(WidgetSize.MEDIUM)),
+    QUOTES("Quotes", "A little perspective in glass. Your words, in Hindi or any language.", listOf(WidgetSize.MEDIUM, WidgetSize.LARGE)),
     APP_WIDGET("App widget", "", emptyList());
 
     companion object {
@@ -56,6 +57,10 @@ object WidgetKeys {
     const val CLOCK_STYLE = "style" // digital | analog | world
     const val CLOCK_ZONES = "zones" // comma-separated ZoneIds
     const val CHECKLIST = "checklist"
+    const val QUOTE_TEXT = "quoteText"
+    const val QUOTE_AUTHOR = "quoteAuthor"
+    const val PROVIDER_GLASS = "providerGlass"
+    const val PROVIDER_BACKGROUND = "providerBackground"
     const val FOCUS_MINUTES = "focusMinutes"
     const val NOTE_TEXT = "text"
     const val PHOTO_COUNT = "photos"

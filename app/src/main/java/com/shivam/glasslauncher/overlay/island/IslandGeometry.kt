@@ -10,6 +10,11 @@ object IslandGeometry {
     fun trailingStart(cameraRight: Float?, pillLeft: Float, width: Float, glyphLane: Float): Float =
         max(glyphLane, cameraRight?.let { it - pillLeft + 10f } ?: glyphLane).coerceIn(0f, width)
 
-    fun peekHeight(cameraBand: Float, fontScale: Float): Float =
-        cameraBand + 140f * fontScale.coerceAtLeast(1f) + 20f
+    fun peekMessageLines(fontScale: Float): Int = if (fontScale > 1.2f) 3 else 2
+
+    fun peekHeight(cameraBand: Float, fontScale: Float): Float {
+        val scale = fontScale.coerceAtLeast(1f)
+        // App row, gaps/insets, two title lines and the available message lines.
+        return cameraBand + max(26f, 18f * scale) + 28f + (44f + 20f * peekMessageLines(scale)) * scale
+    }
 }

@@ -95,18 +95,22 @@ Behaviour observed from using Smart Launcher 6 on the device, reimplemented from
 | Share your home screen | ✅ | Renders Glass's own recorded home layer (pages, widgets, icons, dock) over Glass's wallpaper copy into a PNG in `cache/share/`, shared through a FileProvider with `ACTION_SEND`. No screen capture. Without a readable wallpaper (Path C, live wallpapers) a neutral gradient replaces it. |
 | HyperOS navigation | ⚠️ | HyperOS forces 3-button navigation for ANY third-party default launcher (Smart Launcher too). Onboarding says so plainly; Glass Gestures is the fix (System check row). |
 
-## Widget and overlay refinement — compiled / device verification pending
+## Widget and overlay refinement — device checks and limits
+
+See [verification record](WIDGET_NOTIFICATION_VERIFICATION.md) for tested paths and remaining limits.
 
 | Feature | Status | Implementation and fallback |
 |---|---|---|
-| Native island coexistence | ⚠️ | Automatic mode reads the observed HyperOS `support_dynamic_island` capability flag and yields to the native island. System mode always hides Glass; Glass mode is an explicit override. No OEM flags are written. Other OEM islands may require System mode manually. Settings load before overlays become active, and calibration cannot bypass Off or lock-screen hiding. Reboot behavior still needs verification on the target firmware. |
-| Island notification text | ✅ | Physical camera bounds reserve a text-free lane. Expanded peeks scale their height with system font size and show app, title and message on separate rows. Reading time is adjustable from 4–15 seconds with a sample preview. Compiled only; device typography verification pending. |
+| Native island coexistence | ⚠️ | Automatic mode reads the observed HyperOS `support_dynamic_island` capability flag and yields to the native island. System mode always hides Glass; Glass mode is an explicit override. No OEM flags are written. Other OEM islands may require System mode manually. Settings load before overlays become active, and calibration cannot bypass Off or lock-screen hiding. Off persisted across app force-stop/relaunch on the target; full phone reboot behavior still needs verification. |
+| Island notification text | ✅ | Physical camera bounds reserve a text-free lane. Expanded peeks scale their height with system font size and show app, title and message on separate rows. Reading time is adjustable from 4–15 seconds with a sample preview. Normal and 150% font-size layouts inspected on the target; physical camera lane and expanded sample checked. |
 | System banners | ⚠️ | Glass no longer writes system banner or lock-notification settings during attach, hide, or detach. An explicit Restore system banners action can repair older builds' setting when secure-settings access exists; otherwise it opens system settings with an explanation. |
 | Private lock cards | ⚠️ | Off by default; explicit opt-in permits app names/counts only when the native lock-notification list is already off. Notification, ranking and channel privacy overrides are respected; secret notifications and media are omitted; all message text and actions are redacted. The system keyguard remains responsible for authentication. Locked panel requests open the system shade. |
 | Checklist | ✅ | Up to 20 local tasks per widget, saved in widgets.json and covered by existing widget backup. Medium and Large layouts scroll; no permissions or background work. |
 | Focus launchpad | ⚠️ | Opens 25/50/5-minute timer requests in the installed Clock app with the normal SET_ALARM permission. Clock owns timing and alerts; no launcher countdown or background service. Missing handlers show a glass message. |
 | Quick actions | ⚠️ | Internet and volume open Android panels; Bluetooth opens its settings; Alarms opens Clock. No direct radio toggles. Missing handlers show a glass message. |
-| Notification material and lists | ✅ | Shared GlassSurface follows appearance/contrast preferences. All / Alerting / Quiet filters use Android channel importance. Both panel and lock lists are lazy. Clear actions preserve non-clearable activities. |
+| Quotes | ✅ | Editable Hindi default, optional attribution, Medium/Large glass layouts and local persistence. Long text scrolls. Preview, add, edit/save and process-restart persistence checked on the device. |
+| Provider Glass blend | ⚠️ | Per-widget opt-in softens plain full-size provider container backgrounds while keeping text/images fully opaque. LinkedIn and AI Usage checked on the device. Images/custom paint and smaller inner cards remain provider-owned; use provider transparency controls or Standard mode if needed. No capture or pixel rewriting. |
+| Notification material and lists | ✅ | Shared Panel GlassSurface, softened wallpaper backdrop, readable message hierarchy and a separate bottom toolbar. All / Alerting / Quiet filters use Android channel importance. Both lists are lazy. Clear actions preserve ongoing activities. Panel, Quiet filter, stack expansion, sample dismissal and 150% text inspected on the device; lock-card rendering remains compiled only. |
 
 ## Definition of done for every phase
 1. CI green, APK artifact uploaded.

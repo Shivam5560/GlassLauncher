@@ -130,6 +130,7 @@ private fun WidgetEditSheet(widgets: WidgetUiState, layout: HomeLayout) {
                 }
             }
             when (inst.kind) {
+                WidgetKind.QUOTES -> item("quote") { QuotesSettings(widgets, inst) }
                 WidgetKind.CHECKLIST -> item("checklist") { ChecklistSettings(widgets, inst) }
                 WidgetKind.FOCUS, WidgetKind.QUICK_ACTIONS -> item("actions") {
                     GlassListGroup { GlassRow(inst.kind.description) }
@@ -350,6 +351,14 @@ private fun AppWidgetSettings(widgets: WidgetUiState, inst: WidgetInstance, layo
         GlassRow(info?.loadLabel(context.packageManager) ?: "Widget", subtitle = info?.provider?.packageName)
         if (info != null && GlassWidgetHost.isReconfigurable(info)) {
             GlassRow("Reconfigure", icon = WidgetGlyphs.Sliders, onClick = { widgets.reconfigure(inst) })
+        }
+        GlassSwitchRow("Glass blend", ProviderGlass.enabled(inst), { widgets.repo.setConfig(inst.id, WidgetKeys.PROVIDER_GLASS, if (it) "1" else "0") },
+            subtitle = "Soften compatible backgrounds; keep text and charts crisp")
+        if (ProviderGlass.enabled(inst)) {
+            com.shivam.glasslauncher.ui.glass.GlassSliderRow("Background opacity", ProviderGlass.backgroundOpacity(inst), 0f..1f, { "${(it * 100).roundToInt()}%" }) {
+                widgets.repo.setConfig(inst.id, WidgetKeys.PROVIDER_BACKGROUND, it.toString())
+            }
+            GlassRow("Provider compatibility", subtitle = "Works with plain card backgrounds. Images and custom-drawn backgrounds stay unchanged. Try the provider’s transparency setting if needed; turn Glass blend off if its text becomes hard to read.", showChevron = false)
         }
         if (!onHome) {
             GlassRow("Height", subtitle = "$rows row${if (rows == 1) "" else "s"}", showChevron = false) {
