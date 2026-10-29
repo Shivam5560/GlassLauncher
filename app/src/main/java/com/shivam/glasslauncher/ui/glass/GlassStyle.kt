@@ -45,6 +45,8 @@ data class RoleStyle(
     val blur: Float? = null,
     /** Outline width in dp; 0 = none. */
     val stroke: Float = 0f,
+    /** Drop shadow elevation in dp; 0 = none. */
+    val shadow: Float = 0f,
     /** Accent for switches, sliders, prominent buttons inside this role. */
     val accent: Int? = null,
 ) {
@@ -56,6 +58,7 @@ data class RoleStyle(
         contentColor?.let { put("content", it) }
         blur?.let { put("blur", it.toDouble()) }
         put("stroke", stroke.toDouble())
+        if (shadow > 0f) put("shadow", shadow.toDouble())
         accent?.let { put("accent", it) }
     }
 
@@ -66,6 +69,7 @@ data class RoleStyle(
             contentColor = if (o.has("content")) o.getInt("content") else null,
             blur = if (o.has("blur")) o.getDouble("blur").toFloat() else null,
             stroke = o.optDouble("stroke", 0.0).toFloat(),
+            shadow = o.optDouble("shadow", 0.0).toFloat(),
             accent = if (o.has("accent")) o.getInt("accent") else null,
         )
 

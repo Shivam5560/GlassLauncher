@@ -22,6 +22,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlurEffect
@@ -165,6 +166,7 @@ fun GlassSurface(
                 scaleX = s
                 scaleY = s
             }
+            .then(if (roleStyle.shadow > 0f) Modifier.shadow(roleStyle.shadow.dp, shape, clip = false) else Modifier)
             .onGloballyPositioned {
                 windowPos.value = it.positionInWindow()
                 sizePx.value = it.size

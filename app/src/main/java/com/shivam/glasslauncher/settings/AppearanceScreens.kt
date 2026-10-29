@@ -163,6 +163,7 @@ private fun GlobalAppearanceScreen(nav: SettingsNav, settings: LauncherSettings)
                     }
                     GlassSliderRow("Blur radius", r.blur ?: draft.blurRadius, 0f..60f, { "${it.toInt()} dp" }) { set(r.copy(blur = it)) }
                     GlassSliderRow("Stroke", r.stroke, 0f..3f, { if (it < 0.05f) "None" else "%.1f dp".format(it) }) { set(r.copy(stroke = if (it < 0.05f) 0f else it)) }
+                    GlassSliderRow("Shadow", r.shadow, 0f..24f, { if (it < 0.5f) "None" else "${it.toInt()} dp" }) { set(r.copy(shadow = if (it < 0.5f) 0f else it)) }
                     ColorRow("Accent colour", r.accent, accentColors) { set(r.copy(accent = it)) }
                     GlassRow("Reset ${role.title.lowercase()}", icon = GlassIcons.Close, iconTint = Color(0xFF8E8E93), onClick = { draft = draft.withRole(role, RoleStyle()) }, showChevron = false)
                 }

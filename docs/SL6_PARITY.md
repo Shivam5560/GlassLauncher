@@ -10,7 +10,8 @@ Status: [x] done, [~] partly, [ ] to do.
 - [x] Fonts: bundled + Google Fonts + System font (Phase 7b)
 - [x] Liquid-glass optimisation: pre-blurred stills, frozen blurred home under overlays
 - [ ] Blur vibrancy (backdrop saturation)
-- [ ] Widget shadow blur/opacity, transparent widget background, apply theme/font to all widgets
+- [x] Widget shadow (per-role Shadow slider) and transparent widget background (Widget opacity 0%)
+- [ ] Apply theme/font to all widgets
 - [x] Make extra pages darker
 - [x] Greyscale mode (Icon pack screen)
 - [ ] Letter spacing / line height / item spacing in Fonts
