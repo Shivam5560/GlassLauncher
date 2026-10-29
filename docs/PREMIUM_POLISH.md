@@ -1,7 +1,9 @@
 # Premium launcher polish
 
-Worktree: `../launcher-premium`  
-Branch: `codex/premium-launcher`  
+Worktree: `../launcher-premium`
+
+Branch: `codex/premium-launcher`
+
 Base: `main` at `a37c848`
 
 ## Experience
@@ -35,3 +37,10 @@ Suggested interaction checks:
 7. Check light and dark wallpapers and the Android 12 frosted fallback on a device.
 
 No settings migrations, network services or new dependencies are introduced. Device-specific HyperOS gestures and Android 12 shader fallback require device verification.
+
+## Verification result
+
+- Debug APK assembled successfully.
+- All 163 JVM tests passed, including six settings-search tests.
+- Android lint completed successfully (existing warnings remain).
+- Visual and interaction verification remains incomplete: both the existing emulator and an isolated Android 15 test device failed to finish reliable startup under host memory pressure. No build was installed on the connected physical phone.
