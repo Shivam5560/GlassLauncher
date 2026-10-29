@@ -280,8 +280,21 @@ class OverlayController(
             while (true) {
                 kotlinx.coroutines.delay(300)
                 engine.signals.updateLocked()
+                // The pattern/PIN pad needs the whole lock screen: hide the cards while it is up.
+                lockWindow?.setVisible(!isBouncerUp())
             }
         }
+    }
+
+    /** Whether SystemUI's pattern/PIN/password pad is on screen (only a view-id lookup; no text is read). */
+    private fun isBouncerUp(): Boolean {
+        val service = accessibility ?: return false
+        return try {
+            service.windows.any { w ->
+                w.root?.findAccessibilityNodeInfosByViewId("com.android.systemui:id/keyguard_bouncer_container")
+                    ?.any { it.isVisibleToUser } == true
+            }
+        } catch (_: Exception) { false }
     }
 
     private var lockJob: Job? = null

@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Window content access is only used to see whether the keyboard window is showing (to pause
-     the edge zones); the service never reads any text or view nodes. -->
+     the edge zones) and whether the lock screen's pattern/PIN pad is up (a view-id lookup, so the
+     lock-screen cards never cover it); the service never reads any text. -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
     android:accessibilityEventTypes="typeWindowStateChanged|typeWindowsChanged"
     android:accessibilityFeedbackType="feedbackGeneric"
-    android:accessibilityFlags="flagRetrieveInteractiveWindows"
+    android:accessibilityFlags="flagRetrieveInteractiveWindows|flagReportViewIds"
     android:canRetrieveWindowContent="true"
     android:description="@string/gesture_service_description"
     android:notificationTimeout="100" />
