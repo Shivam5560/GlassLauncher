@@ -65,7 +65,7 @@ object Contrast {
     val WHITE_AA_MAX_LUMINANCE: Float = 1.05f / AA - 0.05f
 
     /** Most black the legibility scrim may add, so thin glass stays clear over bright wallpapers. */
-    const val SCRIM_MAX = 0.35f
+    const val SCRIM_MAX = 0.55f
 
     /** Glass whose effective tint is below this is "thin" and gets the legibility scrim. */
     const val THIN_GLASS_TINT = 0.3f
@@ -79,7 +79,7 @@ object Contrast {
     /**
      * Black scrim alpha (0..[SCRIM_MAX]) for thin glass with gamma-encoded luminance [glassGamma].
      * Zero while white text already meets AA (dark and mid backdrops), then the least darkening that
-     * brings white text to AA, capped at [SCRIM_MAX]. Above the cap [pickText] switches to dark text.
+     * brings white text to AA, capped at [SCRIM_MAX]. The cap is high enough that white text passes AA even over a pure white backdrop (needs about 0.535).
      * Works in gamma space, the same space compositing blends a black overlay in.
      */
     fun legibilityScrim(glassGamma: Float): Float {

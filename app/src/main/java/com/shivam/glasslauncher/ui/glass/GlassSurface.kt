@@ -146,7 +146,7 @@ fun GlassSurface(
     val glassLinear = Contrast.glassLuminance(Contrast.gammaToLinear(luminance), tint.toArgb(), tintAmount)
     val scrim = if (thinDarkGlass) Contrast.legibilityScrim(Contrast.linearToGamma(glassLinear)) else 0f
     val contentColor = roleStyle.contentColor?.let { Color(it) }
-        ?: if (thinDarkGlass) Color(Contrast.pickText(Contrast.scrimmed(glassLinear, scrim)))
+        ?: if (thinDarkGlass) Color(Contrast.LIGHT_TEXT)
         // Regular dark-tone glass is dark by definition (Clear stays thin and follows the measure): the averaged backdrop can read bright while the panel
         // renders dark (purple blur under a menu), so never pick dark text on it.
         else if (style.tone == GlassTone.Dark && variant == GlassVariant.Regular && tintOverride == null) Color(Contrast.LIGHT_TEXT)

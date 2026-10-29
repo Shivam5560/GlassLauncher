@@ -73,18 +73,19 @@ class ContrastTest {
             assertTrue("not monotonic at $i", a >= prev - 1e-6f)
             prev = a
         }
-        assertEquals(Contrast.SCRIM_MAX, Contrast.legibilityScrim(1f), 1e-6f)
+        // The cap is never the binding limit: a pure white backdrop needs about 0.535.
+        assertTrue(Contrast.legibilityScrim(1f) < Contrast.SCRIM_MAX)
     }
 
     @Test
-    fun scrimmedGlassAlwaysMeetsAaWithPickedText() {
+    fun scrimmedGlassAlwaysMeetsAaWithWhiteText() {
         // Thin glass at the lowest and highest tint, every backdrop brightness, at the Liquid defaults.
         for (tintAmount in listOf(GlassStyle().tintOpacity, GlassStyle().resolve(GlassVariant.Clear).tintOpacity)) {
             for (i in 0..1000) {
                 val backdropGamma = i / 1000f
                 val glass = Contrast.glassLuminance(Contrast.gammaToLinear(backdropGamma), GlassStyle().tintColor, tintAmount)
                 val lum = Contrast.scrimmed(glass, Contrast.legibilityScrim(Contrast.linearToGamma(glass)))
-                val text = Contrast.pickText(lum)
+                val text = Contrast.LIGHT_TEXT // thin dark glass always takes white text; the scrim makes that pass
                 val r = Contrast.ratio(Contrast.relativeLuminance(text), lum)
                 assertTrue("g=$backdropGamma tint=$tintAmount ratio=$r", r >= Contrast.AA)
             }
