@@ -20,14 +20,14 @@ import kotlinx.coroutines.launch
 /** Phase 4 keeps its own DataStore so it never collides with the other phases' settings keys. */
 val Context.polishStore: DataStore<Preferences> by preferencesDataStore(name = "polish")
 
-/** Which variant of an icon pack's artwork to use (see README, "Glass Icons variants"). */
+/** Which variant of an icon pack's artwork to use (see README, "Icon pack variant convention"). */
 enum class IconStyle(val title: String) { Auto("Auto"), Light("Light"), Dark("Dark"), Tinted("Tinted") }
 
 /** Where accent and glass tint come from. */
 enum class ThemeSource(val title: String) { Default("Default"), Wallpaper("Wallpaper"), Manual("Custom") }
 
 data class PolishSettings(
-    /** Phase 5: Dark by default (Glass Icons' dark variant). */
+    /** Phase 5: Dark by default when the selected pack provides a dark variant. */
     val iconStyle: IconStyle = IconStyle.Dark,
     /** Glyph colour for tinted icons; 0 = use the accent colour. */
     val tintedIconColor: Int = 0,

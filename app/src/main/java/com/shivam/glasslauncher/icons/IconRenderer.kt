@@ -66,20 +66,11 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
         _generation.value++
     }
 
-    @Volatile private var systemAppIcons = false
     @Volatile private var greyscale = false
 
     fun setGreyscale(on: Boolean) {
         if (on == greyscale) return
         greyscale = on
-        cache.evictAll()
-        _generation.value++
-    }
-
-    /** With no pack chosen, core system apps take Glass Icons' iOS-style art; others keep their logo. */
-    fun setSystemAppIcons(on: Boolean) {
-        if (on == systemAppIcons) return
-        systemAppIcons = on
         cache.evictAll()
         _generation.value++
     }
@@ -164,7 +155,6 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
             p != null -> (if (p.packageName == ONEPRO) PREFERRED[entry.component.packageName]?.let { p.named(it, density, variant) } else null)
                 ?: p.iconFor(entry.component, density, variant)
                 ?: BEST_MATCH[entry.component.packageName]?.let { p.named(it, density, variant) }
-            systemAppIcons && isCoreSystemApp(entry) -> loadPack(SYSTEM_ART_PACK)?.iconFor(entry.component, density, variant)
             else -> null
         }
         if (overridden) {
@@ -401,17 +391,6 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
         })
     }
 
-    /**
-     * Apps iOS also ships as part of the phone (dialer, messages, camera, settings, clock…): AOSP and
-     * Xiaomi system packages plus Google's core phone apps. Branded apps that merely come
-     * preinstalled (Chrome, YouTube, Gmail, Maps) are not, and keep their own logo.
-     */
-    private fun isCoreSystemApp(entry: AppEntry): Boolean {
-        val pkg = entry.packageName
-        val system = (entry.info.applicationInfo.flags and (android.content.pm.ApplicationInfo.FLAG_SYSTEM or android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0
-        return system && pkg !in BRANDED && (CORE_PREFIXES.any { pkg.startsWith(it) } || pkg in CORE_GOOGLE)
-    }
-
     private fun maskToSquircle(bmp: Bitmap) {
         val size = bmp.width.toFloat()
         val c = Canvas(bmp)
@@ -436,7 +415,6 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
     }
 
     private companion object {
-        const val SYSTEM_ART_PACK = "com.shivam.glassicons"
         /** Apps the selected pack doesn't map, matched by hand to the closest drawable in OnePro Dark. */
         const val ONEPRO = "com.eatos.onedarkpro"
         /**
@@ -452,14 +430,5 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
             "com.android.deskclock" to "clock_alt_01",
         )
         val BEST_MATCH = mapOf("in.swiggy.android.toing" to "swiggy")
-        val CORE_PREFIXES = listOf("com.android.", "com.miui.", "com.xiaomi.", "com.mi.")
-        /** Branded apps that live under a core prefix on some phones (Xiaomi ships Chrome as com.android.chrome). */
-        val BRANDED = setOf("com.android.chrome", "com.android.vending")
-        val CORE_GOOGLE = setOf(
-            "com.google.android.dialer", "com.google.android.contacts", "com.google.android.apps.messaging",
-            "com.google.android.deskclock", "com.google.android.calculator", "com.google.android.calendar",
-            "com.google.android.GoogleCamera", "com.google.android.apps.photos", "com.google.android.apps.nbu.files",
-            "com.google.android.apps.recorder", "com.google.android.keep", "com.google.android.documentsui",
-        )
     }
 }

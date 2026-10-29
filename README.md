@@ -59,16 +59,13 @@ and works on any Android 12+ phone (minSdk 31).
 
 ## Features (phase 4)
 
-- **Glass Icons** — a second app (`:glassicons`, `com.shivam.glassicons`): 61 original icons in the
-  iOS 26 style, each in three variants (light, dark, tinted), as Android vector drawables. It is a
-  standard ADW/Nova icon pack (`appfilter.xml` with AOSP, Google and Xiaomi/HyperOS components,
-  `drawable.xml`, iconback/mask/upon), so Nova, Lawnchair and others can use it too. The app is a
-  glass gallery over the bundled wallpapers with an "Apply to Glass Launcher" button and a request
-  list of installed apps that have no icon yet. All artwork is drawn from geometric primitives in
-  `tools/icons/generate_icons.py`; third-party apps get simplified glyphs in our own style.
+- **Installed icon packs:** standard ADW/Nova packs remain supported. The old standalone
+  Glass Icons companion app and its generator have been retired. Unmapped apps retain their
+  original logos, styled with the selected pack's background and mask when available.
 - **Icon variants:** Settings → Customise → Icon style: Auto (follows dark mode), Light, Dark or
   Tinted (glyph in the accent or a chosen colour on a dark glass tile).
-- **Per-app icons:** long-press an app → Edit Icon → any installed pack, a photo, or Default.
+- **Per-app icons:** long-press an app → Edit Icon, or Settings → Icon pack → Individual app icons.
+  Search for an app and choose artwork from an installed pack, a photo, or Default.
 - **Pinned shortcuts:** "Add to Home screen" from other apps opens a glass confirmation sheet.
 - **Wallpapers:** 12 original abstract wallpapers (mesh gradients, flowing ribbons, soft caustics),
   each a light and dark pair at 1440×3200, rendered by `tools/wallpapers/generate_wallpapers.py`.
@@ -80,18 +77,16 @@ and works on any Android 12+ phone (minSdk 31).
   bundled fallback.
 - **Backup & restore:** one JSON file through the Storage Access Framework, with a restore preview.
 
-### Glass Icons variant convention
+### Icon pack variant convention
 
 For every drawable `name` mapped in `appfilter.xml`, a pack may ship `name_dark` (dark glass tile,
 coloured glyph) and `name_tinted` (white monochrome glyph on transparent; the launcher draws the
 tile and tints the glyph). Glass Launcher picks them by icon style and falls back to `name`.
-To change the pack, edit `tools/icons/generate_icons.py` and run it; CI checks the output is current.
 
 ## Install
 
 1. Open the latest green run of the **Build** workflow in the repo's Actions tab.
-2. Download the `app-debug` artifact and unzip it to get `app-debug.apk`. For the icon pack, also
-   download `glassicons-debug` (`glassicons-debug.apk`).
+2. Download the `app-debug` artifact and unzip it to get `app-debug.apk`.
 3. Copy it to the phone and open it. Allow "Install unknown apps" for your file manager when asked.
 4. Open Glass and follow **Set up Glass** (it opens on first launch).
 
@@ -103,7 +98,7 @@ artwork taken from it). The RSS/news feed page is out of scope.
 - **Readable glass:** dark-tinted glass by default; text and icons pick white or near-black from
   the measured backdrop luminance (WCAG AA, never white on light). Gentler lens defaults
   (refraction 0.3, chroma 0.15, specular 0.45). Settings sections are one glass card with divider
-  rows. Glass Icons (dark) is the default pack when installed.
+  rows. Installed icon packs are selected explicitly in Settings.
 - **Clean default home:** a large centred clock / date / weather / next-event header, rounded photo
   and calendar widgets, a label-free 4-column grid, the floating glass dock and page pill.
 - **App drawer (swipe up):** apps sorted automatically into Internet, Media, Social, Games,
@@ -149,11 +144,10 @@ needs re-running after a reboot or OTA update. Glass Gestures is the supported w
 ## Build
 
 CI only (no local SDK needed): `.github/workflows/build.yml` sets up JDK 17 and the Android SDK, then
-checks the generated icon pack is current, runs the unit tests (calculator, converter, fuzzy matcher,
-layout ops, the glass-only policy check, wallpaper colour extraction, backup round-trip and the
-appfilter validation) and assembles both APKs. It uploads `app-debug.apk` and `glassicons-debug.apk`.
+runs the unit tests (calculator, converter, fuzzy matcher, layout ops, the glass-only policy check,
+wallpaper colour extraction and backup round-trip) and assembles the launcher. It uploads `app-debug.apk`.
 
-Kotlin · Jetpack Compose · `:app` (launcher) and `:glassicons` (icon pack) modules · DataStore for prefs · JSON file for the layout ·
+Kotlin · Jetpack Compose · `:app` launcher module · DataStore for prefs · JSON file for the layout ·
 no DI framework, no Room.
 
 ## Constraints
@@ -168,7 +162,7 @@ user is told in-app. `REVIEW.md` lists the code-review rules (glass only, no scr
 - **Phase 3 — Dynamic Island, Control Center and Notification Center:** an island overlay around
   the punch-hole camera, a glass Control Center (Settings panels for radios), and a Notification
   Center with inline reply.
-- **Phase 4 — Glass Icons and wallpapers:** an original icon-pack app in the standard format,
+- **Phase 4 — Icons and wallpapers:** installed icon packs and per-app overrides,
   original light/dark wallpapers (set through Glass for Path A refraction), font picker,
   backup/restore.
 
@@ -180,5 +174,5 @@ App code: all rights reserved by the author unless a licence file says otherwise
 © The Inter Project Authors, SIL Open Font License 1.1 (`FONT_LICENSE_Inter_OFL.txt`; the OFL allows
 bundling fonts in software). Manrope, Nunito, Space Grotesk and Lora © their project authors, SIL OFL
 1.1 (`FONT_LICENSE_*_OFL.txt`). Google Fonts provider certificates (`res/values/font_certs.xml`) are
-from the Android Open Source Project samples, Apache 2.0. Glass Icons artwork and the wallpapers are
-original and generated by the scripts in `tools/`.
+from the Android Open Source Project samples, Apache 2.0. The bundled wallpapers are original
+and generated by `tools/wallpapers/generate_wallpapers.py`.

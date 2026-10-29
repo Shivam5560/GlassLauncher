@@ -14,7 +14,7 @@ import org.xmlpull.v1.XmlPullParserFactory
 data class IconPackInfo(val packageName: String, val label: String)
 
 /**
- * Artwork variant of a pack drawable. Convention (used by Glass Icons, documented in README):
+ * Artwork variant of a pack drawable. Optional convention (documented in README):
  * for a drawable `name` mapped in appfilter.xml, `name_dark` is the dark-tile version and
  * `name_tinted` is a white monochrome glyph on transparent that the launcher puts on its own tile
  * and tints. Packs without these drawables simply fall back to `name`.

@@ -243,23 +243,9 @@ object SystemChecks {
 
     /** Phase 5 rows (docs/CONSTRAINTS.md, "Smart Launcher parity"). No new runtime permissions. */
     private fun phase5Checks(context: Context, settings: LauncherSettings, home: Boolean, gestures: Boolean): List<CheckResult> {
-        val glassIcons = try {
-            context.packageManager.getPackageInfo(GlassApp.GLASS_ICONS_PACKAGE, 0); true
-        } catch (e: Exception) { false }
-        val iconsApplied = settings.iconPack == GlassApp.GLASS_ICONS_PACKAGE
         val compass = context.getSystemService(android.hardware.SensorManager::class.java)
             ?.getDefaultSensor(android.hardware.Sensor.TYPE_ROTATION_VECTOR) != null
         return listOf(
-            CheckResult(
-                "glassicons", "Glass Icons", "Optional icon pack. By default Glass shows each app's own icon, logo untouched, under a glass finish.",
-                if (iconsApplied) CheckStatus.Ok else CheckStatus.Info,
-                when {
-                    iconsApplied -> "In use"
-                    glassIcons -> "Installed, not in use"
-                    else -> "Not installed — app icons"
-                },
-                null, CheckFix.InApp("iconpack"),
-            ),
             CheckResult(
                 "drawershortcuts", "Drawer shortcuts", "App shortcuts added to drawer categories open only while Glass is the default Home app.",
                 if (home) CheckStatus.Ok else CheckStatus.Warning, if (home) "Available" else "Unavailable",

@@ -2,6 +2,8 @@
 
 package com.shivam.glasslauncher.ui.drawer
 
+import com.shivam.glasslauncher.ui.glass.glassMenuPosition
+
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import android.app.Activity
 import androidx.compose.animation.core.Animatable
@@ -599,30 +601,18 @@ private fun DrawerMenu(state: DrawerUiState, currentCategory: String, openSettin
     Box(Modifier.fillMaxSize()) {
         if (visible || progress > 0.01f) GlassScrim(progress) { state.menuAnchor = null }
         Box(
-            Modifier
-                .fillMaxSize()
-                .layout { measurable, constraints ->
-                    val p = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
-                    layout(constraints.maxWidth, constraints.maxHeight) {
-                        val margin = 12.dp.roundToPx()
-                        val below = anchor.bottom + margin + p.height < constraints.maxHeight - 24.dp.roundToPx()
-                        val y = if (below) anchor.bottom.roundToInt() + margin else (anchor.top.roundToInt() - margin - p.height).coerceAtLeast(margin)
-                        val x = (anchor.right.roundToInt() - p.width).coerceIn(margin, (constraints.maxWidth - p.width - margin).coerceAtLeast(margin))
-                        p.place(x, y)
-                    }
-                },
+            Modifier.glassMenuPosition(anchor, alignEnd = true),
         ) {
             GlassMorph(visible = visible, origin = anchor, onProgress = { progress = it }) {
-                GlassSurface(Modifier.width(250.dp), shape = GlassShape.rounded(24.dp), role = null, kind = SurfaceKind.Panel) {
-                    Column(Modifier.padding(6.dp)) {
-                        fun go(block: () -> Unit) { state.menuAnchor = null; block() }
-                        GlassMenuRow("Add shortcut", DrawerGlyphs.Link) { go { state.sheet = DrawerSheet.AddShortcut(currentCategory) } }
-                        GlassMenuRow("Add folder", DrawerGlyphs.Folder) { go { state.sheet = DrawerSheet.AddFolder(currentCategory) } }
-                        GlassMenuRow("Add category", GlassIcons.Plus) { go { state.prompt = DrawerPrompt.AddCategory } }
-                        GlassMenuRow("Category bar", GlassIcons.Grid) { go { state.sheet = DrawerSheet.Categories } }
-                        GlassMenuRow("Sorting", DrawerGlyphs.Sort) { go { state.sheet = DrawerSheet.Sorting } }
-                        GlassMenuRow("Hidden apps", GlassIcons.EyeOff) { go { openSettings("hidden") } }
-                    }
+                com.shivam.glasslauncher.ui.glass.GlassMenuPanel {
+                    fun go(block: () -> Unit) { state.menuAnchor = null; block() }
+                    GlassMenuRow("Add shortcut", DrawerGlyphs.Link) { go { state.sheet = DrawerSheet.AddShortcut(currentCategory) } }
+                    GlassMenuRow("Add folder", DrawerGlyphs.Folder) { go { state.sheet = DrawerSheet.AddFolder(currentCategory) } }
+                    GlassMenuRow("Add category", GlassIcons.Plus) { go { state.prompt = DrawerPrompt.AddCategory } }
+                    com.shivam.glasslauncher.ui.glass.GlassMenuDivider()
+                    GlassMenuRow("Category bar", GlassIcons.Grid) { go { state.sheet = DrawerSheet.Categories } }
+                    GlassMenuRow("Sorting", DrawerGlyphs.Sort) { go { state.sheet = DrawerSheet.Sorting } }
+                    GlassMenuRow("Hidden apps", GlassIcons.EyeOff) { go { openSettings("hidden") } }
                 }
             }
         }

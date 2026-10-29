@@ -66,7 +66,7 @@ fun reducedMotion(context: Context): Boolean =
 fun WidgetFrame(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
-    padding: androidx.compose.ui.unit.Dp = 14.dp,
+    padding: androidx.compose.ui.unit.Dp = 16.dp,
     content: @Composable BoxScope.() -> Unit,
 ) {
     GlassSurface(
@@ -74,7 +74,7 @@ fun WidgetFrame(
         shape = WidgetShape,
         variant = GlassVariant.Regular,
         onClick = onClick,
-        role = null,
+        role = if (onClick != null) androidx.compose.ui.semantics.Role.Button else null,
         kind = com.shivam.glasslauncher.ui.glass.SurfaceKind.Widget,
     ) {
         Box(Modifier.fillMaxSize().padding(padding), content = content)

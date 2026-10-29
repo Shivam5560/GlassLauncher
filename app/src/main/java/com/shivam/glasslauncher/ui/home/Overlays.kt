@@ -2,6 +2,8 @@
 
 package com.shivam.glasslauncher.ui.home
 
+import com.shivam.glasslauncher.ui.glass.glassMenuPosition
+
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.WindowInsets
@@ -234,71 +236,58 @@ fun ContextMenuOverlay(
             }
         }
         Box(
-            Modifier
-                .fillMaxSize()
-                .layout { measurable, constraints ->
-                    val p = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
-                    layout(constraints.maxWidth, constraints.maxHeight) {
-                        val margin = 12.dp.roundToPx()
-                        val a = target.anchor
-                        val below = a.bottom + margin + p.height < constraints.maxHeight - 48.dp.roundToPx()
-                        val y = if (below) a.bottom.roundToInt() + margin else (a.top.roundToInt() - margin - p.height).coerceAtLeast(margin)
-                        val x = (a.center.x.roundToInt() - p.width / 2).coerceIn(margin, (constraints.maxWidth - p.width - margin).coerceAtLeast(margin))
-                        p.place(x, y)
-                    }
-                },
+            Modifier.glassMenuPosition(target.anchor, alignEnd = false),
         ) {
             GlassMorph(visible = current != null, origin = target.anchor, onProgress = { progress = it }) {
-                GlassSurface(Modifier.width(250.dp), shape = GlassShape.rounded(24.dp), role = null) {
-                    Column(Modifier.padding(6.dp)) {
-                        shortcuts.forEach { (info, icon) ->
-                            MenuRow(info.shortLabel?.toString() ?: "", null, bitmap = icon) {
-                                close()
-                                vm.actions.startShortcut(info, target.anchor.toAndroid())
-                            }
+                com.shivam.glasslauncher.ui.glass.GlassMenuPanel {
+                    shortcuts.forEach { (info, icon) ->
+                        MenuRow(info.shortLabel?.toString() ?: "", null, bitmap = icon) {
+                            close()
+                            vm.actions.startShortcut(info, target.anchor.toAndroid())
                         }
-                        if (entry != null && !vm.actions.hasShortcutAccess()) {
-                            // docs/CONSTRAINTS.md: shortcuts only work while Glass is the default Home app.
-                            GlassText(
-                                "App shortcuts appear when Glass is your default Home app.",
-                                Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                                style = GlassType.Footnote,
-                                secondary = true,
-                            )
+                    }
+                    if (entry != null && !vm.actions.hasShortcutAccess()) {
+                        // docs/CONSTRAINTS.md: shortcuts only work while Glass is the default Home app.
+                        GlassText(
+                            "App shortcuts appear when Glass is your default Home app.",
+                            Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            style = GlassType.Footnote,
+                            secondary = true,
+                        )
+                    }
+                    if (shortcuts.isNotEmpty()) com.shivam.glasslauncher.ui.glass.GlassMenuDivider()
+                    val slot = target.slot
+                    if (target.folder != null) {
+                        MenuRow("Rename Folder", GlassIcons.Pencil) {
+                            close(); ui.rename = RenameTarget(null, target.folder.id, target.folder.name, target.anchor)
                         }
-                        if (shortcuts.isNotEmpty()) Spacer(Modifier.height(6.dp))
-                        val slot = target.slot
-                        if (target.folder != null) {
-                            MenuRow("Rename Folder", GlassIcons.Pencil) {
-                                close(); ui.rename = RenameTarget(null, target.folder.id, target.folder.name, target.anchor)
-                            }
-                            MenuRow("Edit Home Screen", GlassIcons.Grid) { close(); ui.editMode = true }
-                            if (slot != null) MenuRow("Remove Folder", GlassIcons.Minus, destructive = true) { close(); callbacks.remove(slot) }
-                        } else if (entry != null) {
-                            if (slot is Slot.Page || slot is Slot.Dock) MenuRow("Edit Home Screen", GlassIcons.Grid) { close(); ui.editMode = true }
-                            if (target.fromDrawer) {
-                                MenuRow("Move to category", GlassIcons.Grid) { close(); ui.drawer.moveApp = entry }
-                            }
-                            MenuRow("Rename", GlassIcons.Pencil) {
-                                close(); ui.rename = RenameTarget(entry.key, null, ctx.label(entry), target.anchor)
-                            }
-                            MenuRow("Edit Icon", GlassIcons.Palette) {
-                                close(); activity.startActivity(com.shivam.glasslauncher.settings.SettingsActivity.intent(activity, "editicon:${entry.key}"))
-                            }
-                            when {
-                                slot is Slot.InFolder -> MenuRow("Remove from Folder", GlassIcons.Minus) { close(); vm.removeFromFolder(slot, entry.key) }
-                                slot != null -> MenuRow("Remove from Home", GlassIcons.Minus) { close(); callbacks.remove(slot) }
-                                !placed -> MenuRow("Add to Home Screen", GlassIcons.Plus) { close(); vm.addToHome(entry.key); ui.toast.show("Added to Home Screen") }
-                            }
-                            MenuRow("Hide App", GlassIcons.EyeOff) { close(); vm.hide(entry.key); ui.toast.show("Hidden from Home, Library and Search. Still listed in system Settings.") }
-                            val locked = vm.isLocked(entry)
-                            MenuRow(if (locked) "Unlock App" else "Lock App", GlassIcons.Lock) {
-                                close(); vm.setLocked(entry.key, !locked)
-                                ui.toast.show(if (locked) "Unlocked" else "Locked when opened from Glass. Notifications and Recents can still open it.")
-                            }
-                            MenuRow("App Info", GlassIcons.Info) { close(); vm.actions.appInfo(entry) }
-                            MenuRow("Uninstall", GlassIcons.Trash, destructive = true) { close(); vm.actions.uninstall(activity, entry) }
+                        MenuRow("Edit Home Screen", GlassIcons.Grid) { close(); ui.editMode = true }
+                        if (slot != null) MenuRow("Remove Folder", GlassIcons.Minus, destructive = true) { close(); callbacks.remove(slot) }
+                    } else if (entry != null) {
+                        if (slot is Slot.Page || slot is Slot.Dock) MenuRow("Edit Home Screen", GlassIcons.Grid) { close(); ui.editMode = true }
+                        if (target.fromDrawer) {
+                            MenuRow("Move to category", GlassIcons.Grid) { close(); ui.drawer.moveApp = entry }
                         }
+                        MenuRow("Rename", GlassIcons.Pencil) {
+                            close(); ui.rename = RenameTarget(entry.key, null, ctx.label(entry), target.anchor)
+                        }
+                        MenuRow("Edit Icon", GlassIcons.Palette) {
+                            close(); activity.startActivity(com.shivam.glasslauncher.settings.SettingsActivity.intent(activity, "editicon:${entry.key}"))
+                        }
+                        when {
+                            slot is Slot.InFolder -> MenuRow("Remove from Folder", GlassIcons.Minus) { close(); vm.removeFromFolder(slot, entry.key) }
+                            slot != null -> MenuRow("Remove from Home", GlassIcons.Minus) { close(); callbacks.remove(slot) }
+                            !placed -> MenuRow("Add to Home Screen", GlassIcons.Plus) { close(); vm.addToHome(entry.key); ui.toast.show("Added to Home Screen") }
+                        }
+                        MenuRow("Hide App", GlassIcons.EyeOff) { close(); vm.hide(entry.key); ui.toast.show("Hidden from Home, Library and Search. Still listed in system Settings.") }
+                        val locked = vm.isLocked(entry)
+                        MenuRow(if (locked) "Unlock App" else "Lock App", GlassIcons.Lock) {
+                            close(); vm.setLocked(entry.key, !locked)
+                            ui.toast.show(if (locked) "Unlocked" else "Locked when opened from Glass. Notifications and Recents can still open it.")
+                        }
+                        MenuRow("App Info", GlassIcons.Info) { close(); vm.actions.appInfo(entry) }
+                        com.shivam.glasslauncher.ui.glass.GlassMenuDivider()
+                        MenuRow("Uninstall", GlassIcons.Trash, destructive = true) { close(); vm.actions.uninstall(activity, entry) }
                     }
                 }
             }

@@ -377,15 +377,21 @@ fun AudioBars(playing: Boolean, modifier: Modifier, art: android.graphics.Bitmap
     // HyperOS-style waves: each bar a gradient of the album art's two main vivid colours.
     val colors = remember(art) { runCatching { waveColors(art) }.getOrElse { listOf(Color.White, Color.White) } }
     // One continuous phase drives every bar (two mixed sines each), so the motion is fluid, not stepped.
-    val transition = rememberInfiniteTransition(label = "bars")
-    val phase by transition.animateFloat(0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(1600, easing = androidx.compose.animation.core.LinearEasing)), label = "wave")
+    val phase = remember { androidx.compose.animation.core.Animatable(0f) }
+    com.shivam.glasslauncher.ui.glass.ResumedLoop(playing) {
+        if (playing) {
+            phase.snapTo(0f)
+            phase.animateTo((2 * Math.PI).toFloat(),
+                infiniteRepeatable(tween(1600, easing = androidx.compose.animation.core.LinearEasing)))
+        }
+    }
     val calm by animateFloatAsState(if (playing) 1f else 0f, spring(stiffness = 200f), label = "barsCalm")
     Canvas(modifier) {
         val n = 5
         val gap = size.width * 0.1f
         val w = (size.width - gap * (n - 1)) / n
         for (i in 0 until n) {
-            val wave = 0.5f + 0.3f * kotlin.math.sin(phase * 2 + i * 1.3f) + 0.2f * kotlin.math.sin(phase * 3 - i * 0.9f)
+            val wave = 0.5f + 0.3f * kotlin.math.sin(phase.value * 2 + i * 1.3f) + 0.2f * kotlin.math.sin(phase.value * 3 - i * 0.9f)
             val v = 0.24f + (wave.coerceIn(0f, 1f) * 0.76f) * calm
             val bh = size.height * v
             val top = (size.height - bh) / 2f

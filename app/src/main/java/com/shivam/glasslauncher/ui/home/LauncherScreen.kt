@@ -50,6 +50,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.repeatOnLifecycle
 import com.shivam.glasslauncher.data.AppItem
 import com.shivam.glasslauncher.data.DropTarget
 import com.shivam.glasslauncher.data.FolderItem
@@ -118,6 +119,8 @@ fun LauncherScreen(
     val snapshot by vm.wallpaper.collectAsState()
     val generation by vm.iconGeneration.collectAsState()
     val activity = LocalContext.current as Activity
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val haptics = LocalHapticFeedback.current
     val density = LocalDensity.current
     val screenWidthPx = with(density) { androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp.dp.toPx() }
@@ -179,8 +182,7 @@ fun LauncherScreen(
     val overlayOpen = ui.overlayOpen || widgetUi.open
     val crossWindowBlur = rememberCrossWindowBlur(if (overlayOpen) glass.blurRadius else 0f)
     val overlayAnimState = animateFloatAsState(if (overlayOpen) 1f else 0f, spring(dampingRatio = 1f, stiffness = 300f), label = "overlay")
-    val overlayAnim by overlayAnimState
-    val editShift by animateFloatAsState(if (ui.editMode) with(LocalDensity.current) { 36.dp.toPx() } else 0f, spring(dampingRatio = 1f, stiffness = 400f), label = "editShift")
+    val editShift = animateFloatAsState(if (ui.editMode) with(LocalDensity.current) { 36.dp.toPx() } else 0f, spring(dampingRatio = 1f, stiffness = 400f), label = "editShift")
     val lightWallpaper = snapshot.globalLuminance > 0.7f
 
     val wallpaperLayer = rememberGraphicsLayer()
@@ -195,7 +197,13 @@ fun LauncherScreen(
     // still nearly transparent) they refract the wallpaper alone, never the live home layer.
     val frozenHomeLayer = rememberGraphicsLayer()
     var frozenHome by remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
-    val overlayGone = !overlayOpen && overlayAnim < 0.01f
+    // Observe threshold changes in composition, not every animation frame.
+    val overlayGone by remember(overlayOpen) {
+        androidx.compose.runtime.derivedStateOf { !overlayOpen && overlayAnimState.value < 0.01f }
+    }
+    val showBlurFallback by remember(crossWindowBlur) {
+        androidx.compose.runtime.derivedStateOf { !crossWindowBlur && overlayAnimState.value > 0.01f }
+    }
     LaunchedEffect(overlayOpen) {
         if (overlayOpen) frozenHome = runCatching { homeLayer.toImageBitmap() }.getOrNull()
     }
@@ -204,7 +212,7 @@ fun LauncherScreen(
     // Once the overlay has finished opening, the blurred home is one still texture: the live full-screen
     // blur would otherwise re-run on every drawer/Spotlight frame (~4 ms GPU on a Redmi Turbo 5).
     val frozenBlurred = rememberBlurredCopy(frozenHome, OverlayHomeBlur.value)
-    val showFrozenBlur by remember(frozenBlurred) {
+    val showFrozenBlur by remember(frozenBlurred, overlayOpen) {
         androidx.compose.runtime.derivedStateOf { frozenBlurred != null && overlayOpen && overlayAnimState.value > 0.97f && appDepth.value < 0.01f }
     }
     // Overlay panels refract blurred stills (blurred wallpaper + blurred home) and skip their own live blur.
@@ -231,13 +239,32 @@ fun LauncherScreen(
         if (!settings.onboardingDone) openSettings("setup")
     }
 
-    // Home button: close overlays, else go to the first page.
-    LaunchedEffect(homePresses) {
-        if (homePresses == 0) return@LaunchedEffect
-        val hadOverlay = ui.overlayOpen || ui.editMode || widgetUi.open
+    // HOME also resets a partially completed app-launch depth animation, so a cancelled
+    // launch or an interrupted drawer transition can never leave home stuck behind blur.
+    suspend fun returnHome() {
+        val hadOverlay = ui.overlayOpen || ui.editMode || widgetUi.open || widgetUi.arranging != null
         ui.closeAll()
         widgetUi.closeAll()
+        widgetUi.arranging = null
+        keyboard?.hide()
+        focusManager.clearFocus(force = true)
+        ui.drag.end()
+        appLaunched = false
+        appDepth.snapTo(0f)
+        frozenHome = null
         if (!hadOverlay) goTo(layoutState.value.defaultPage + TODAY_PAGES)
+    }
+    val returnHomeAction = rememberUpdatedState<suspend () -> Unit> { returnHome() }
+    LaunchedEffect(homePresses) {
+        if (homePresses != 0) returnHomeAction.value()
+    }
+    // HyperOS may not send onNewIntent for GLOBAL_ACTION_HOME when Home is already in front.
+    // The gesture service delivers that case directly; no replay is kept for a later resume.
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(lifecycle) {
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+            HomeNavigation.requests.collect { returnHomeAction.value() }
+        }
     }
 
     BackHandler(enabled = true) {
@@ -467,7 +494,7 @@ fun LauncherScreen(
                 // skips the system wallpaper, so this is our own blurred copy, faded in with the swipe).
                 val img = snapshot.image
                 val homeBlurImg = rememberBlurredCopy(img, HomeBlur.value)
-                val sideBlurImg = rememberBlurredCopy(img, glass.blurRadius.toFloat())
+                val sideBlurImg = panelWall // Same wallpaper/radius: reuse the prepared texture.
                 if (img != null) {
                     val sideFraction = {
                         val pos = ringState.value.of(pagerState.currentPage) + pagerState.currentPageOffsetFraction
@@ -496,17 +523,17 @@ fun LauncherScreen(
 
                 // Fallback base layer when the compositor cannot blur behind the window
                 // (battery saver, some HyperOS builds): pre-blurred wallpaper, else solid tinted glass.
-                if (!crossWindowBlur && overlayAnim > 0.01f) {
+                if (showBlurFallback) {
                     if (sideBlurImg != null) {
                         Image(
                             sideBlurImg,
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = overlayAnim },
+                            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = overlayAnimState.value },
                         )
                     } else {
                         GlassSurface(
-                            Modifier.fillMaxSize().graphicsLayer { alpha = overlayAnim },
+                            Modifier.fillMaxSize().graphicsLayer { alpha = overlayAnimState.value },
                             shape = GlassShape.rounded(0.dp),
                             backdrop = null,
                             role = null,
@@ -566,7 +593,7 @@ fun LauncherScreen(
                                     if (isHome) {
                                         homePageTransition(homeAnim, pagerState.currentPage + pagerState.currentPageOffsetFraction - pagerPage)
                                         // Edit mode: the toolbar (Settings, pages, share, +, Done) sits above the first row, so the page slides down under it.
-                                        translationY += editShift
+                                        translationY += editShift.value
                                     }
                                 }) {
                                 CompositionLocalProvider(LocalBackdrop provides wallpaperOnly) {

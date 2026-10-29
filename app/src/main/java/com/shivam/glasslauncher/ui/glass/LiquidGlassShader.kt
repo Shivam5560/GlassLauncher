@@ -42,6 +42,8 @@ float sdf(float2 p) {
     float2 h = size * 0.5;
     float r = min(radius, min(h.x, h.y));
     float2 q = abs(p - h) - h + r;
+    // Straight edges and the flat centre do not need superellipse powers.
+    if (max(q.x, q.y) <= 0.0) { return max(q.x, q.y) - r; }
     float2 m = max(q, 0.0);
     float corner = pow(pow(m.x, expo) + pow(m.y, expo), 1.0 / expo);
     return corner + min(max(q.x, q.y), 0.0) - r;
@@ -51,19 +53,31 @@ half4 main(float2 p) {
     float d = sdf(p);
     if (d > 1.0) { return half4(0.0); }
 
-    const float e = 0.75;
-    float2 n = float2(sdf(p + float2(e, 0.0)) - sdf(p - float2(e, 0.0)),
-                      sdf(p + float2(0.0, e)) - sdf(p - float2(0.0, e)));
-    float nl = length(n);
-    n = nl > 0.0001 ? n / nl : float2(0.0, 0.0);
-
     float inside = max(-d, 0.0);
-    float x = clamp(1.0 - inside / max(rim, 1.0), 0.0, 1.0);   // 1 at the edge, 0 in the flat centre
+    float x = clamp(1.0 - inside / max(rim, 1.0), 0.0, 1.0);
+    // The centre has no displacement or rim lighting. Only calculate a normal in the
+    // optical rim; an analytic gradient replaces four additional SDF evaluations.
+    float2 n = float2(0.0);
+    if (inside < max(rim, 12.0)) {
+        float2 h = size * 0.5;
+        float r = min(radius, min(h.x, h.y));
+        float2 q = abs(p - h) - h + r;
+        float2 m = max(q, 0.0);
+        if (max(m.x, m.y) > 0.0) {
+            // Common factors cancel on normalization. Scale first to avoid large powers.
+            m /= max(max(m.x, m.y), 0.0001);
+            n = float2(pow(m.x, expo - 1.0), pow(m.y, expo - 1.0));
+            n /= max(length(n), 0.0001);
+        } else {
+            n = q.x > q.y ? float2(1.0, 0.0) : float2(0.0, 1.0);
+        }
+        n *= sign(p - h);
+    }
     float bend = refraction * x * x * x;
     float2 offset = -n * bend;
 
     float4 col;
-    if (chroma > 0.001) {
+    if (chroma > 0.001 && bend > 0.01) {
         float4 g = float4(sampleAt(p + offset));
         float r = float(sampleAt(p + offset * (1.0 + 0.6 * chroma)).r);
         float b = float(sampleAt(p + offset * max(1.0 - 0.6 * chroma, 0.0)).b);
@@ -82,11 +96,11 @@ half4 main(float2 p) {
     float2 L = normalize(light);
     float facing = dot(n, L);
     float rimLine = exp(-inside / 1.2);
-    float spec = rimLine * (0.22 + 0.78 * max(facing, 0.0) + 0.4 * max(-facing, 0.0));
-    float glow = x * x * (0.06 + 0.22 * max(facing, 0.0));
+    float spec = rimLine * (0.12 + 0.55 * max(facing, 0.0) + 0.20 * max(-facing, 0.0));
+    float glow = x * x * (0.025 + 0.10 * max(facing, 0.0));
     float2 uv = p / size - 0.5;
     float s = clamp(dot(uv, L) + 0.5, 0.0, 1.0);
-    float sheen = s * s * s * 0.14;
+    float sheen = s * s * s * 0.045;
     float hl = (spec + glow + sheen) * specular * (1.0 + brighten * 0.5);
     rgb += hl;
     a = a + hl * (1.0 - a);

@@ -9,7 +9,6 @@ Output (committed):
   app/src/main/assets/wallpapers/<id>_<light|dark>.webp        1440x3200, full size (set as wallpaper)
   app/src/main/assets/wallpapers/<id>_<light|dark>_thumb.webp  270x600, picker previews
   app/src/main/assets/wallpapers/index.json                    ids, names, categories
-  glassicons/src/main/assets/wallpapers/<id>_<light|dark>.webp 540x1200, Glass Icons preview backdrops
 
 Usage: python3 tools/wallpapers/generate_wallpapers.py [--scale 0.25]   (scale is for quick previews)
 Requires: numpy, Pillow (pip install numpy pillow)
@@ -23,7 +22,6 @@ from PIL import Image
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 APP_OUT = os.path.join(ROOT, "app", "src", "main", "assets", "wallpapers")
-ICONS_OUT = os.path.join(ROOT, "glassicons", "src", "main", "assets", "wallpapers")
 W, H = 1440, 3200
 
 
@@ -249,7 +247,6 @@ def main():
         scale = float(sys.argv[sys.argv.index("--scale") + 1])
     w, h = int(W * scale), int(H * scale)
     os.makedirs(APP_OUT, exist_ok=True)
-    os.makedirs(ICONS_OUT, exist_ok=True)
     index = []
     total = 0
     for i, (wid, name, cat, fn) in enumerate(DESIGNS):
@@ -258,7 +255,6 @@ def main():
             path = os.path.join(APP_OUT, f"{wid}_{mode}.webp")
             img.save(path, "WEBP", quality=82, method=6)
             img.resize((270, 600), Image.LANCZOS).save(os.path.join(APP_OUT, f"{wid}_{mode}_thumb.webp"), "WEBP", quality=80, method=6)
-            img.resize((540, 1200), Image.LANCZOS).save(os.path.join(ICONS_OUT, f"{wid}_{mode}.webp"), "WEBP", quality=78, method=6)
             total += os.path.getsize(path)
             print(f"{wid}_{mode}: {os.path.getsize(path) // 1024} KB", flush=True)
         index.append({"id": wid, "name": name, "category": cat})

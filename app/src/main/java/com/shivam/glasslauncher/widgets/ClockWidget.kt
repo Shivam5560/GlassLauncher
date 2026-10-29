@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.shivam.glasslauncher.ui.glass.currentAccent
 import com.shivam.glasslauncher.ui.glass.GlassColors
 import com.shivam.glasslauncher.ui.glass.GlassText
 import com.shivam.glasslauncher.ui.glass.GlassType
@@ -100,12 +101,12 @@ private fun DigitalClockWidget(size: WidgetSize, modifier: Modifier) {
     val date = t.format(DateTimeFormatter.ofPattern(if (size == WidgetSize.SMALL) "EEE d MMM" else "EEEE, d MMMM"))
     WidgetFrame(modifier) {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-            GlassText(date.uppercase(), style = GlassType.Caption, color = GlassColors.Orange, maxLines = 1)
+            GlassText(date, style = GlassType.Subhead, secondary = true, maxLines = 1)
+            Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.Bottom) {
-                GlassText(time, style = GlassType.LargeTitle.copy(fontSize = if (size == WidgetSize.SMALL) 46.sp else 64.sp, fontWeight = FontWeight.SemiBold), maxLines = 1)
-                if (!is24) GlassText(if (t.hour < 12) " AM" else " PM", style = GlassType.Headline, secondary = true)
+                GlassText(time, style = GlassType.LargeTitle.copy(fontSize = if (size == WidgetSize.SMALL) 44.sp else 64.sp, fontWeight = FontWeight.Normal, letterSpacing = (-2).sp, fontFeatureSettings = "tnum"), maxLines = 1)
             }
-            GlassText(ZoneId.systemDefault().id.let { ClockStyles.cityName(it) }, style = GlassType.Footnote, secondary = true, maxLines = 1)
+            GlassText((if (!is24) if (t.hour < 12) "AM · " else "PM · " else "") + ZoneId.systemDefault().id.let { ClockStyles.cityName(it) }, style = GlassType.Footnote, secondary = true, maxLines = 1)
         }
     }
 }
@@ -199,13 +200,14 @@ private fun offsetLabel(t: ZonedDateTime, local: ZonedDateTime): String {
 @Composable
 private fun Dial(t: ZonedDateTime, modifier: Modifier, seconds: Boolean, night: Boolean = false) {
     val content = LocalGlassContentColor.current
+    val accent = currentAccent()
     val face = if (night) Color(0xFF1C1C1E).copy(alpha = 0.55f) else Color.White.copy(alpha = 0.10f)
     val ink = if (night) Color.White else content
     Canvas(modifier) {
         val r = size.minDimension / 2f
         val c = Offset(size.width / 2f, size.height / 2f)
         drawCircle(face, r, c)
-        drawCircle(ink.copy(alpha = 0.25f), r, c, style = Stroke(width = r * 0.02f))
+        drawCircle(ink.copy(alpha = 0.14f), r, c, style = Stroke(width = r * 0.02f))
         for (i in 0 until 60) {
             val major = i % 5 == 0
             if (!major && r < 40.dp.toPx()) continue
@@ -223,8 +225,8 @@ private fun Dial(t: ZonedDateTime, modifier: Modifier, seconds: Boolean, night: 
         val hr = (t.hour % 12) + min / 60f
         hand(ink, c, hr / 12f, r * 0.5f, r * 0.07f)
         hand(ink, c, min / 60f, r * 0.75f, r * 0.05f)
-        if (seconds) hand(GlassColors.Orange, c, sec / 60f, r * 0.82f, r * 0.02f)
-        drawCircle(if (seconds) GlassColors.Orange else ink, r * 0.05f, c)
+        if (seconds) hand(accent, c, sec / 60f, r * 0.82f, r * 0.02f)
+        drawCircle(if (seconds) accent else ink, r * 0.05f, c)
     }
 }
 

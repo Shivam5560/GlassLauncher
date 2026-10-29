@@ -10,8 +10,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * `com.shivam.glasslauncher.action.APPLY_ICON_PACK` with the pack's package name in
- * [EXTRA_ICON_PACK]: sent by Glass Icons' "Apply to Glass Launcher" button (any installed icon
- * pack may use it). Only real, installed icon packs are accepted. Opens the icon style screen so
+ * [EXTRA_ICON_PACK]: any installed icon pack may use this action. Only real, installed icon packs are accepted. Opens the icon style screen so
  * the change is visible and can be undone.
  */
 class ApplyIconPackActivity : Activity() {

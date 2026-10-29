@@ -5,9 +5,9 @@ import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.ui.platform.LocalContext
@@ -31,10 +31,17 @@ fun rememberCrossWindowBlur(targetRadiusDp: Float): Boolean {
         onDispose { wm.removeCrossWindowBlurEnabledListener(listener) }
     }
     val density = LocalDensity.current
-    val animated by animateFloatAsState(targetRadiusDp, spring(dampingRatio = 1f, stiffness = 260f), label = "windowBlur")
-    LaunchedEffect(animated, enabled.value) {
-        val px = if (enabled.value) with(density) { animated.coerceAtLeast(0f) * this.density }.toInt() else 0
-        activity.window.setBackgroundBlurRadius(px)
+    val animated = animateFloatAsState(targetRadiusDp, spring(dampingRatio = 1f, stiffness = 260f), label = "windowBlur")
+    LaunchedEffect(activity, density) {
+        // Read animation state outside composition and emit only changed integer radii.
+        // Returning Boolean makes this helper non-restartable, so a composition read here
+        // otherwise recomposes the entire LauncherScreen on every blur-animation frame.
+        snapshotFlow {
+            if (enabled.value) (animated.value.coerceAtLeast(0f) * density.density).toInt() else 0
+        }.collect { px -> activity.window.setBackgroundBlurRadius(px) }
+    }
+    DisposableEffect(activity) {
+        onDispose { activity.window.setBackgroundBlurRadius(0) }
     }
     return enabled.value
 }

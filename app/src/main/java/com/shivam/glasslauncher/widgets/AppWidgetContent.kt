@@ -40,7 +40,9 @@ fun AppWidgetContent(inst: WidgetInstance, modifier: Modifier = Modifier) {
         return
     }
     WidgetFrame(modifier, padding = 4.dp) {
-        BoxWithConstraints(Modifier.fillMaxSize().clip(GlassShape.rounded(20.dp))) {
+        BoxWithConstraints(Modifier.fillMaxSize().clip(GlassShape.rounded(
+            (com.shivam.glasslauncher.ui.glass.LocalGlassStyle.current.widgetCornerRadius - 4f).coerceAtLeast(0f).dp,
+        ))) {
             val w = maxWidth.value
             val h = maxHeight.value
             key(id) {

@@ -1,5 +1,7 @@
 package com.shivam.glasslauncher.widgets
 
+import com.shivam.glasslauncher.ui.glass.glassMenuPosition
+
 import android.Manifest
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
@@ -75,38 +77,25 @@ private fun WidgetMenuOverlay(widgets: WidgetUiState, launcher: LauncherUiState)
     Box(Modifier.fillMaxSize()) {
         GlassScrim(progress) { close() }
         Box(
-            Modifier
-                .fillMaxSize()
-                .layout { measurable, constraints ->
-                    val p = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
-                    layout(constraints.maxWidth, constraints.maxHeight) {
-                        val margin = 12.dp.roundToPx()
-                        val a = last.anchor
-                        val below = a.bottom + margin + p.height < constraints.maxHeight - 48.dp.roundToPx()
-                        val y = if (below) a.bottom.roundToInt() + margin else (a.top.roundToInt() - margin - p.height).coerceAtLeast(margin)
-                        val x = (a.center.x.roundToInt() - p.width / 2).coerceIn(margin, (constraints.maxWidth - p.width - margin).coerceAtLeast(margin))
-                        p.place(x, y)
-                    }
-                },
+            Modifier.glassMenuPosition(last.anchor, alignEnd = false),
         ) {
             GlassMorph(visible = current != null, origin = last.anchor, onProgress = { progress = it }) {
-                GlassSurface(Modifier.width(250.dp), shape = GlassShape.rounded(24.dp), role = null) {
-                    Column(Modifier.padding(6.dp)) {
-                        if (inst != null && inst.kind != WidgetKind.SEARCH) {
-                            MenuItem("Edit Widget", GlassIcons.Pencil) { close(); widgets.editing = inst.id }
-                        }
-                        if (inst != null && inst.kind != WidgetKind.APP_WIDGET && inst.kind.sizes.size > 1) {
-                            Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                inst.kind.sizes.forEach { s ->
-                                    GlassChip(s.title, selected = s == inst.size, onClick = { widgets.setSize(inst.id, s) })
-                                }
+                com.shivam.glasslauncher.ui.glass.GlassMenuPanel {
+                    if (inst != null && inst.kind != WidgetKind.SEARCH) {
+                        MenuItem("Edit Widget", GlassIcons.Pencil) { close(); widgets.editing = inst.id }
+                    }
+                    if (inst != null && inst.kind != WidgetKind.APP_WIDGET && inst.kind.sizes.size > 1) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            inst.kind.sizes.forEach { s ->
+                                GlassChip(s.title, selected = s == inst.size, onClick = { widgets.setSize(inst.id, s) })
                             }
                         }
-                        if (last.onHome && inst != null) MenuItem("Resize & Move", GlassIcons.Grid) { close(); widgets.arranging = inst.id }
-                        MenuItem("Add Widget", GlassIcons.Plus) { close(); widgets.picker = if (last.onHome) PickerTarget.Home(last.page) else PickerTarget.Today }
-                        MenuItem(if (last.onHome) "Edit Home Screen" else "Edit Today View", GlassIcons.Grid) { close(); launcher.editMode = true }
-                        MenuItem("Remove Widget", GlassIcons.Minus, destructive = true) { close(); widgets.remove(last.id) }
                     }
+                    if (last.onHome && inst != null) MenuItem("Resize & Move", GlassIcons.Grid) { close(); widgets.arranging = inst.id }
+                    MenuItem("Add Widget", GlassIcons.Plus) { close(); widgets.picker = if (last.onHome) PickerTarget.Home(last.page) else PickerTarget.Today }
+                    MenuItem(if (last.onHome) "Edit Home Screen" else "Edit Today View", GlassIcons.Grid) { close(); launcher.editMode = true }
+                    com.shivam.glasslauncher.ui.glass.GlassMenuDivider()
+                    MenuItem("Remove Widget", GlassIcons.Minus, destructive = true) { close(); widgets.remove(last.id) }
                 }
             }
         }

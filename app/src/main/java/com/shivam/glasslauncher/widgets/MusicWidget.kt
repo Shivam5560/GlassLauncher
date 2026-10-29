@@ -1,6 +1,12 @@
 package com.shivam.glasslauncher.widgets
 
 import android.os.SystemClock
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import com.shivam.glasslauncher.ui.glass.glassPressable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
@@ -17,7 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
@@ -36,15 +41,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
-import com.shivam.glasslauncher.ui.glass.GlassColors
 import com.shivam.glasslauncher.ui.glass.GlassIcon
-import com.shivam.glasslauncher.ui.glass.GlassIconButton
 import com.shivam.glasslauncher.ui.glass.GlassShape
 import com.shivam.glasslauncher.ui.glass.GlassSlider
-import com.shivam.glasslauncher.ui.glass.GlassSurface
 import com.shivam.glasslauncher.ui.glass.GlassText
 import com.shivam.glasslauncher.ui.glass.GlassType
-import com.shivam.glasslauncher.ui.glass.GlassVariant
 import com.shivam.glasslauncher.ui.glass.LocalGlassContentColor
 import com.shivam.glasslauncher.ui.glass.ResumedLoop
 import kotlinx.coroutines.delay
@@ -77,7 +78,7 @@ fun MusicWidget(size: WidgetSize, modifier: Modifier = Modifier) {
         MusicState.Idle -> WidgetFrame(modifier) {
             Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
                 ArtTile(null, if (size == WidgetSize.LARGE) 96.dp else 52.dp)
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(12.dp))
                 GlassText("Not Playing", style = GlassType.Headline, maxLines = 1)
                 if (size != WidgetSize.SMALL) GlassText("Start music in any app", style = GlassType.Footnote, secondary = true, maxLines = 1)
             }
@@ -155,23 +156,48 @@ private fun ArtTile(art: android.graphics.Bitmap?, size: Dp) {
         val image = remember(art) { art.asImageBitmap() }
         Image(image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.size(size).clip(shape))
     } else {
-        GlassSurface(Modifier.size(size), shape = shape, variant = GlassVariant.Clear, tintOverride = GlassColors.Red, role = null, contentAlignment = Alignment.Center) {
-            GlassIcon(WidgetGlyphs.Note, size = size * 0.45f, tint = androidx.compose.ui.graphics.Color.White)
+        // Album-art placeholder belongs to the widget material; no nested blur or red lens.
+        val ink = LocalGlassContentColor.current
+        Box(Modifier.size(size).clip(shape).background(ink.copy(alpha = 0.08f)), contentAlignment = Alignment.Center) {
+            GlassIcon(WidgetGlyphs.Note, size = size * 0.42f, tint = ink.copy(alpha = 0.7f))
         }
     }
 }
 
 @Composable
 private fun PlayPause(playing: Boolean, size: Dp, onClick: () -> Unit) {
-    GlassIconButton(if (playing) WidgetGlyphs.Pause else WidgetGlyphs.Play, onClick = onClick, size = size)
+    TransportButton(if (playing) WidgetGlyphs.Pause else WidgetGlyphs.Play,
+        label = if (playing) "Pause" else "Play", size = size, prominent = true, onClick = onClick)
 }
 
 @Composable
 private fun Controls(np: NowPlaying, repo: MediaRepository, size: Dp) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-        GlassIconButton(WidgetGlyphs.Previous, onClick = { repo.previous() }, size = size * 0.85f, tintGlyph = LocalGlassContentColor.current.copy(alpha = if (np.canSkipPrevious) 1f else 0.4f))
+        TransportButton(WidgetGlyphs.Previous, "Previous track", size = size, enabled = np.canSkipPrevious) { repo.previous() }
         PlayPause(np.playing, size) { repo.playPause() }
-        GlassIconButton(WidgetGlyphs.Next, onClick = { repo.next() }, size = size * 0.85f, tintGlyph = LocalGlassContentColor.current.copy(alpha = if (np.canSkipNext) 1f else 0.4f))
+        TransportButton(WidgetGlyphs.Next, "Next track", size = size, enabled = np.canSkipNext) { repo.next() }
+    }
+}
+
+/** Transport controls sit on the shared glass rather than rendering three more lenses. */
+@Composable
+private fun TransportButton(
+    icon: ImageVector,
+    label: String,
+    size: Dp,
+    enabled: Boolean = true,
+    prominent: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val ink = LocalGlassContentColor.current
+    Box(
+        Modifier.size(maxOf(size, 44.dp))
+            .semantics { contentDescription = label }
+            .glassPressable(onClick, shape = GlassShape.Circle, enabled = enabled)
+            .then(if (prominent) Modifier.background(ink.copy(alpha = 0.10f)) else Modifier),
+        contentAlignment = Alignment.Center,
+    ) {
+        GlassIcon(icon, size = size * 0.48f, tint = ink.copy(alpha = if (enabled) 1f else 0.3f))
     }
 }
 

@@ -23,8 +23,8 @@ import androidx.lifecycle.repeatOnLifecycle
 
 /** Spring presets tuned to feel like iOS. */
 object GlassSprings {
-    /** Liquid open: visible overshoot. */
-    val Open: AnimationSpec<Float> = spring(dampingRatio = 0.66f, stiffness = 300f)
+    /** Controlled opening with a small, quickly settled overshoot. */
+    val Open: AnimationSpec<Float> = spring(dampingRatio = 0.86f, stiffness = 380f)
     /** Close: critically damped and quick. */
     val Close: AnimationSpec<Float> = spring(dampingRatio = 1f, stiffness = 520f)
     val Snappy: AnimationSpec<Float> = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMedium)
@@ -72,7 +72,7 @@ fun GlassMorph(
                     val sy = lerp(o.height / target.height, 1f, p)
                     // liquid stretch: elongate along the motion while velocity is high
                     val v = (progress.velocity / 12f).coerceIn(-1f, 1f)
-                    val stretch = 0.07f * v
+                    val stretch = 0.025f * v
                     scaleX = sx * (1f - stretch * 0.6f)
                     scaleY = sy * (1f + stretch)
                     transformOrigin = TransformOrigin.Center

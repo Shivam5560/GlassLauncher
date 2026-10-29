@@ -24,7 +24,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.shivam.glasslauncher.ui.glass.GlassColors
+import com.shivam.glasslauncher.ui.glass.currentAccent
 import com.shivam.glasslauncher.ui.glass.GlassIcon
 import com.shivam.glasslauncher.ui.glass.GlassIcons
 import com.shivam.glasslauncher.ui.glass.GlassShape
@@ -52,11 +52,11 @@ fun NotesWidget(inst: WidgetInstance, size: WidgetSize, modifier: Modifier = Mod
     WidgetFrame(modifier) {
         Column(Modifier.fillMaxSize()) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                GlassIcon(WidgetGlyphs.Notes, size = 16.dp, tint = GlassColors.Orange)
+                GlassIcon(WidgetGlyphs.Notes, size = 16.dp, tint = LocalGlassContentColor.current.copy(alpha = 0.7f))
                 Spacer(Modifier.width(6.dp))
-                GlassText("Note", style = GlassType.Subhead, color = GlassColors.Orange)
+                GlassText("Notes", style = GlassType.Subhead, secondary = true)
             }
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(12.dp))
             val color = LocalGlassContentColor.current
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 if (text.isEmpty()) GlassText(if (size == WidgetSize.SMALL) "Tap to write…" else "Tap to write a quick note…", style = GlassType.Callout, secondary = true)
@@ -65,7 +65,7 @@ fun NotesWidget(inst: WidgetInstance, size: WidgetSize, modifier: Modifier = Mod
                     onValueChange = { text = it },
                     enabled = editable,
                     textStyle = (if (size == WidgetSize.SMALL) GlassType.Callout else GlassType.Body).copy(color = color),
-                    cursorBrush = SolidColor(GlassColors.Accent),
+                    cursorBrush = SolidColor(currentAccent()),
                     modifier = Modifier.fillMaxSize(),
                 )
             }

@@ -1,4 +1,64 @@
-# Handoff — Glass Launcher, Phase 7 (29 Oct 2026)
+# Handoff — premium glass and reliability pass (29 Oct 2026)
+
+The current pass integrates three agents in the shared working tree before the combined build.
+Baseline was `a02f6e2`; its Fade hit-testing and Smart Stack cancellation/snap fixes are preserved.
+The owner authorized widget/menu polish, performance fixes, removal of the retired icon module,
+and pushing both `main` and `claude/relaxed-goodall-yfi2bq` after validation.
+
+## Implemented
+
+- Glass shader: analytic rim normals replace four extra SDF evaluations; straight interior pixels
+  skip corner powers and undisplaced pixels skip chromatic sampling. Highlights and press/morph
+  springs are restrained. Blur effects are reused until radius changes.
+- Menus: one 280dp panel, grouped actions, 48dp minimum rows, bounded scrolling with an indicator,
+  TalkBack pane semantics, status/navigation-safe placement. Automatic white text retains its
+  readability scrim even with custom accents or thicker dark glass. Contrast is sampled from the
+  wallpaper average; this is not a per-pixel AA guarantee.
+- Widgets: wallpaper-derived hue (manual theme/explicit role colours preserved), consistent 16dp
+  padding, clearer weather/date/clock/battery hierarchy, simplified music transport controls and
+  calendar rows sharing their parent glass. Third-party corners follow the configured radius.
+  Photos now stay still between short crossfades rather than continuously animating.
+- Rendering: cancellable CPU blur, reused scratch buffer, promptly recycled owned intermediates,
+  stale blur results cleared, duplicate wallpaper preparation removed. Window blur and overlay
+  animations no longer read every frame in root composition. Paused/background audio bars stop;
+  identical View property assignments no longer trigger repeated invalidation.
+- HOME: clears drawer/search/edit/drag/arrangement, keyboard, frozen home and app-launch depth.
+  The gesture service directly signals a resumed launcher (no replay), closes its panel first,
+  and otherwise delegates to system HOME. Frozen-blur visibility observes current overlay state.
+- Calendar: provider deep links fall back to the standard calendar app selector; failures now
+  produce feedback instead of silently doing nothing.
+- Icons: removed `glassicons/`, `tools/icons/`, their Gradle/CI hooks and dead settings actions.
+  Generic packs, OnePro artwork and per-app/photo overrides remain. Settings → Icon pack or Icon
+  style → Individual app icons provides normalized app-name/package search. No guessed brand
+  glyphs were assigned to SonyLIV, ixigo, Spencer's or DiskWala.
+
+## Validation
+
+- Integrated `:app:assembleRelease :app:testDebugUnitTest --offline`: successful; 157 tests,
+  zero failures/errors/skips. Release lint-vital checks passed as part of assembly.
+- Analytic normals compared with numerical derivatives at 46,738 rim points across four shapes;
+  maximum cosine error approximately 1.7e-14 (host numerical check, not a GPU benchmark).
+- Signed optimized APK installed on the owner's Redmi, keeping app data and permissions:
+  `app/build/outputs/apk/release/glass-premium.apk` (local debug signing key; release/R8 build).
+- ADB visual/input checks: menu below status/island with all actions visible; Instagram opens
+  Instagram; bottom HOME dismisses the drawer; Music → Weather → Calendar stack settles on one
+  card; Calendar opens Google Calendar; HOME dismisses Spotlight and reports keyboard hidden.
+  Individual app icons opens and a SonyLIV search correctly finds Sony LIV.
+- Final five-cycle menu sample (music playing, process includes overlay windows): 3,713 frames,
+  median 11ms / p90 30ms, GPU median 7ms / p90 14ms, reported jank 1.02%. These mixed-window
+  numbers do not establish sustained 120Hz or a controlled before/after improvement.
+- No LiquidGlass shader compilation errors or AndroidRuntime crashes in the checked log window.
+- All widget variants compile; Clock, Notes, Battery, Photos, every size/font setting and provider
+  widget interaction have not each received a complete device test. No hand-feel or battery-life
+  claim: tests used ADB, and music was playing during final device validation.
+
+The lock-screen references inform styling only. Native HyperOS lock-screen customization remains
+outside a third-party launcher's control. Existing phone layout and stack contents are preserved.
+Untracked `.claude/` and `.playwright-mcp/` are local tooling and are not part of this change.
+
+---
+
+# Historical handoff — Phase 7 (29 Oct 2026)
 
 Branch `claude/relaxed-goodall-yfi2bq` (not pushed). Goal set by the owner: make Glass **better than
 Smart Launcher 6 (SL6)** and look like **iOS 26/27**: looks → features → optimisation. Test device:

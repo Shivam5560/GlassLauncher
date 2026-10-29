@@ -88,7 +88,7 @@ import java.util.Date
 
 /** Screens owned by Phase 4 (wallpapers, theme, fonts, icons, pinned shortcuts, backup). */
 fun isPolishScreen(screen: String) =
-    screen in setOf("polish", "wallpapers", "theme", "fonts", "iconstyle", "pinned", "backup") ||
+    screen in setOf("polish", "wallpapers", "theme", "fonts", "iconstyle", "appicons", "pinned", "backup") ||
         screen.startsWith("wallpaper:") || screen.startsWith("editicon:")
 
 @Composable
@@ -101,6 +101,7 @@ fun PolishScreen(nav: SettingsNav, toast: GlassToastState) {
         s == "theme" -> ThemeScreen(nav)
         s == "fonts" -> FontScreen(nav)
         s == "iconstyle" -> IconStyleScreen(nav)
+        s == "appicons" -> AppIconsScreen(nav)
         s.startsWith("editicon:") -> IconEditScreen(nav, s.removePrefix("editicon:"), toast)
         s == "pinned" -> PinnedShortcutsScreen(nav, toast)
         s == "backup" -> BackupScreen(nav, toast)
@@ -386,8 +387,6 @@ private fun FontScreen(nav: SettingsNav) {
 
 // ---------------------------------------------------------------------------------- icons
 
-private const val GLASS_ICONS_PACKAGE = "com.shivam.glassicons"
-
 @Composable
 private fun IconStyleScreen(nav: SettingsNav) {
     val context = LocalContext.current
@@ -396,7 +395,6 @@ private fun IconStyleScreen(nav: SettingsNav) {
     val settings = app.settings.state.collectAsState().value ?: return
     val apps by app.apps.apps.collectAsState()
     val packs by produceState<List<IconPackInfo>?>(null) { value = withContext(Dispatchers.IO) { IconPack.installed(context) } }
-    val hasGlassIcons = packs?.any { it.packageName == GLASS_ICONS_PACKAGE } == true
     ScreenScaffold("Icon style", nav) {
         item {
             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -404,7 +402,7 @@ private fun IconStyleScreen(nav: SettingsNav) {
             }
         }
         item {
-            GlassListGroup(footer = "Light, Dark and Tinted use the matching artwork from packs that provide it (like Glass Icons). Auto follows the system dark mode. Other packs show their normal icons.") {
+            GlassListGroup(footer = "Light, Dark and Tinted use the matching artwork from packs that provide it. Auto follows the system dark mode. Other packs show their normal icons.") {
                 Column(Modifier.padding(12.dp)) {
                     GlassSegmented(IconStyle.entries.map { it.title }, p.iconStyle.ordinal, { app.polish.settings.setIconStyle(IconStyle.entries[it]) })
                 }
@@ -425,10 +423,40 @@ private fun IconStyleScreen(nav: SettingsNav) {
         item {
             GlassListGroup(title = "Icon pack") {
                 GlassRow("Icon pack", subtitle = packs?.firstOrNull { it.packageName == settings.iconPack }?.label ?: settings.iconPack.ifEmpty { "System icons" }, onClick = { nav.push("iconpack") })
-                if (packs != null && !hasGlassIcons) {
-                    GlassRow("Get Glass Icons", subtitle = "Install glassicons-debug.apk from the same build as Glass to get 61 original icons in light, dark and tinted.", icon = GlassIcons.Sparkle, iconTint = GlassColors.Orange)
-                } else if (hasGlassIcons && settings.iconPack != GLASS_ICONS_PACKAGE) {
-                    GlassRow("Use Glass Icons", icon = GlassIcons.Sparkle, iconTint = GlassColors.Orange, onClick = { app.settings.setIconPack(GLASS_ICONS_PACKAGE) })
+                GlassRow("Individual app icons", subtitle = "Fix a missing icon or choose different artwork for one app", icon = GlassIcons.Pencil, onClick = { nav.push("appicons") })
+            }
+        }
+    }
+}
+
+/** Searchable entry point for repairing individual icons without changing the whole pack. */
+@Composable
+private fun AppIconsScreen(nav: SettingsNav) {
+    val app = GlassApp.from(LocalContext.current)
+    val apps by app.apps.apps.collectAsState()
+    val overrides by app.polish.iconOverrides.overrides.collectAsState()
+    var query by remember { mutableStateOf("") }
+    val entries = remember(apps, query) {
+        val needle = query.filter { it.isLetterOrDigit() }.lowercase()
+        apps.filter {
+            it.label.filter { c -> c.isLetterOrDigit() }.lowercase().contains(needle) ||
+                it.packageName.filter { c -> c.isLetterOrDigit() }.lowercase().contains(needle)
+        }.sortedBy { it.label.lowercase() }
+    }
+    ScreenScaffold("Individual app icons", nav) {
+        item {
+            GlassTextField(query, { query = it }, placeholder = "Search apps", variant = GlassVariant.Clear)
+        }
+        item {
+            GlassText("Choose an app, then select artwork from an installed pack or Photos. Apps missing from a pack keep their own logo.",
+                Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = GlassType.Footnote, color = com.shivam.glasslauncher.ui.glass.LocalScreenContentColor.current)
+        }
+        if (entries.isEmpty()) item { GlassText("No apps match", Modifier.padding(16.dp), color = com.shivam.glasslauncher.ui.glass.LocalScreenContentColor.current) }
+        items(entries, key = { it.key }) { entry ->
+            GlassListGroup {
+                GlassRow(entry.label, subtitle = if (entry.key in overrides) "Custom icon" else entry.packageName,
+                    onClick = { nav.push("editicon:${entry.key}") }) {
+                    AppIconImage(entry, 36.dp)
                 }
             }
         }
@@ -487,7 +515,7 @@ private fun IconEditScreen(nav: SettingsNav, appKey: String, toast: GlassToastSt
             }
         }
         item {
-            GlassListGroup(title = "From an icon pack", footer = if (packs?.isEmpty() == true) "No icon packs installed. Glass Icons and any ADW/Nova pack appear here." else null) {
+            GlassListGroup(title = "From an icon pack", footer = if (packs?.isEmpty() == true) "No icon packs installed. Install an ADW/Nova-compatible pack, or choose a photo above." else null) {
                 packs?.forEach { pack ->
                     GlassRow(pack.label, subtitle = if (openPack == pack.packageName) "Tap an icon to use it" else null, onClick = { openPack = if (openPack == pack.packageName) null else pack.packageName; query = "" }, showChevron = false) {
                         GlassIcon(if (openPack == pack.packageName) GlassIcons.Minus else GlassIcons.Plus, size = 18.dp)

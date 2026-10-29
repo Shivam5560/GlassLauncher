@@ -50,6 +50,8 @@ fun currentAccent(): Color = LocalGlassAccent.current ?: GlassColors.Accent
 object GlassRuntimeTheme {
     val DefaultAccent = Color(0xFF0A84FF)
     var accent by mutableStateOf<Color>(DefaultAccent)
+    /** Quiet wallpaper hue for default widget materials; null preserves a manually authored theme. */
+    var wallpaperGlassTint by mutableStateOf<Color?>(null)
     var fontFamily by mutableStateOf<FontFamily>(Inter)
 }
 

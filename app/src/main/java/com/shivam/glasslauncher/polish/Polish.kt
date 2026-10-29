@@ -76,6 +76,7 @@ class Polish(private val app: GlassApp) {
                     ThemeSource.Manual -> s.manualAccent to s.manualTint
                 }
                 GlassRuntimeTheme.accent = Color(accent)
+                GlassRuntimeTheme.wallpaperGlassTint = if (s.themeSource == ThemeSource.Manual) null else Color(palette.glassTint)
                 if (tint != null) {
                     val glass = app.settings.state.value?.glass
                     if (glass != null && glass.tintColor != tint) app.settings.setGlass(glass.copy(tintColor = tint))

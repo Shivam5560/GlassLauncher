@@ -396,11 +396,9 @@ private fun IconPackScreen(nav: SettingsNav, settings: LauncherSettings) {
                 }
             }
         }
-        if (settings.iconPack.isEmpty() && packs?.any { it.packageName == GlassApp.GLASS_ICONS_PACKAGE } == true) {
-            item {
-                GlassListGroup(footer = "Like iOS: Phone, Messages, Camera, Settings and the other built-in apps get iOS-style art; every other app keeps its own logo under a glass finish.") {
-                    GlassSwitchRow("iOS-style system app icons", settings.systemAppIcons, { app.settings.setSystemAppIcons(it) })
-                }
+        item {
+            GlassListGroup(footer = "For an app a pack doesn't cover, choose its icon from a pack or Photos without changing the other apps.") {
+                GlassRow("Individual app icons", icon = GlassIcons.Pencil, onClick = { nav.push("appicons") })
             }
         }
     }

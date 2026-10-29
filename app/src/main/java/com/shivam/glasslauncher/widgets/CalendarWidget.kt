@@ -32,10 +32,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.shivam.glasslauncher.ui.glass.GlassColors
 import com.shivam.glasslauncher.ui.glass.GlassShape
-import com.shivam.glasslauncher.ui.glass.GlassSurface
 import com.shivam.glasslauncher.ui.glass.GlassText
 import com.shivam.glasslauncher.ui.glass.GlassType
-import com.shivam.glasslauncher.ui.glass.GlassVariant
+import com.shivam.glasslauncher.ui.glass.glassPressable
 import com.shivam.glasslauncher.ui.glass.ResumedLoop
 import kotlinx.coroutines.delay
 import java.time.Instant
@@ -52,6 +51,7 @@ import java.util.Locale
 @Composable
 fun CalendarWidget(size: WidgetSize, modifier: Modifier = Modifier) {
     val context = LocalContext.current
+    val env = LocalWidgetEnv.current
     val tick = remember { mutableIntStateOf(0) }
     val ask = rememberPermissionRequest(Manifest.permission.READ_CALENDAR) { tick.intValue++ }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { tick.intValue++ }
@@ -82,7 +82,9 @@ fun CalendarWidget(size: WidgetSize, modifier: Modifier = Modifier) {
 
     val today = LocalDate.now()
     val list = events ?: emptyList()
-    WidgetFrame(modifier, onClick = { CalendarRepository.openCalendar(context) }) {
+    WidgetFrame(modifier, onClick = {
+        if (!CalendarRepository.openCalendar(context)) env?.toast?.invoke("No calendar app is available")
+    }) {
         when (size) {
             WidgetSize.SMALL, WidgetSize.BAR -> Column(Modifier.fillMaxSize()) {
                 DateHeader(today, big = true)
@@ -132,7 +134,7 @@ fun CalendarWidget(size: WidgetSize, modifier: Modifier = Modifier) {
 private fun DateHeader(day: LocalDate, big: Boolean) {
     GlassText(day.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault()).uppercase(), style = GlassType.Caption, color = GlassColors.Red, maxLines = 1)
     if (big) {
-        GlassText("${day.dayOfMonth}", style = GlassType.LargeTitle.copy(fontSize = 40.sp, fontWeight = FontWeight.Normal), maxLines = 1)
+        GlassText("${day.dayOfMonth}", style = GlassType.LargeTitle.copy(fontSize = 48.sp, fontWeight = FontWeight.Normal, letterSpacing = (-1.5).sp, fontFeatureSettings = "tnum"), maxLines = 1)
     } else {
         GlassText(day.format(DateTimeFormatter.ofPattern("d MMMM")), style = GlassType.Title, maxLines = 1)
     }
@@ -141,21 +143,23 @@ private fun DateHeader(day: LocalDate, big: Boolean) {
 @Composable
 private fun EventRow(e: CalendarEvent, compact: Boolean) {
     val context = LocalContext.current
-    GlassSurface(
-        Modifier.fillMaxWidth(),
-        shape = GlassShape.rounded(10.dp),
-        variant = GlassVariant.Clear,
-        onClick = { CalendarRepository.openEvent(context, e) },
-        role = androidx.compose.ui.semantics.Role.Button,
+    val env = LocalWidgetEnv.current
+    // The widget is the glass surface. Event rows share it instead of adding a lens per row.
+    Row(
+        Modifier.fillMaxWidth()
+            .glassPressable(onClick = {
+                if (!CalendarRepository.openEvent(context, e)) env?.toast?.invoke("No calendar app is available")
+            }, shape = GlassShape.rounded(10.dp))
+            .padding(horizontal = 6.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(Modifier.padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            // Calendar colour marker.
-            Box(Modifier.width(4.dp).height(if (compact) 30.dp else 32.dp).clip(GlassShape.Capsule).background(Color(e.color or 0xFF000000.toInt())))
-            Spacer(Modifier.width(7.dp))
-            Column {
-                GlassText(e.title, style = GlassType.Subhead, maxLines = if (compact) 2 else 1)
-                GlassText(timeLabel(context, e), style = GlassType.Caption, secondary = true, maxLines = 1)
-            }
+        Box(Modifier.width(3.dp).height(if (compact) 32.dp else 34.dp)
+            .clip(GlassShape.Capsule).background(Color(e.color or 0xFF000000.toInt())))
+        Spacer(Modifier.width(9.dp))
+        Column(Modifier.weight(1f)) {
+            GlassText(e.title, style = GlassType.Subhead, maxLines = if (compact) 2 else 1)
+            Spacer(Modifier.height(2.dp))
+            GlassText(timeLabel(context, e), style = GlassType.Caption, secondary = true, maxLines = 1)
         }
     }
 }

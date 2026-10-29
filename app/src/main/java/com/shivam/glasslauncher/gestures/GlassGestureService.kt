@@ -329,7 +329,10 @@ class GlassGestureService : AccessibilityService() {
                         performGlobalAction(GLOBAL_ACTION_RECENTS)
                     } else if (!fired && (armed || flung)) {
                         haptic(v)
-                        performGlobalAction(GLOBAL_ACTION_HOME)
+                        overlays?.closePanel(immediate = true)
+                        if (!com.shivam.glasslauncher.ui.home.HomeNavigation.requestWhileResumed()) {
+                            performGlobalAction(GLOBAL_ACTION_HOME)
+                        }
                     }
                     reset()
                 }

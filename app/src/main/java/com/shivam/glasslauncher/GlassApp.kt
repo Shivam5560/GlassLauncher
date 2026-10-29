@@ -56,9 +56,6 @@ class GlassApp : Application() {
         scope.launch {
             settings.state.filterNotNull().map { it.greyscaleIcons }.distinctUntilChanged().collect { icons.setGreyscale(it) }
         }
-        scope.launch {
-            settings.state.filterNotNull().map { it.systemAppIcons }.distinctUntilChanged().collect { icons.setSystemAppIcons(it) }
-        }
     }
 
     override fun onTrimMemory(level: Int) {
@@ -68,7 +65,6 @@ class GlassApp : Application() {
     }
 
     companion object {
-        const val GLASS_ICONS_PACKAGE = "com.shivam.glassicons"
         fun from(context: Context) = context.applicationContext as GlassApp
     }
 }

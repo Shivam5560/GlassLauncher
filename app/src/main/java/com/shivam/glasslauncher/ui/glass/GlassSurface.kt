@@ -25,10 +25,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawOutline
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -103,7 +101,7 @@ fun GlassSurface(
     val pressed by interactions.collectIsPressedAsState()
     val press by animateFloatAsState(
         targetValue = if ((pressed && onClick != null) || highlighted) 1f else 0f,
-        animationSpec = spring(dampingRatio = 0.55f, stiffness = 420f),
+        animationSpec = spring(dampingRatio = 0.85f, stiffness = 500f),
         label = "glassPress",
     )
 
@@ -136,7 +134,11 @@ fun GlassSurface(
     }
     val tone by animateFloatAsState(toneTarget, spring(stiffness = 120f), label = "glassTone")
 
-    val baseTint = tintOverride ?: Color(roleStyle.color ?: style.tintColor).copy(alpha = 1f)
+    val configuredTint = Color(roleStyle.color ?: style.tintColor).copy(alpha = 1f)
+    val wallpaperTint = if (kind == SurfaceKind.Widget && roleStyle.color == null &&
+        style.preset != ThemePreset.Solid && style.preset != ThemePreset.Amoled
+    ) GlassRuntimeTheme.wallpaperGlassTint else null
+    val baseTint = tintOverride ?: wallpaperTint?.let { lerp(configuredTint, it, 0.65f) } ?: configuredTint
     val tint = if (tintOverride != null) baseTint else lerp(baseTint, lerp(baseTint, Color.White, 0.85f), tone)
     val tintAmount = if (tintOverride != null) 0.55f else (tintOpacity + 0.22f * tone).coerceAtMost(1f)
     // Thin dark glass (Liquid Glass, Clear controls) barely tints the backdrop, so the text must be
@@ -144,7 +146,9 @@ fun GlassSurface(
     // backdrop luminance (zero over dark areas), then the text is picked on the scrimmed luminance.
     val thinDarkGlass = tintOverride == null && tone < 0.5f && tintAmount < Contrast.THIN_GLASS_TINT
     val glassLinear = Contrast.glassLuminance(Contrast.gammaToLinear(luminance), tint.toArgb(), tintAmount)
-    val scrim = if (thinDarkGlass) Contrast.legibilityScrim(Contrast.linearToGamma(glassLinear)) else 0f
+    val automaticLightText = roleStyle.contentColor == null && (thinDarkGlass ||
+        (style.tone == GlassTone.Dark && variant == GlassVariant.Regular && tintOverride == null))
+    val scrim = if (automaticLightText) Contrast.legibilityScrim(Contrast.linearToGamma(glassLinear)) else 0f
     val contentColor = roleStyle.contentColor?.let { Color(it) }
         ?: if (thinDarkGlass) Color(Contrast.LIGHT_TEXT)
         // Regular dark-tone glass is dark by definition (Clear stays thin and follows the measure): the averaged backdrop can read bright while the panel
@@ -152,6 +156,12 @@ fun GlassSurface(
         else if (style.tone == GlassTone.Dark && variant == GlassVariant.Regular && tintOverride == null) Color(Contrast.LIGHT_TEXT)
         else Color(Contrast.textOnGlass(luminance, tint.toArgb(), tintAmount))
     val strokeDp = roleStyle.stroke
+
+    val blurPx = if (backdrop?.preBlurred == true) 0f else with(density) { blurDp.toPx() }
+    val nativeBlur = remember(blurPx) {
+        if (blurPx >= 0.5f) RenderEffect.createBlurEffect(blurPx, blurPx, Shader.TileMode.CLAMP) else null
+    }
+    val fallbackBlur = remember(nativeBlur) { nativeBlur?.asComposeRenderEffect() }
 
     val shader = remember(style.liquidEffects) { if (style.liquidEffects) LiquidGlassShader.createEffectShader() else null }
 
@@ -169,7 +179,7 @@ fun GlassSurface(
     Box(
         modifier = modifier
             .graphicsLayer {
-                val s = 1f + 0.035f * press
+                val s = 1f + 0.015f * press
                 scaleX = s
                 scaleY = s
             }
@@ -189,7 +199,6 @@ fun GlassSurface(
                 .graphicsLayer {
                     clip = true
                     this.shape = shape
-                    val blurPx = if (backdrop?.preBlurred == true) 0f else blurDp.toPx()
                     // Thin surfaces (rows, pills) get a proportionally smaller lens, so flat rows
                     // never show streaky refraction along their long edges.
                     val minSide = minOf(size.width, size.height)
@@ -217,13 +226,13 @@ fun GlassSurface(
                             brighten = press,
                         )
                         val lens = RenderEffect.createRuntimeShaderEffect(shader, "content")
-                        renderEffect = if (blurPx >= 0.5f) {
-                            RenderEffect.createChainEffect(lens, RenderEffect.createBlurEffect(blurPx, blurPx, Shader.TileMode.CLAMP))
+                        renderEffect = if (nativeBlur != null) {
+                            RenderEffect.createChainEffect(lens, nativeBlur)
                         } else {
                             lens
                         }.asComposeRenderEffect()
                     } else {
-                        renderEffect = if (blurPx >= 0.5f) BlurEffect(blurPx, blurPx, TileMode.Clamp) else null
+                        renderEffect = fallbackBlur
                     }
                 }
                 .drawBehind {
@@ -277,23 +286,18 @@ fun GlassSurface(
                     },
             )
         }
-        val accent = roleStyle.accent?.let { Color(it) }
-        if (accent != null) {
-            CompositionLocalProvider(LocalGlassContentColor provides contentColor, LocalGlassAccent provides accent) { content() }
-        } else {
-            if (scrim > 0f) {
-            // Legibility scrim: a clear black veil inside the glass, only over bright backdrops.
+        // Contrast protection is independent of whether this role overrides its accent.
+        if (scrim > 0f) {
             Box(
-                Modifier
-                    .matchParentSize()
-                    .graphicsLayer {
-                        clip = true
-                        this.shape = shape
-                    }
+                Modifier.matchParentSize()
+                    .graphicsLayer { clip = true; this.shape = shape }
                     .drawBehind { drawRect(Color.Black.copy(alpha = scrim)) },
             )
         }
-        CompositionLocalProvider(LocalGlassContentColor provides contentColor) { content() }
-        }
+        val accent = roleStyle.accent?.let { Color(it) } ?: LocalGlassAccent.current
+        CompositionLocalProvider(
+            LocalGlassContentColor provides contentColor,
+            LocalGlassAccent provides accent,
+        ) { content() }
     }
 }

@@ -25,11 +25,11 @@ open class GlassShapeView(context: Context) : View(context) {
 
     /** 0 = dark glass, 1 = light glass. */
     var lightness = 0.85f
-        set(value) { field = value; invalidate() }
+        set(value) { if (field != value) { field = value; invalidate() } }
     var opacity = 0.55f
-        set(value) { field = value; invalidate() }
+        set(value) { if (field != value) { field = value; invalidate() } }
     var brighten = 0f
-        set(value) { field = value; invalidate() }
+        set(value) { if (field != value) { field = value; invalidate() } }
     var specular = 0.8f
 
     init {
@@ -112,10 +112,10 @@ class GlassBubbleView(context: Context, private val fromLeft: Boolean) : GlassSh
 
     /** 0..1 progress of the swipe towards the trigger threshold (can exceed 1). */
     var progress = 0f
-        set(value) { field = value; invalidate() }
+        set(value) { if (field != value) { field = value; invalidate() } }
     /** Vertical centre in this view's coordinates. */
     var centerY = 0f
-        set(value) { field = value; invalidate() }
+        set(value) { if (field != value) { field = value; invalidate() } }
 
     override fun onDraw(canvas: Canvas) {
         val p = progress.coerceIn(0f, 1.3f)

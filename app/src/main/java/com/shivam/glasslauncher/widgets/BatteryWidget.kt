@@ -29,6 +29,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.shivam.glasslauncher.ui.glass.GlassButton
@@ -65,7 +67,18 @@ fun BatteryWidget(size: WidgetSize, modifier: Modifier = Modifier) {
         if (size == WidgetSize.SMALL) {
             // Up to four rings in a 2x2 grid, like iOS.
             val shown = rows.take(4)
-            Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
+            if (shown.size == 1) {
+                val device = shown.first()
+                BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    val diameter = minOf(maxWidth, (maxHeight - 28.dp).coerceAtLeast(40.dp)) * 0.85f
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Ring(device, diameter, prominent = true)
+                        Spacer(Modifier.height(8.dp))
+                        GlassText(if (device.charging) "Charging" else device.name,
+                            style = GlassType.Subhead, secondary = true, maxLines = 1)
+                    }
+                }
+            } else Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
                 shown.chunked(2).forEach { pair ->
                     Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
                         pair.forEach { r ->
@@ -130,27 +143,27 @@ private fun levelColor(r: BatteryRow): Color = when {
 }
 
 @Composable
-private fun Ring(r: BatteryRow, size: Dp) {
-    val track = LocalGlassContentColor.current.copy(alpha = 0.2f)
+private fun Ring(r: BatteryRow, size: Dp, prominent: Boolean = false) {
+    val track = LocalGlassContentColor.current.copy(alpha = 0.12f)
     val color = levelColor(r)
     Box(Modifier.size(size), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
-            val stroke = this.size.minDimension * 0.1f
+            val stroke = this.size.minDimension * 0.065f
             val inset = stroke / 2
             val arc = Size(this.size.width - stroke, this.size.height - stroke)
             drawArc(track, 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(stroke))
             drawArc(color, -90f, 360f * r.percent / 100f, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            GlassIcon(if (r.charging) WidgetGlyphs.Bolt else r.icon, size = size * 0.3f, tint = if (r.charging) GlassColors.Green else LocalGlassContentColor.current)
-            GlassText("${r.percent}%", style = GlassType.Caption, maxLines = 1)
+            GlassIcon(if (r.charging) WidgetGlyphs.Bolt else r.icon, size = size * if (prominent) 0.20f else 0.3f, tint = if (r.charging) GlassColors.Green else LocalGlassContentColor.current)
+            GlassText("${r.percent}%", style = if (prominent) GlassType.Title.copy(fontSize = 26.sp, fontWeight = FontWeight.Medium, fontFeatureSettings = "tnum") else GlassType.Caption, maxLines = 1)
         }
     }
 }
 
 @Composable
 private fun Bar(r: BatteryRow) {
-    val track = LocalGlassContentColor.current.copy(alpha = 0.2f)
+    val track = LocalGlassContentColor.current.copy(alpha = 0.12f)
     val color = levelColor(r)
     Canvas(Modifier.fillMaxWidth().height(6.dp)) {
         val y = size.height / 2

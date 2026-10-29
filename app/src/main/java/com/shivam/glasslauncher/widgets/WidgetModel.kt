@@ -34,7 +34,7 @@ enum class WidgetKind(val title: String, val description: String, val sizes: Lis
     CALENDAR("Calendar", "Today's date and what's up next.", listOf(WidgetSize.SMALL, WidgetSize.MEDIUM, WidgetSize.LARGE)),
     CLOCK("Clock", "Digital, analog or world clock.", listOf(WidgetSize.SMALL, WidgetSize.MEDIUM)),
     BATTERY("Batteries", "Phone and Bluetooth device batteries.", listOf(WidgetSize.SMALL, WidgetSize.MEDIUM)),
-    PHOTOS("Photos", "Your picked photos, gently moving.", listOf(WidgetSize.SMALL, WidgetSize.MEDIUM, WidgetSize.LARGE)),
+    PHOTOS("Photos", "Your picked photos, softly fading between images.", listOf(WidgetSize.SMALL, WidgetSize.MEDIUM, WidgetSize.LARGE)),
     NOTES("Notes", "A quick note you edit in place.", listOf(WidgetSize.SMALL, WidgetSize.MEDIUM, WidgetSize.LARGE)),
     SEARCH("Smart search", "A search bar that opens Spotlight: apps, contacts, maths, web.", listOf(WidgetSize.BAR)),
     GLANCE("At a glance", "Big clock with the date, weather and your next event. No panel.", listOf(WidgetSize.MEDIUM)),

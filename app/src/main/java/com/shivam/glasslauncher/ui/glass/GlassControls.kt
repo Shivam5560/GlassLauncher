@@ -2,6 +2,10 @@ package com.shivam.glasslauncher.ui.glass
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -62,6 +66,12 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.Role
 import kotlin.math.roundToInt
 
@@ -565,24 +575,75 @@ fun Modifier.glassPressable(onClick: () -> Unit, shape: androidx.compose.ui.grap
     val interactions = remember { MutableInteractionSource() }
     val pressed by interactions.collectIsPressedAsState()
     val content = LocalGlassContentColor.current
+    val highlight = animateFloatAsState(
+        if (pressed && enabled) 0.10f else 0f,
+        spring(dampingRatio = 1f, stiffness = 1200f), label = "rowHighlight",
+    )
     return this
         .clip(shape)
         .clickable(interactionSource = interactions, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
-        .background(if (pressed) content.copy(alpha = 0.12f) else Color.Transparent)
+        .drawBehind { drawRect(content.copy(alpha = highlight.value)) }
 }
 
 /** A row of a glass context menu: text and a trailing glyph, no glass of its own. */
 @Composable
 fun GlassMenuRow(text: String, icon: ImageVector?, destructive: Boolean = false, trailing: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().glassPressable(onClick).padding(horizontal = 14.dp, vertical = 12.dp),
+        Modifier.fillMaxWidth().glassPressable(onClick).heightIn(min = 48.dp).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val color = if (destructive) GlassColors.Red else LocalGlassContentColor.current
-        GlassText(text, Modifier.weight(1f), style = GlassType.Body, color = color, maxLines = 1)
+        GlassText(text, Modifier.weight(1f), style = GlassType.Body, color = color, maxLines = 2)
+        Spacer(Modifier.width(16.dp))
         when {
             trailing != null -> trailing()
             icon != null -> GlassIcon(icon, size = 20.dp, tint = color)
         }
     }
+}
+
+/** A single optical surface for a menu; rows share its backdrop and scroll on short screens. */
+@Composable
+fun GlassMenuPanel(content: @Composable ColumnScope.() -> Unit) {
+    val style = LocalGlassStyle.current
+    val panel = style.role(SurfaceKind.Panel)
+    val menuStyle = remember(style) {
+        style.copy(roles = style.roles + (SurfaceKind.Panel to panel.copy(
+            // Menus need a firmer material than decorative glass: every action stays legible.
+            opacity = maxOf(panel.opacity ?: style.tintOpacity, 0.42f),
+            shadow = if (panel.shadow > 0f) panel.shadow else 16f,
+        )))
+    }
+    val scroll = rememberScrollState()
+    CompositionLocalProvider(LocalGlassStyle provides menuStyle) {
+        GlassSurface(
+            Modifier.width(280.dp).heightIn(max = 640.dp)
+                .semantics { paneTitle = "Actions"; isTraversalGroup = true },
+            shape = GlassShape.rounded(26.dp), variant = GlassVariant.Regular,
+            kind = SurfaceKind.Panel, role = null,
+        ) {
+            val ink = LocalGlassContentColor.current
+            Box(Modifier.drawWithContent {
+                drawContent()
+                if (scroll.maxValue > 0) {
+                    val inset = 24.dp.toPx()
+                    val track = (size.height - 2f * inset).coerceAtLeast(0f)
+                    val thumb = (track * size.height / (size.height + scroll.maxValue)).coerceAtLeast(16.dp.toPx()).coerceAtMost(track)
+                    val y = inset + (track - thumb) * scroll.value / scroll.maxValue
+                    drawRoundRect(ink.copy(alpha = 0.32f),
+                        Offset(size.width - 5.dp.toPx(), y), Size(2.dp.toPx(), thumb), CornerRadius(1.dp.toPx()))
+                }
+            }) {
+                Column(Modifier.verticalScroll(scroll).padding(6.dp), content = content)
+            }
+        }
+    }
+}
+
+/** Quiet separation between shortcuts, editing actions and destructive actions. */
+@Composable
+fun GlassMenuDivider() {
+    val color = LocalGlassContentColor.current
+    Spacer(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp)
+        .height(0.5.dp).background(color.copy(alpha = 0.12f)))
 }

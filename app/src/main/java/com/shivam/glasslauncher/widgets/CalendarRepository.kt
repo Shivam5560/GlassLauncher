@@ -100,21 +100,31 @@ object CalendarRepository {
         awaitClose { context.contentResolver.unregisterContentObserver(observer) }
     }
 
-    fun openEvent(context: Context, e: CalendarEvent) {
+    fun openEvent(context: Context, e: CalendarEvent): Boolean {
         val intent = Intent(Intent.ACTION_VIEW, ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, e.eventId))
             .putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, e.begin)
             .putExtra(CalendarContract.EXTRA_EVENT_END_TIME, e.end)
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        try { context.startActivity(intent) } catch (_: Exception) { openCalendar(context) }
+        return try { context.startActivity(intent); true } catch (_: Exception) { openCalendar(context) }
     }
 
-    fun openCalendar(context: Context) {
+    fun openCalendar(context: Context): Boolean {
         val uri = CalendarContract.CONTENT_URI.buildUpon().appendPath("time").let {
             ContentUris.appendId(it, System.currentTimeMillis())
             it.build()
         }
-        try {
-            context.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        } catch (_: Exception) { }
+        // Some calendar apps (including OEM variants) do not handle the provider's time URI.
+        // The standard app-category selector still opens their calendar launcher activity.
+        val intents = listOf(
+            Intent(Intent.ACTION_VIEW, uri),
+            Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_CALENDAR),
+        )
+        for (intent in intents) {
+            try {
+                context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                return true
+            } catch (_: Exception) { }
+        }
+        return false
     }
 }
