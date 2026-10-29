@@ -148,7 +148,7 @@ private fun GlobalAppearanceScreen(nav: SettingsNav, settings: LauncherSettings)
                         GlassSegmented(listOf("Background", "Cards", "Widget", "Panel"), role.ordinal, { role = SurfaceKind.entries[it] })
                     }
                     ColorRow("Colour", r.color, roleColors) { set(r.copy(color = it)) }
-                    GlassSliderRow("Opacity", r.opacity ?: if (role == SurfaceKind.Background) 0.32f else draft.tintOpacity, 0f..1f, { "${(it * 100).toInt()}%" }) { set(r.copy(opacity = it)) }
+                    GlassSliderRow("Opacity", r.opacity ?: draft.defaultOpacity(role), 0f..1f, { "${(it * 100).toInt()}%" }) { set(r.copy(opacity = it)) }
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         GlassText("Text & icon colour", style = GlassType.Callout)
                         Spacer(Modifier.height(8.dp))

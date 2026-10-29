@@ -78,6 +78,7 @@ import com.shivam.glasslauncher.widgets.WidgetOverlays
 import com.shivam.glasslauncher.widgets.WidgetUiState
 import com.shivam.glasslauncher.widgets.reducedMotion
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -153,6 +154,13 @@ fun LauncherScreen(
     LaunchedEffect(Unit) {
         // Keyed on the page only, so a ring resize doesn't overwrite the position before the effect above reads it.
         androidx.compose.runtime.snapshotFlow { pagerState.currentPage }.collect { lastRing.intValue = ringState.value.of(it) }
+    }
+    // The page pill reads "Search" at rest and shows the dots while paging, for a second after.
+    var pillDots by remember { androidx.compose.runtime.mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        androidx.compose.runtime.snapshotFlow { pagerState.isScrollInProgress }.collectLatest { moving ->
+            if (moving) pillDots = true else { delay(1000); pillDots = false }
+        }
     }
     suspend fun goTo(ringTarget: Int) = pagerState.animateScrollToPage(ringState.value.nearest(pagerState.currentPage, ringTarget))
 
@@ -517,6 +525,7 @@ fun LauncherScreen(
                             PageDots(
                                 homePages = homePageCount,
                                 current = ringPage - TODAY_PAGES,
+                                showDots = pillDots,
                                 onClick = { origin -> ui.openSpotlight(origin) },
                             )
                         }

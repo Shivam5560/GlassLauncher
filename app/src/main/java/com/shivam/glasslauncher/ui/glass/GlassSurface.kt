@@ -91,7 +91,8 @@ fun GlassSurface(
     val res = style.resolve(variant)
     val roleStyle = style.role(kind ?: if (variant == GlassVariant.Clear) SurfaceKind.Cards else SurfaceKind.Panel)
     val blurDp = roleStyle.blur?.let { if (variant == GlassVariant.Clear) it * 0.22f else it }?.dp ?: res.blur
-    val tintOpacity = roleStyle.opacity?.let { if (variant == GlassVariant.Clear) it * 0.35f else it } ?: res.tintOpacity
+    val tintOpacity = roleStyle.opacity?.let { if (variant == GlassVariant.Clear) it * 0.35f else it }
+        ?: if (kind == SurfaceKind.Widget && variant == GlassVariant.Regular) style.defaultOpacity(kind) else res.tintOpacity
     val light = LocalGlassLight.current
     val darkMode = LocalGlassDarkMode.current
     val fallbackLum = LocalFallbackLuminance.current

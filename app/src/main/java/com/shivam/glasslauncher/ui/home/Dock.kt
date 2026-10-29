@@ -1,5 +1,6 @@
 package com.shivam.glasslauncher.ui.home
 
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -81,6 +82,8 @@ fun PageDots(
     current: Int,
     onClick: (Rect?) -> Unit,
     modifier: Modifier = Modifier,
+    /** iOS 26: "Search" at rest, page dots only while (and just after) the pages move. */
+    showDots: Boolean = true,
 ) {
     val bounds = androidx.compose.runtime.remember { arrayOfNulls<Rect>(1) }
     GlassSurface(
@@ -97,6 +100,25 @@ fun PageDots(
             val c = LocalGlassContentColor.current
             GlassIcon(GlassIcons.Search, size = 13.dp, tint = c.copy(alpha = 0.85f))
             Spacer(Modifier.width(7.dp))
+            androidx.compose.animation.AnimatedContent(
+                targetState = showDots,
+                transitionSpec = {
+                    (androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(180)) togetherWith
+                        androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(120)))
+                        .using(androidx.compose.animation.SizeTransform(clip = false))
+                },
+                label = "pill",
+            ) { dots ->
+                if (!dots) {
+                    com.shivam.glasslauncher.ui.glass.GlassText("Search", style = com.shivam.glasslauncher.ui.glass.GlassType.Footnote, color = c.copy(alpha = 0.9f))
+                } else Row(verticalAlignment = Alignment.CenterVertically) { PageDotRow(homePages, current, c) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PageDotRow(homePages: Int, current: Int, c: Color) {
             for (p in 0 until homePages) {
                 Box(
                     Modifier
@@ -108,8 +130,6 @@ fun PageDots(
             Box(Modifier.padding(start = 3.dp)) {
                 GlassIcon(GlassIcons.Grid, size = 10.dp, tint = if (current >= homePages) c else c.copy(alpha = 0.35f))
             }
-        }
-    }
 }
 
 private fun Modifier.dot(color: Color): Modifier = this.drawBehind { drawCircle(color) }

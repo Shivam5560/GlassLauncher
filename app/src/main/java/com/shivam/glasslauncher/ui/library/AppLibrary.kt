@@ -1,7 +1,11 @@
 package com.shivam.glasslauncher.ui.library
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -82,6 +86,7 @@ fun AppLibrary(
                 onValueChange = { query = it },
                 modifier = Modifier.weight(1f).onFocusChanged { if (it.isFocused) listMode = true },
                 placeholder = "App Library",
+                variant = GlassVariant.Clear,
             )
             if (listMode) {
                 Spacer(Modifier.width(8.dp))
@@ -108,7 +113,10 @@ fun AppLibrary(
     }
 }
 
-/** A category tile: three big icons plus a 2x2 mini grid that opens the full group. */
+/**
+ * A category tile, as on iOS: clear glass with three large icons filling its quarters and, when
+ * there are more apps, four small ones in the last quarter that open the full group.
+ */
 @Composable
 private fun LibraryTile(
     group: LibraryGroup,
@@ -122,22 +130,23 @@ private fun LibraryTile(
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         GlassSurface(
             modifier = Modifier.fillMaxWidth().aspectRatio(1f).onGloballyPositioned { tileCoords[0] = it },
-            shape = GlassShape.rounded(30.dp),
+            shape = GlassShape.rounded(34.dp),
+            variant = GlassVariant.Clear,
             role = null,
         ) {
-            Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                for (r in 0 until 2) {
-                    Row(Modifier.fillMaxWidth().weight(1f), horizontalArrangement = Arrangement.SpaceBetween) {
+            BoxWithConstraints(Modifier.fillMaxSize().padding(TilePad)) {
+                val icon = (maxWidth - TileGap) / 2
+                Column(verticalArrangement = Arrangement.spacedBy(TileGap)) {
+                    for (r in 0 until 2) Row(horizontalArrangement = Arrangement.spacedBy(TileGap)) {
                         for (c in 0 until 2) {
                             val i = r * 2 + c
-                            Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                                val showMini = i == 3 && group.apps.size > 4
-                                if (showMini) {
-                                    MiniGrid(group.apps.drop(3).take(4)) {
+                            Box(Modifier.size(icon), contentAlignment = Alignment.Center) {
+                                if (i == 3 && group.apps.size > 4) {
+                                    MiniGrid(group.apps.drop(3).take(4), icon) {
                                         tileCoords[0]?.boundsInWindow()?.let { onOpenGroup(group, it) }
                                     }
                                 } else {
-                                    group.apps.getOrNull(i)?.let { LibraryIcon(it, 58.dp, onLaunch, onMenu) }
+                                    group.apps.getOrNull(i)?.let { LibraryIcon(it, icon, onLaunch, onMenu) }
                                 }
                             }
                         }
@@ -150,41 +159,48 @@ private fun LibraryTile(
     }
 }
 
+/** Four small icons in one quarter of a tile; tapping anywhere on it opens the group. */
 @Composable
-private fun MiniGrid(apps: List<AppEntry>, onClick: () -> Unit) {
-    GlassSurface(
-        modifier = Modifier.size(62.dp),
-        shape = GlassShape.Squircle,
-        variant = GlassVariant.Clear,
-        onClick = onClick,
-        contentAlignment = Alignment.Center,
+private fun MiniGrid(apps: List<AppEntry>, size: Dp, onClick: () -> Unit) {
+    val gap = size * 0.12f
+    val small = (size - gap) / 2
+    Column(
+        Modifier.size(size).clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
+        verticalArrangement = Arrangement.spacedBy(gap),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            for (r in 0 until 2) Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                for (c in 0 until 2) {
-                    Box(Modifier.size(24.dp)) { apps.getOrNull(r * 2 + c)?.let { AppIconImage(it, 24.dp) } }
-                }
+        for (r in 0 until 2) Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+            for (c in 0 until 2) {
+                Box(Modifier.size(small)) { apps.getOrNull(r * 2 + c)?.let { AppIconImage(it, small) } }
             }
         }
     }
 }
 
+private val TilePad = 12.dp
+private val TileGap = 10.dp
+
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun LibraryIcon(entry: AppEntry, size: Dp, onLaunch: (AppEntry, android.graphics.Rect?) -> Unit, onMenu: (MenuTarget) -> Unit) {
     val coords = remember { arrayOfNulls<LayoutCoordinates>(1) }
     val haptics = LocalHapticFeedback.current
-    GlassSurface(
-        modifier = Modifier.size(size).onGloballyPositioned { coords[0] = it },
-        shape = GlassShape.Squircle,
-        variant = GlassVariant.Clear,
-        onClick = {
-            val b = coords[0]?.boundsInWindow()
-            onLaunch(entry, b?.let { android.graphics.Rect(it.left.toInt(), it.top.toInt(), it.right.toInt(), it.bottom.toInt()) })
-        },
-        onLongClick = {
-            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            coords[0]?.boundsInWindow()?.let { onMenu(MenuTarget(entry, null, null, it)) }
-        },
+    // Just the icon, as on iOS (no glass behind it: the tile is the glass).
+    Box(
+        Modifier
+            .size(size)
+            .onGloballyPositioned { coords[0] = it }
+            .combinedClickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = {
+                    val b = coords[0]?.boundsInWindow()
+                    onLaunch(entry, b?.let { android.graphics.Rect(it.left.toInt(), it.top.toInt(), it.right.toInt(), it.bottom.toInt()) })
+                },
+                onLongClick = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    coords[0]?.boundsInWindow()?.let { onMenu(MenuTarget(entry, null, null, it)) }
+                },
+            ),
     ) {
         AppIconImage(entry, size)
     }

@@ -222,12 +222,15 @@ fun AppDrawerOverlay(
         if (c.id != settings.drawerLastCategory) vm.setDrawerLastCategory(c.id)
     }
 
-    // Background role: a dim over the blurred home; text colour by contrast against it.
+    // Background role: a dim over the blurred home. Like iOS's dark appearance, the default is a
+    // firm dark dim with white text: picking black from the wallpaper's average left grey labels on
+    // the dark parts of a mostly light wallpaper. A chosen background colour still picks by contrast.
     val bg = settings.glass.role(SurfaceKind.Background)
     val dim = Color(bg.color ?: 0xFF000000.toInt()).copy(alpha = 1f)
-    val dimAlpha = bg.opacity ?: 0.32f
+    val dimAlpha = bg.opacity ?: settings.glass.defaultOpacity(SurfaceKind.Background)
     val textColor = bg.contentColor?.let { Color(it) }
-        ?: Color(Contrast.pickText(Contrast.glassLuminance(Contrast.gammaToLinear(wallpaperLuminance), dim.toArgb(), dimAlpha)))
+        ?: if (bg.color == null) Color.White
+        else Color(Contrast.pickText(Contrast.glassLuminance(Contrast.gammaToLinear(wallpaperLuminance), dim.toArgb(), dimAlpha)))
 
     // Pulling down past the top of a category closes the drawer.
     val closeDistance = with(density) { 96.dp.toPx() }
