@@ -12,6 +12,17 @@ enum class WidgetSize(val w: Int, val h: Int, val title: String) {
 
     companion object {
         fun forSpan(w: Int, h: Int): WidgetSize? = entries.firstOrNull { it.w == w && it.h == h }
+
+        /** The layout a widget of [kind] uses at any span: an exact iOS size, else the nearest one it supports. */
+        fun layoutFor(kind: WidgetKind, w: Int, h: Int): WidgetSize {
+            val want = when {
+                w <= 2 && h <= 2 -> SMALL
+                h >= 3 -> LARGE
+                else -> MEDIUM
+            }
+            val sizes = kind.sizes
+            return forSpan(w, h)?.takeIf { it in sizes } ?: want.takeIf { it in sizes } ?: sizes.minByOrNull { Math.abs(it.w * it.h - w * h) } ?: SMALL
+        }
     }
 }
 

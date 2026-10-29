@@ -138,7 +138,7 @@ private fun HomeWidgetFrame(
             },
     ) {
         if (inst != null) {
-            WidgetContent(inst, Modifier.fillMaxSize(), size = WidgetSize.forSpan(shown.w, shown.h) ?: inst.size)
+            WidgetContent(inst, Modifier.fillMaxSize(), size = WidgetSize.layoutFor(inst.kind, shown.w, shown.h))
         } else {
             WidgetPrompt(WidgetGlyphs.Widgets, "Widget missing", "Remove", { ui.remove(w.id) }, WidgetSize.SMALL, Modifier.fillMaxSize())
         }
@@ -174,23 +174,23 @@ private fun HomeWidgetFrame(
             if (drag == null && inst != null) {
                 val spec = resizeSpec(inst, context, cellW.value, cellH.value)
                 if (spec != null) {
-                    ResizeHandle(
-                        modifier = Modifier.align(Alignment.BottomEnd).offset(6.dp, 6.dp),
-                        onDrag = { total ->
-                            resize = GridPlacement.resize(
-                                rect, total.x / cellWPx, total.y / cellHPx, GRID_COLUMNS, GRID_ROWS,
-                                minW = spec.minW, minH = spec.minH,
-                                maxW = if (spec.horizontal) GRID_COLUMNS else rect.w,
-                                maxH = if (spec.vertical) GRID_ROWS else rect.h,
-                                allowed = spec.allowed,
-                            ).let { r -> if (GridPlacement.collides(r, others)) resize ?: rect else r }
-                        },
-                        onEnd = {
-                            val r = resize
-                            resize = null
-                            if (r != null && (r.w != rect.w || r.h != rect.h)) ui.resizeWidget(w.id, r.w, r.h)
-                        },
-                    )
+                    val dragResize: (Offset) -> Unit = { total ->
+                        resize = GridPlacement.resize(
+                            rect, total.x / cellWPx, total.y / cellHPx, GRID_COLUMNS, GRID_ROWS,
+                            minW = spec.minW, minH = spec.minH,
+                            maxW = if (spec.horizontal) GRID_COLUMNS else rect.w,
+                            maxH = if (spec.vertical) GRID_ROWS else rect.h,
+                            allowed = spec.allowed,
+                        ).let { r -> if (GridPlacement.collides(r, others)) resize ?: rect else r }
+                    }
+                    val endResize: () -> Unit = {
+                        val r = resize
+                        resize = null
+                        if (r != null && (r.w != rect.w || r.h != rect.h)) ui.resizeWidget(w.id, r.w, r.h)
+                    }
+                    ResizeHandle(Modifier.align(Alignment.BottomEnd).offset(6.dp, 6.dp), dragResize, endResize)
+                    if (spec.horizontal) ResizeHandle(Modifier.align(Alignment.CenterEnd).offset(6.dp, 0.dp), dragResize, endResize, axisY = false, size = 24.dp)
+                    if (spec.vertical) ResizeHandle(Modifier.align(Alignment.BottomCenter).offset(0.dp, 6.dp), dragResize, endResize, axisX = false, size = 24.dp)
                 }
             }
         }
@@ -217,17 +217,25 @@ private fun resizeSpec(inst: WidgetInstance, context: android.content.Context, c
     }
     val sizes = inst.kind.sizes
     if (sizes.size < 2) return null
-    return ResizeSpec(sizes.map { it.w to it.h }, 1, 1, horizontal = true, vertical = true)
+    // Free resize on the grid (SL6-style); Small, Medium and Large stay one tap away in the widget menu.
+    return ResizeSpec(null, 2, 2, horizontal = true, vertical = true)
 }
 
 /** A Clear glass handle at the widget's corner; reports the total drag offset. */
 @Composable
-private fun ResizeHandle(modifier: Modifier, onDrag: (Offset) -> Unit, onEnd: () -> Unit) {
+private fun ResizeHandle(
+    modifier: Modifier,
+    onDrag: (Offset) -> Unit,
+    onEnd: () -> Unit,
+    axisX: Boolean = true,
+    axisY: Boolean = true,
+    size: androidx.compose.ui.unit.Dp = 30.dp,
+) {
     var total by remember { mutableStateOf(Offset.Zero) }
     var active by remember { mutableStateOf(false) }
     GlassSurface(
         modifier
-            .size(30.dp)
+            .size(size)
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = { total = Offset.Zero; active = true },
@@ -235,7 +243,7 @@ private fun ResizeHandle(modifier: Modifier, onDrag: (Offset) -> Unit, onEnd: ()
                     onDragCancel = { active = false; onEnd() },
                 ) { change, amount ->
                     change.consume()
-                    total += amount
+                    total += Offset(if (axisX) amount.x else 0f, if (axisY) amount.y else 0f)
                     onDrag(total)
                 }
             },

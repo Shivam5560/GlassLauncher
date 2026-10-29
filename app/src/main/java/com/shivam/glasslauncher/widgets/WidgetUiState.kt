@@ -184,7 +184,7 @@ class WidgetUiState(
         if (inst.kind == WidgetKind.APP_WIDGET) {
             repo.setConfig(id, WidgetKeys.TODAY_ROWS, h.toString())
         } else {
-            WidgetSize.forSpan(w, h)?.let { repo.setSize(id, it) }
+            repo.setSize(id, WidgetSize.layoutFor(inst.kind, w, h))
         }
     }
 

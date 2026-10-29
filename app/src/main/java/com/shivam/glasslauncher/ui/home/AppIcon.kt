@@ -217,6 +217,8 @@ fun Modifier.iconGestures(
                         if (dragging) onDragEnd()
                         break
                     }
+                    // Long-press fired: this gesture is ours until release, so the pager never grabs the first sideways move.
+                    ch.consume()
                     if (!dragging && (ch.position - down.position).getDistance() > slop * 1.5f) {
                         dragging = true
                         onDragStart(toWindow(ch.position), down.position)
