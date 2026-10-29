@@ -343,7 +343,9 @@ class OverlayController(
         val width = (wm.currentWindowMetrics.bounds.width() * s.cornerWidth.coerceIn(0.1f, 0.45f)).toInt()
         val height = dp(s.cornerHeight.coerceIn(12f, 60f))
         if (s.notificationCenter) leftCorner = addCorner(Gravity.TOP or Gravity.START, width, height, PanelKind.NotificationCenter)
-        if (s.controlCenter) rightCorner = addCorner(Gravity.TOP or Gravity.END, width, height, PanelKind.ControlCenter)
+        // Top-right pull = HyperOS's own control centre. Apps get it natively; Glass home hides the status
+        // bar, so there a corner zone asks for it (openPanel(ControlCenter) → quick settings).
+        if (s.controlCenter && homeInFront) rightCorner = addCorner(Gravity.TOP or Gravity.END, width, height, PanelKind.ControlCenter)
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -411,13 +413,23 @@ class OverlayController(
             closePanel(immediate = true)
             accessibility?.performGlobalAction(AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS)
         }
-        override fun switchPanel() {
-            panelKind = if (panelKind == PanelKind.ControlCenter) PanelKind.NotificationCenter else PanelKind.ControlCenter
-        }
+        override fun switchPanel() = openPanel(PanelKind.ControlCenter)
     }
 
     fun openPanel(kind: PanelKind) {
         if (accessibility == null) return
+        // Glass's Control Center is retired (it could hang): HyperOS's own control centre opens instead.
+        if (kind == PanelKind.ControlCenter) {
+            closePanel(immediate = true)
+            // HyperOS ignores GLOBAL_ACTION_QUICK_SETTINGS; StatusBarManager (EXPAND_STATUS_BAR) works.
+            val opened = try {
+                val sb = service.getSystemService("statusbar")
+                sb.javaClass.getMethod("expandSettingsPanel").invoke(sb)
+                true
+            } catch (e: Exception) { false }
+            if (!opened) accessibility.performGlobalAction(AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS)
+            return
+        }
         val s = settingsFlow.value
         if (kind == PanelKind.ControlCenter && !s.controlCenter) return
         if (kind == PanelKind.NotificationCenter && !s.notificationCenter) return
@@ -475,13 +487,22 @@ class OverlayController(
         val blurOk = wm.isCrossWindowBlurEnabled
         val maxBlur = dp(36f)
         // AndroidUiDispatcher.Main carries the frame clock Compose animations need outside composition.
+        // Blur is set once per open/close: updating the window every frame (an IPC to the window
+        // manager) stalled HyperOS and left frozen, blurred panels on screen.
+        panelWindow?.let { w ->
+            if (blurOk && target > 0f && w.params.blurBehindRadius != maxBlur) {
+                w.params.blurBehindRadius = maxBlur
+                w.update()
+            }
+        }
         panelJob = scope.launch(AndroidUiDispatcher.Main) {
-            progressAnim.animateTo(target, spring(dampingRatio = if (target > 0f) 0.78f else 1f, stiffness = if (target > 0f) 320f else 600f)) {
-                panelProgress = value
-                val w = panelWindow ?: return@animateTo
-                if (blurOk) {
-                    w.params.blurBehindRadius = (maxBlur * value.coerceIn(0f, 1f)).toInt()
-                    w.update()
+            if (target == 0f) panelWindow?.let { w ->
+                if (blurOk) { w.params.blurBehindRadius = 0; w.update() }
+            }
+            // Never leave a panel behind if the frame clock stalls: close after 1.5 s regardless.
+            kotlinx.coroutines.withTimeoutOrNull(1_500) {
+                progressAnim.animateTo(target, spring(dampingRatio = if (target > 0f) 0.78f else 1f, stiffness = if (target > 0f) 320f else 600f)) {
+                    panelProgress = value
                 }
             }
             if (target == 0f) destroyPanel()
