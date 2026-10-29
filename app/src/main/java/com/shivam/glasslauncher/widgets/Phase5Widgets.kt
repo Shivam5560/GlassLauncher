@@ -8,6 +8,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import android.provider.AlarmClock
 import android.text.format.DateFormat
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
@@ -168,7 +169,8 @@ fun CompassWidget(modifier: Modifier = Modifier) {
     // Unwrapped heading, so the dial animates the short way round instead of spinning through 360°.
     var unwrapped by remember { mutableFloatStateOf(0f) }
     if (sensors != null && sensor != null) {
-        DisposableEffect(sensor) {
+        // Registered only while Glass is resumed, so the rotation sensor is off in the background.
+        LifecycleResumeEffect(sensor) {
             val rot = FloatArray(9)
             val orient = FloatArray(3)
             val listener = object : SensorEventListener {
@@ -184,7 +186,7 @@ fun CompassWidget(modifier: Modifier = Modifier) {
                 override fun onAccuracyChanged(s: Sensor?, accuracy: Int) = Unit
             }
             sensors.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI)
-            onDispose { sensors.unregisterListener(listener) }
+            onPauseOrDispose { sensors.unregisterListener(listener) }
         }
     }
     val shown by animateFloatAsState(unwrapped, spring(dampingRatio = 0.8f, stiffness = 120f), label = "compass")

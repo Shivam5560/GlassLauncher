@@ -57,6 +57,7 @@ import com.shivam.glasslauncher.widgets.WidgetMenu
 import com.shivam.glasslauncher.widgets.WidgetSize
 import com.shivam.glasslauncher.widgets.WidgetUiState
 import com.shivam.glasslauncher.widgets.widgetLongPress
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -144,10 +145,14 @@ private fun pairSmalls(list: List<WidgetInstance>): List<TodayRow> {
 
 @Composable
 private fun BigDate(color: Color, shadow: Shadow?) {
-    val today by produceState(LocalDate.now()) {
-        while (true) {
-            delay(60_000L)
-            value = LocalDate.now()
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val today by produceState(LocalDate.now(), lifecycle) {
+        // Only while resumed; restarting on resume refreshes the date straight away.
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+            while (true) {
+                value = LocalDate.now()
+                delay(60_000L)
+            }
         }
     }
     Column(Modifier.padding(start = 4.dp, top = 12.dp, bottom = 4.dp)) {

@@ -30,7 +30,9 @@ private const val SCALE = 8
 private fun blurSmall(src: Bitmap, radiusPx: Float): Bitmap {
     val w = (src.width / SCALE).coerceAtLeast(2)
     val h = (src.height / SCALE).coerceAtLeast(2)
-    val small = Bitmap.createScaledBitmap(src.copy(Bitmap.Config.ARGB_8888, false), w, h, true)
+    // Only copy when needed: a full-size copy of an ARGB_8888 frozen home is the largest transient here.
+    val argb = if (src.config == Bitmap.Config.ARGB_8888) src else src.copy(Bitmap.Config.ARGB_8888, false)
+    val small = Bitmap.createScaledBitmap(argb, w, h, true)
     val px = IntArray(w * h).also { small.getPixels(it, 0, w, 0, 0, w, h) }
     val r = (radiusPx / SCALE).toInt().coerceAtLeast(1)
     repeat(3) { boxPass(px, w, h, r, horizontal = true); boxPass(px, w, h, r, horizontal = false) }

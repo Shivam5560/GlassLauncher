@@ -114,7 +114,13 @@ class WallpaperSource(private val context: Context, private val scope: Coroutine
         val live = try { wm.wallpaperInfo != null } catch (e: Exception) { false }
         if (live) return Snapshot(null, 1f, sw, sh, null, 0, 0, fallbackLum, WallpaperPath.None, isLive = true)
         // Path A: a wallpaper we set ourselves and still current.
-        ownCopy()?.let { return render(android.graphics.drawable.BitmapDrawable(context.resources, it), sw, sh, fallbackLum, WallpaperPath.OwnCopy) }
+        ownCopy()?.let { own ->
+            try {
+                return render(android.graphics.drawable.BitmapDrawable(context.resources, own), sw, sh, fallbackLum, WallpaperPath.OwnCopy)
+            } finally {
+                own.recycle() // render() copies it into a 1/3-size bitmap; the decoded copy is no longer needed
+            }
+        }
         // Path B: All files access lets WallpaperManager hand out the bitmap.
         val drawable = try {
             wm.drawable

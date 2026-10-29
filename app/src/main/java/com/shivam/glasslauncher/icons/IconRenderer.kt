@@ -136,6 +136,9 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
         _generation.value++
     }
 
+    /** Called when the UI is hidden: keeps about a quarter of the LRU (the recent, on-screen icons). */
+    fun trimCache() = cache.trimToSize(cache.maxSize() / 4)
+
     fun cached(entry: AppEntry, sizePx: Int): ImageBitmap? = cache.get(cacheKey(entry, sizePx))
 
     suspend fun icon(entry: AppEntry, sizePx: Int): ImageBitmap {

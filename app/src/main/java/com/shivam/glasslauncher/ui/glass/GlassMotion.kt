@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.lifecycle.repeatOnLifecycle
 
 /** Spring presets tuned to feel like iOS. */
 object GlassSprings {
@@ -90,3 +91,15 @@ fun GlassMorph(
 }
 
 internal fun lerp(a: Float, b: Float, t: Float) = a + (b - a) * t
+
+/**
+ * A polling loop that only runs while the host activity is RESUMED: it is cancelled when Glass goes to
+ * the background and restarted (from the top) on resume, so idle widgets stop waking the CPU.
+ */
+@Composable
+fun ResumedLoop(vararg keys: Any?, block: suspend kotlinx.coroutines.CoroutineScope.() -> Unit) {
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(lifecycle, *keys) {
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED, block)
+    }
+}
