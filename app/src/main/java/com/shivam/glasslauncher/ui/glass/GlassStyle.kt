@@ -106,7 +106,11 @@ data class GlassStyle(
     val blurRadius: Float = 24f,
     /** ARGB base tint; its alpha is ignored in favour of [tintOpacity]. */
     val tintColor: Int = 0xFF16171D.toInt(),
-    val tintOpacity: Float = 0.34f,
+    /**
+     * Liquid Glass default is 8% (clear glass). Thin glass gets a legibility scrim in GlassSurface
+     * (see [Contrast.legibilityScrim]) so text stays AA over bright wallpapers.
+     */
+    val tintOpacity: Float = 0.08f,
     /** Strength of the rim light, inner glow and sheen (0..1). */
     val specular: Float = 0.6f,
     /** Lens displacement strength (0..1). */
@@ -154,7 +158,8 @@ data class GlassStyle(
         )
         GlassVariant.Clear -> ResolvedGlass(
             blur = (blurRadius * 0.22f).dp,
-            tintOpacity = tintOpacity * 0.35f,
+            // Floor keeps small Clear controls visible (rim and lens alone are too faint at very low tint).
+            tintOpacity = maxOf(tintOpacity * 0.35f, MIN_CLEAR_TINT),
             refraction = (refraction * 22f).dp,
             rim = rimWidth.dp,
             chroma = (chromaticAberration * 1.4f).coerceAtMost(1f),
@@ -192,6 +197,8 @@ data class GlassStyle(
         }
     }
 }
+
+private const val MIN_CLEAR_TINT = 0.06f
 
 @Immutable
 data class ResolvedGlass(

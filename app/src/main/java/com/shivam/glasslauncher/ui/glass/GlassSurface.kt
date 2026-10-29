@@ -139,10 +139,17 @@ fun GlassSurface(
     val baseTint = tintOverride ?: Color(roleStyle.color ?: style.tintColor).copy(alpha = 1f)
     val tint = if (tintOverride != null) baseTint else lerp(baseTint, lerp(baseTint, Color.White, 0.85f), tone)
     val tintAmount = if (tintOverride != null) 0.55f else (tintOpacity + 0.22f * tone).coerceAtMost(1f)
+    // Thin dark glass (Liquid Glass, Clear controls) barely tints the backdrop, so the text must be
+    // chosen from the backdrop that is actually visible. It gets a black scrim that rises with
+    // backdrop luminance (zero over dark areas), then the text is picked on the scrimmed luminance.
+    val thinDarkGlass = tintOverride == null && tone < 0.5f && tintAmount < Contrast.THIN_GLASS_TINT
+    val glassLinear = Contrast.glassLuminance(Contrast.gammaToLinear(luminance), tint.toArgb(), tintAmount)
+    val scrim = if (thinDarkGlass) Contrast.legibilityScrim(Contrast.linearToGamma(glassLinear)) else 0f
     val contentColor = roleStyle.contentColor?.let { Color(it) }
+        ?: if (thinDarkGlass) Color(Contrast.pickText(Contrast.scrimmed(glassLinear, scrim)))
         // Regular dark-tone glass is dark by definition (Clear stays thin and follows the measure): the averaged backdrop can read bright while the panel
         // renders dark (purple blur under a menu), so never pick dark text on it.
-        ?: if (style.tone == GlassTone.Dark && variant == GlassVariant.Regular && tintOverride == null) Color(Contrast.LIGHT_TEXT)
+        else if (style.tone == GlassTone.Dark && variant == GlassVariant.Regular && tintOverride == null) Color(Contrast.LIGHT_TEXT)
         else Color(Contrast.textOnGlass(luminance, tint.toArgb(), tintAmount))
     val strokeDp = roleStyle.stroke
 
@@ -274,7 +281,19 @@ fun GlassSurface(
         if (accent != null) {
             CompositionLocalProvider(LocalGlassContentColor provides contentColor, LocalGlassAccent provides accent) { content() }
         } else {
-            CompositionLocalProvider(LocalGlassContentColor provides contentColor) { content() }
+            if (scrim > 0f) {
+            // Legibility scrim: a clear black veil inside the glass, only over bright backdrops.
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .graphicsLayer {
+                        clip = true
+                        this.shape = shape
+                    }
+                    .drawBehind { drawRect(Color.Black.copy(alpha = scrim)) },
+            )
+        }
+        CompositionLocalProvider(LocalGlassContentColor provides contentColor) { content() }
         }
     }
 }
