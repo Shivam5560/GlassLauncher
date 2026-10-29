@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.drawable.AdaptiveIconDrawable
@@ -61,6 +62,16 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
         if (variant == this.variant && tintColor == this.tintColor) return
         this.variant = variant
         this.tintColor = tintColor
+        cache.evictAll()
+        _generation.value++
+    }
+
+    @Volatile private var systemAppIcons = false
+
+    /** With no pack chosen, core system apps take Glass Icons' iOS-style art; others keep their logo. */
+    fun setSystemAppIcons(on: Boolean) {
+        if (on == systemAppIcons) return
+        systemAppIcons = on
         cache.evictAll()
         _generation.value++
     }
@@ -137,7 +148,13 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
         val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
         val overridden = overrides[entry.key]?.let { renderOverride(canvas, it, size, density) } ?: false
-        val mapped = if (overridden) null else p?.iconFor(entry.component, density, variant)
+        val mapped = when {
+            overridden -> null
+            p != null -> p.iconFor(entry.component, density, variant)
+            systemAppIcons && isCoreSystemApp(entry) -> loadPack(SYSTEM_ART_PACK)?.iconFor(entry.component, density, variant)
+            else -> null
+        }
+        if (entry.packageName.startsWith("com.android.")) android.util.Log.d("GlassDBG", "icon ${entry.component.flattenToShortString()} sys=$systemAppIcons core=${isCoreSystemApp(entry)} pack=${p != null} mapped=${mapped != null} name=${loadPack(SYSTEM_ART_PACK)?.drawableNameFor(entry.component)}")
         if (overridden) {
             // drawn above
         } else if (mapped != null) {
@@ -150,6 +167,7 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
                 maskToSquircle(out)
             } else {
                 renderSquircle(canvas, raw, size)
+                drawGlassFinish(canvas, size)
             }
         }
         if (entry.isWorkProfile) {
@@ -204,22 +222,115 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
         val clip = shapePath(size.toFloat())
         canvas.save()
         canvas.clipPath(clip)
-        if (icon is AdaptiveIconDrawable) {
+        if (icon is AdaptiveIconDrawable && variant == IconVariant.Dark && renderDarkAdaptive(canvas, icon, size)) {
+            // drawn in the iOS dark appearance
+        } else if (icon is AdaptiveIconDrawable) {
             val inset = (size * 0.25f).toInt()
             icon.background?.let { drawDrawable(canvas, it, -inset, -inset, size + inset, size + inset) }
                 ?: canvas.drawColor(Color.WHITE)
             icon.foreground?.let { drawDrawable(canvas, it, -inset, -inset, size + inset, size + inset) }
         } else {
-            // Legacy icon on a white tile, like iOS does for odd-shaped artwork.
-            canvas.drawColor(Color.WHITE)
-            val pad = (size * 0.14f).toInt()
-            drawDrawable(canvas, icon, pad, pad, size - pad, size - pad)
+            val art = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            drawDrawable(Canvas(art), icon, 0, 0, size, size)
+            val tile = solidTileBounds(art)
+            if (tile != null) {
+                // Old-style icon that is itself a filled tile (HyperOS Camera, Gallery, Music) inside
+                // transparent padding: crop to it and fill the squircle edge to edge, overscanned a
+                // little so its own rounded corners fall outside our shape.
+                val over = size * 0.04f
+                canvas.drawBitmap(art, tile, android.graphics.RectF(-over, -over, size + over, size + over), Paint(Paint.FILTER_BITMAP_FLAG or Paint.ANTI_ALIAS_FLAG))
+            } else {
+                // Odd-shaped artwork on a white tile, like iOS does.
+                canvas.drawColor(Color.WHITE)
+                val pad = (size * 0.14f).toInt()
+                drawDrawable(canvas, icon, pad, pad, size - pad, size - pad)
+            }
         }
         canvas.restore()
     }
 
+    /**
+     * iOS 26 dark appearance for an app's own adaptive icon, logo shape untouched: the logo moves
+     * onto a dark glass tile. A light logo designed for a coloured background is filled with that
+     * background (LinkedIn's "in" stays blue, Instagram's glyph keeps its gradient); a colourful logo
+     * on a white background goes on as is (Gmail), with dark ink turned white. Icons that are
+     * already dark are left alone (returns false).
+     */
+    private fun renderDarkAdaptive(canvas: Canvas, icon: AdaptiveIconDrawable, size: Int): Boolean {
+        val bgLayer = icon.background ?: return false
+        val fgLayer = icon.foreground ?: return false
+        val inset = (size * 0.25f).toInt()
+        fun layer(d: Drawable) = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).also {
+            drawDrawable(Canvas(it), d, -inset, -inset, size + inset, size + inset)
+        }
+        val bg = layer(bgLayer)
+        val fg = layer(fgLayer)
+        val bgStats = ColourStats.of(bg)
+        if (bgStats.luminance < 0.18f) return false
+        val fgStats = ColourStats.of(fg)
+        // A foreground covering most of the icon is a tile of its own (Tumbledry), not a logo.
+        if (fgStats.coverage > 0.6f) return false
+        canvas.drawPaint(Paint().apply {
+            shader = android.graphics.LinearGradient(0f, 0f, 0f, size.toFloat(), 0xFF2B2C31.toInt(), 0xFF0B0B0D.toInt(), android.graphics.Shader.TileMode.CLAMP)
+        })
+        val glyph = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val gc = Canvas(glyph)
+        gc.drawBitmap(fg, 0f, 0f, null)
+        when {
+            // White/grey logo on a coloured background: paint the logo with that background.
+            fgStats.saturation < 0.18f && fgStats.luminance > 0.6f && bgStats.saturation >= 0.18f ->
+                gc.drawBitmap(bg, 0f, 0f, Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN) })
+            // Dark ink on a light background would vanish on the dark tile: make it white.
+            fgStats.luminance < 0.3f && fgStats.saturation < 0.25f ->
+                gc.drawColor(Color.WHITE, PorterDuff.Mode.SRC_IN)
+        }
+        canvas.drawBitmap(glyph, 0f, 0f, null)
+        return true
+    }
+
+    /** Average saturation and luminance of the visible pixels of a layer, and how much of it they cover (sampled). */
+    private class ColourStats(val saturation: Float, val luminance: Float, val coverage: Float) {
+        companion object {
+            fun of(bmp: Bitmap): ColourStats {
+                val step = (bmp.width / 24).coerceAtLeast(1)
+                var n = 0; var total = 0; var sat = 0f; var lum = 0f
+                val hsv = FloatArray(3)
+                for (y in 0 until bmp.height step step) for (x in 0 until bmp.width step step) {
+                    val c = bmp.getPixel(x, y)
+                    total++
+                    if ((c ushr 24) < 128) continue
+                    Color.colorToHSV(c, hsv)
+                    sat += hsv[1] * hsv[2]
+                    lum += (0.2126f * Color.red(c) + 0.7152f * Color.green(c) + 0.0722f * Color.blue(c)) / 255f
+                    n++
+                }
+                return if (n == 0) ColourStats(0f, 0f, 0f) else ColourStats(sat / n, lum / n, n.toFloat() / total)
+            }
+        }
+    }
+
+    /**
+     * Bounds of the visible art when it is a filled tile (opaque at the middle of each edge of its
+     * bounding box and at its centre), else null for free-form logos. Needs the art to cover at
+     * least 60% of the width, so small glyphs are never blown up.
+     */
+    private fun solidTileBounds(art: Bitmap): android.graphics.Rect? {
+        val w = art.width; val h = art.height
+        val px = IntArray(w * h)
+        art.getPixels(px, 0, w, 0, 0, w, h)
+        var l = w; var t = h; var r = -1; var b = -1
+        for (y in 0 until h) for (x in 0 until w) {
+            if ((px[y * w + x] ushr 24) > 40) { if (x < l) l = x; if (x > r) r = x; if (y < t) t = y; if (y > b) b = y }
+        }
+        if (r < 0 || (r - l + 1) < w * 0.6f || (b - t + 1) < h * 0.6f) return null
+        fun opaque(x: Int, y: Int) = (px[y.coerceIn(0, h - 1) * w + x.coerceIn(0, w - 1)] ushr 24) > 200
+        val cx = (l + r) / 2; val cy = (t + b) / 2; val inset = 2
+        val solid = opaque(cx, cy) && opaque(l + inset, cy) && opaque(r - inset, cy) && opaque(cx, t + inset) && opaque(cx, b - inset)
+        return if (solid) android.graphics.Rect(l, t, r + 1, b + 1) else null
+    }
+
     private fun renderThemed(canvas: Canvas, icon: Drawable, pack: IconPack, seed: Int, size: Int, density: Int) {
-        pack.backFor(seed, density)?.let { drawDrawable(canvas, it, 0, 0, size, size) }
+        pack.backFor(seed, density, variant)?.let { drawDrawable(canvas, it, 0, 0, size, size) }
         // icon scaled by the pack factor, punched out by the mask
         val layer = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val lc = Canvas(layer)
@@ -239,6 +350,47 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
         }
         canvas.drawBitmap(layer, 0f, 0f, null)
         pack.upon(density)?.let { drawDrawable(canvas, it, 0, 0, size, size) }
+    }
+
+    /**
+     * iOS 26-style glass over an app's own icon, logo and colours untouched: a sheen across the top,
+     * a faint shade at the bottom for depth, and a specular rim lit from the top-left that runs
+     * faint along the sides and glints again at the bottom-right.
+     */
+    private fun drawGlassFinish(canvas: Canvas, size: Int) {
+        val s = size.toFloat()
+        val clip = shapePath(s)
+        canvas.save()
+        canvas.clipPath(clip)
+        canvas.drawPaint(Paint().apply {
+            shader = android.graphics.LinearGradient(0f, 0f, 0f, s, intArrayOf(0x38FFFFFF, 0x00FFFFFF, 0x00000000, 0x1F000000), floatArrayOf(0f, 0.42f, 0.7f, 1f), android.graphics.Shader.TileMode.CLAMP)
+        })
+        canvas.restore()
+        val w = (s * 0.016f).coerceAtLeast(1f)
+        val inset = w / 2f
+        val rim = Path(clip).apply {
+            val m = android.graphics.Matrix()
+            m.setScale((s - 2 * inset) / s, (s - 2 * inset) / s)
+            m.postTranslate(inset, inset)
+            transform(m)
+        }
+        canvas.drawPath(rim, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = w
+            shader = android.graphics.LinearGradient(s * 0.14f, s * 0.06f, s * 0.86f, s * 0.94f,
+                intArrayOf(0xCCFFFFFF.toInt(), 0x33FFFFFF, 0x10FFFFFF, 0x10FFFFFF, 0x66FFFFFF), null, android.graphics.Shader.TileMode.CLAMP)
+        })
+    }
+
+    /**
+     * Apps iOS also ships as part of the phone (dialer, messages, camera, settings, clock…): AOSP and
+     * Xiaomi system packages plus Google's core phone apps. Branded apps that merely come
+     * preinstalled (Chrome, YouTube, Gmail, Maps) are not, and keep their own logo.
+     */
+    private fun isCoreSystemApp(entry: AppEntry): Boolean {
+        val pkg = entry.packageName
+        val system = (entry.info.applicationInfo.flags and (android.content.pm.ApplicationInfo.FLAG_SYSTEM or android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP)) != 0
+        return system && pkg !in BRANDED && (CORE_PREFIXES.any { pkg.startsWith(it) } || pkg in CORE_GOOGLE)
     }
 
     private fun maskToSquircle(bmp: Bitmap) {
@@ -262,5 +414,18 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
         val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         renderSquircle(Canvas(out), drawable, size)
         return out.asImageBitmap()
+    }
+
+    private companion object {
+        const val SYSTEM_ART_PACK = "com.shivam.glassicons"
+        val CORE_PREFIXES = listOf("com.android.", "com.miui.", "com.xiaomi.", "com.mi.")
+        /** Branded apps that live under a core prefix on some phones (Xiaomi ships Chrome as com.android.chrome). */
+        val BRANDED = setOf("com.android.chrome", "com.android.vending")
+        val CORE_GOOGLE = setOf(
+            "com.google.android.dialer", "com.google.android.contacts", "com.google.android.apps.messaging",
+            "com.google.android.deskclock", "com.google.android.calculator", "com.google.android.calendar",
+            "com.google.android.GoogleCamera", "com.google.android.apps.photos", "com.google.android.apps.nbu.files",
+            "com.google.android.apps.recorder", "com.google.android.keep", "com.google.android.documentsui",
+        )
     }
 }

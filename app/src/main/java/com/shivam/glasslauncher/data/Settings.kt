@@ -86,8 +86,8 @@ data class LauncherSettings(
     val iconPack: String = "",
     val hidden: Set<String> = emptySet(),
     val locked: Set<String> = emptySet(),
-    /** Labels under home-screen icons. Phase 5 default: off (clean home); the drawer keeps labels. */
-    val showLabels: Boolean = false,
+    /** Labels under home-screen icons: white with a soft shadow, as on iOS. */
+    val showLabels: Boolean = true,
     val showBadges: Boolean = true,
     val onboardingDone: Boolean = false,
     /** HyperOS has no API to read Autostart reliably; the user confirms it in System check. */
@@ -109,6 +109,8 @@ data class LauncherSettings(
     val infiniteScroll: Boolean = false,
     /** The wallpaper copy shifts with device tilt (needs the wallpaper set through Glass). */
     val wallpaperParallax: Boolean = false,
+    /** With "System icons": core system apps (Phone, Camera, Settings…) use Glass Icons' iOS-style art. */
+    val systemAppIcons: Boolean = true,
 )
 
 class SettingsRepository(private val context: Context, private val scope: CoroutineScope) {
@@ -171,6 +173,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         val homeGestures = stringPreferencesKey("home_gestures")
         val infinite = booleanPreferencesKey("infinite_scroll")
         val parallax = booleanPreferencesKey("wallpaper_parallax")
+        val systemAppIcons = booleanPreferencesKey("system_app_icons")
     }
 
     init {
@@ -250,6 +253,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
             homeGestures = HomeGestureMap.decode(p[K.homeGestures]) ?: legacyGestures(p),
             infiniteScroll = p[K.infinite] ?: d.infiniteScroll,
             wallpaperParallax = p[K.parallax] ?: d.wallpaperParallax,
+            systemAppIcons = p[K.systemAppIcons] ?: d.systemAppIcons,
         )
     }
 
@@ -340,5 +344,6 @@ class SettingsRepository(private val context: Context, private val scope: Corout
     fun setHomeGesture(map: Map<HomeGesture, GestureBinding>, g: HomeGesture, b: GestureBinding) = setHomeGestures(map + (g to b))
     fun setInfiniteScroll(v: Boolean) = edit { it[K.infinite] = v }
     fun setWallpaperParallax(v: Boolean) = edit { it[K.parallax] = v }
+    fun setSystemAppIcons(v: Boolean) = edit { it[K.systemAppIcons] = v }
     fun setOnboardingDone(v: Boolean) = edit { it[K.onboarding] = v }
 }

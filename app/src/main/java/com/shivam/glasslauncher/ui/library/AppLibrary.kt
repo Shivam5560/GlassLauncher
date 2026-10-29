@@ -146,7 +146,7 @@ private fun LibraryTile(
             }
         }
         Spacer(Modifier.height(6.dp))
-        IconLabel(group.title, lightWallpaper)
+        IconLabel(group.title, false)
     }
 }
 

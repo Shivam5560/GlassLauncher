@@ -91,8 +91,12 @@ class IconPack(
         return names.filterNot { n -> IconVariant.entries.any { v -> v != IconVariant.Light && n.endsWith(v.suffix) } }
     }
 
-    fun backFor(seed: Int, density: Int): Drawable? =
-        if (backs.isEmpty()) null else drawable(backs[Math.floorMod(seed, backs.size)], density)
+    /** Tile behind an unmapped icon, in the same variant as the mapped ones (Tinted sits on Dark). */
+    fun backFor(seed: Int, density: Int, variant: IconVariant = IconVariant.Light): Drawable? {
+        if (backs.isEmpty()) return null
+        val v = if (variant == IconVariant.Tinted) IconVariant.Dark else variant
+        return named(backs[Math.floorMod(seed, backs.size)], density, v)?.drawable
+    }
 
     fun mask(density: Int): Drawable? = mask?.let { drawable(it, density) }
     fun upon(density: Int): Drawable? = upon?.let { drawable(it, density) }

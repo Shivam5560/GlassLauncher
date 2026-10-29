@@ -13,7 +13,6 @@ import com.shivam.glasslauncher.ui.glass.WallpaperSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -50,12 +49,8 @@ class GlassApp : Application() {
         scope.launch {
             settings.state.filterNotNull().map { it.appearance.iconShape }.distinctUntilChanged().collect { icons.setShape(it) }
         }
-        // Phase 5: Glass Icons (dark variant) is the default icon pack whenever it is installed and
-        // the user has not picked a pack (or "System icons") themselves.
         scope.launch {
-            combine(settings.state.filterNotNull(), apps.apps) { s, list ->
-                !s.iconPackChosen && list.any { it.packageName == GLASS_ICONS_PACKAGE }
-            }.distinctUntilChanged().collect { adopt -> if (adopt) settings.setIconPack(GLASS_ICONS_PACKAGE) }
+            settings.state.filterNotNull().map { it.systemAppIcons }.distinctUntilChanged().collect { icons.setSystemAppIcons(it) }
         }
     }
 

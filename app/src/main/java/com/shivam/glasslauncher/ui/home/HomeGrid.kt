@@ -266,7 +266,7 @@ fun HomeCell(
             }
             IconLabel(
                 if (isSource) "" else text,
-                ctx.lightWallpaper,
+                false,
                 Modifier.width(iconSize + 18.dp),
                 sizeSp = ctx.appearance.labelSize,
                 twoLines = ctx.appearance.twoLineLabels,

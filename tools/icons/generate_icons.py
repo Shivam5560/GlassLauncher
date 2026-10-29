@@ -152,7 +152,7 @@ class Icon:
 
 
 WHITE_TILE = ("#FFFFFF", "#E9EAEE")
-DARK_GLASS = ("#2F3034", "#121214")
+DARK_GLASS = ("#2B2C31", "#0B0B0D")
 
 def P(*pkgs):
     """Placeholder components for apps whose launcher activity we don't pin down; the pack is matched by package."""
@@ -838,13 +838,26 @@ def gradient_xml(attr, colors, x0=50, y0=0, x1=50, y1=100):
 
 
 class Paint:
-    """A resolved fill or stroke: either a solid colour (+alpha) or a vertical gradient."""
+    """A resolved fill or stroke: a solid colour (+alpha) or a gradient, by default vertical across the
+    glyph area; [box] = (x0, y0, x1, y1) places the gradient explicitly."""
 
-    def __init__(self, solid=None, alpha=1.0, grad=None):
-        self.solid, self.alpha, self.grad = solid, alpha, grad
+    def __init__(self, solid=None, alpha=1.0, grad=None, box=None):
+        self.solid, self.alpha, self.grad, self.box = solid, alpha, grad, box
+
+
+def is_dark_ink(hex_colour):
+    """True for near-black glyph colours that disappear on the dark glass tile."""
+    h = hex_colour.lstrip("#")[-6:]
+    r, g, b = (int(h[i:i + 2], 16) / 255 for i in (0, 2, 4))
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b < 0.2
 
 
 def resolve(icon, role, variant, opts):
+    # A fixed colour equal to the light-tile glyph colour is that glyph drawn in ink (dark ink on
+    # yellow Rapido/Blinkit, lime inDriver): on the dark tile it must become the accent too, or it
+    # vanishes. Other fixed colours are real contrast details and stay.
+    if variant == "dark" and role.startswith("#") and role.upper() == icon.fg.upper() and is_dark_ink(role):
+        role = "fg"
     fixed = role.startswith("#")
     if variant == "tinted":
         ta = opts.get("ta", 0.55 if (fixed or role == "fg2") else 1.0)
@@ -862,20 +875,46 @@ def tile_layers(icon, variant):
     if variant == "tinted":
         return []
     colors = icon.tile if variant == "light" else (icon.dark_tile or DARK_GLASS)
-    sheen = 0.34 if variant == "light" else 0.16
-    rim = 0.42 if variant == "light" else 0.2
-    return [
+    sheen = 0.34 if variant == "light" else 0.10
+    layers = [
         ("f", TILE, Paint(grad=colors), {"diag": len(colors) == 3}),
         ("sheen", ellipse(50, 8, 74, 36), Paint(grad=(hex_alpha("#FFFFFF", sheen), "#00FFFFFF")), {}),
-        ("s", TILE_RIM, Paint("#FFFFFF", rim), {"w": 1.2}),
     ]
+    if variant == "light":
+        layers.append(("s", TILE_RIM, Paint("#FFFFFF", 0.42), {"w": 1.2}))
+    return layers
+
+
+# iOS 26-style dark glass: light catches the top-left edge, runs faint along the sides and glints
+# again at the bottom-right.
+SPECULAR_RIM = ("#B3FFFFFF", "#26FFFFFF", "#0DFFFFFF", "#0DFFFFFF", "#4DFFFFFF")
+
+
+def rim_layers(variant):
+    if variant != "dark":
+        return []
+    return [("s", TILE_RIM, Paint(grad=SPECULAR_RIM, box=(14, 6, 86, 94)), {"w": 1.1})]
 
 
 def element_layers(icon, variant):
     out = []
     for kind, d, role, opts in icon.elements:
         out.append((kind, d, resolve(icon, role, variant, opts), opts))
-    return out
+    if variant != "dark":
+        return out
+    # Dark glyphs read as lit glass: a soft shadow under each part lifts it off the tile, and a
+    # white sheen fading down from its top edge makes it glossy.
+    shadows = [(k, d, Paint("#000000", 0.38), {**o, "dy": 1.8}) for k, d, _, o in out]
+    sheen = Paint(grad=("#6BFFFFFF", "#00FFFFFF"), box=(50, 20, 50, 58))
+    # Plain filled parts share one merged path (nonzero fill = their union), so the sheen is not
+    # doubled where parts overlap; holed (even-odd) parts and strokes keep their own.
+    plain = [d for k, d, _, o in out if k == "f" and not o.get("evenodd")]
+    sheens = [("f", " ".join(plain), sheen, {})] if plain else []
+    sheens += [(k, d, sheen, o) for k, d, _, o in out if k != "f" or o.get("evenodd")]
+    # A single-piece glyph also gets a thin lit edge, bright on top and gone by the bottom (a glass
+    # bevel). Multi-part glyphs skip it: their inner joins would show as seams.
+    edges = [("s", plain[0], Paint(grad=("#8CFFFFFF", "#00FFFFFF"), box=(50, 18, 50, 70)), {"w": 0.9})] if len(plain) == 1 and len(out) == 1 else []
+    return shadows + out + sheens + edges
 
 
 def vector_xml(icon, variant):
@@ -884,7 +923,7 @@ def vector_xml(icon, variant):
              '<vector xmlns:android="http://schemas.android.com/apk/res/android" '
              'xmlns:aapt="http://schemas.android.com/aapt" android:width="108dp" android:height="108dp" '
              'android:viewportWidth="100" android:viewportHeight="100">']
-    for kind, d, paint, opts in tile_layers(icon, variant) + element_layers(icon, variant):
+    for kind, d, paint, opts in tile_layers(icon, variant) + element_layers(icon, variant) + rim_layers(variant):
         parts.append(path_xml(kind, d, paint, opts))
     parts.append("</vector>")
     return "\n".join(parts) + "\n"
@@ -898,7 +937,9 @@ def path_xml(kind, d, paint, opts):
     attr = "fillColor" if kind == "f" else "strokeColor"
     inner = ""
     if paint.grad:
-        if opts.get("diag"):
+        if paint.box:
+            inner = gradient_xml(attr, paint.grad, *paint.box)
+        elif opts.get("diag"):
             inner = gradient_xml(attr, paint.grad, 0, 0, 100, 100)
         else:
             inner = gradient_xml(attr, paint.grad, 50, 15, 50, 85) if kind != "f" or d != TILE else gradient_xml(attr, paint.grad)
@@ -912,9 +953,10 @@ def path_xml(kind, d, paint, opts):
         attrs.append(f'android:strokeWidth="{n(opts["w"])}"')
         attrs.append(f'android:strokeLineCap="{opts.get("cap", "round")}"')
         attrs.append(f'android:strokeLineJoin="{opts.get("join", "round")}"')
-    if inner:
-        return f'    <path {" ".join(attrs)}>{inner}</path>'
-    return f'    <path {" ".join(attrs)}/>'
+    xml = f'    <path {" ".join(attrs)}>{inner}</path>' if inner else f'    <path {" ".join(attrs)}/>'
+    if opts.get("dy"):
+        return f'    <group android:translateY="{n(opts["dy"])}">{xml.strip()}</group>'
+    return xml
 
 
 _GID = [0]
@@ -936,12 +978,14 @@ def svg(icon, variant, tinted_bg=None):
     clip = f"tile{gid[0]}"
     if tinted_bg:
         body.append(f'<path d="{TILE}" fill="{tinted_bg}"/>')
-    for kind, d, paint, opts in tile_layers(icon, variant) + element_layers(icon, variant):
+    for kind, d, paint, opts in tile_layers(icon, variant) + element_layers(icon, variant) + rim_layers(variant):
         if kind == "sheen":
             body.append(f'<path d="{d}" clip-path="url(#{clip})" fill="{grad(paint.grad, 50, -28, 50, 44)}"/>')
             continue
         if paint.grad:
-            if opts.get("diag"):
+            if paint.box:
+                col = grad(paint.grad, *paint.box)
+            elif opts.get("diag"):
                 col = grad(paint.grad, 0, 0, 100, 100)
             elif kind == "f" and d == TILE:
                 col = grad(paint.grad, 50, 0, 50, 100)
@@ -949,11 +993,12 @@ def svg(icon, variant, tinted_bg=None):
                 col = grad(paint.grad, 50, 15, 50, 85)
         else:
             col = paint.solid
+        tr = f' transform="translate(0 {opts["dy"]})"' if opts.get("dy") else ""
         if kind == "f":
             rule = "evenodd" if opts.get("evenodd") else "nonzero"
-            body.append(f'<path d="{d}" fill="{col}" fill-opacity="{paint.alpha}" fill-rule="{rule}"/>')
+            body.append(f'<path d="{d}"{tr} fill="{col}" fill-opacity="{paint.alpha}" fill-rule="{rule}"/>')
         else:
-            body.append(f'<path d="{d}" fill="none" stroke="{col}" stroke-opacity="{paint.alpha}" '
+            body.append(f'<path d="{d}"{tr} fill="none" stroke="{col}" stroke-opacity="{paint.alpha}" '
                         f'stroke-width="{opts["w"]}" stroke-linecap="{opts.get("cap", "round")}" '
                         f'stroke-linejoin="{opts.get("join", "round")}"/>')
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="120" height="120">'

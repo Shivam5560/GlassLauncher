@@ -251,18 +251,14 @@ object SystemChecks {
             ?.getDefaultSensor(android.hardware.Sensor.TYPE_ROTATION_VECTOR) != null
         return listOf(
             CheckResult(
-                "glassicons", "Glass Icons", "The default icon pack (dark variant). Its Apply button and Glass's own default both store it in Glass's settings.",
-                when {
-                    iconsApplied -> CheckStatus.Ok
-                    glassIcons -> CheckStatus.Warning
-                    else -> CheckStatus.Info
-                },
+                "glassicons", "Glass Icons", "Optional icon pack. By default Glass shows each app's own icon, logo untouched, under a glass finish.",
+                if (iconsApplied) CheckStatus.Ok else CheckStatus.Info,
                 when {
                     iconsApplied -> "In use"
-                    glassIcons -> "Installed, another pack chosen"
-                    else -> "Not installed — system icons"
+                    glassIcons -> "Installed, not in use"
+                    else -> "Not installed — app icons"
                 },
-                if (glassIcons && !iconsApplied) "Choose pack" else null, CheckFix.InApp("iconpack"),
+                null, CheckFix.InApp("iconpack"),
             ),
             CheckResult(
                 "drawershortcuts", "Drawer shortcuts", "App shortcuts added to drawer categories open only while Glass is the default Home app.",

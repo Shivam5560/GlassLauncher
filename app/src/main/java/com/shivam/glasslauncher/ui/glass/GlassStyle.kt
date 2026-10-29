@@ -111,7 +111,7 @@ data class GlassStyle(
     val rimWidth: Float = 14f,
     /** Colour fringing on the rim (0..1). */
     val chromaticAberration: Float = 0.15f,
-    val tone: GlassTone = GlassTone.Auto,
+    val tone: GlassTone = GlassTone.Dark,
     /** Specular angle follows the device tilt. */
     val tiltLighting: Boolean = false,
     /** Draw a copy of the wallpaper behind in-window panels when it is readable. */
