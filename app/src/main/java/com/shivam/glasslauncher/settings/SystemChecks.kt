@@ -19,6 +19,7 @@ import com.shivam.glasslauncher.badges.BadgeListenerService
 import com.shivam.glasslauncher.badges.BadgeStore
 import com.shivam.glasslauncher.data.LauncherSettings
 import com.shivam.glasslauncher.gestures.GlassGestureService
+import com.shivam.glasslauncher.overlay.OverlayChecks
 import com.shivam.glasslauncher.ui.glass.LiquidGlassShader
 import com.shivam.glasslauncher.ui.glass.WallpaperPath
 import com.shivam.glasslauncher.ui.glass.WallpaperSource
@@ -237,6 +238,6 @@ object SystemChecks {
                 if (shortcuts) CheckStatus.Ok else CheckStatus.Warning, if (shortcuts) "Available" else "Unavailable",
                 if (shortcuts) null else "Set as default", CheckFix.OpenIntents(homeIntents(context)),
             ),
-        ) + com.shivam.glasslauncher.widgets.WidgetChecks.all(context)
+        ) + com.shivam.glasslauncher.widgets.WidgetChecks.all(context) + OverlayChecks.all(context)
     }
 }

@@ -15,6 +15,13 @@
     <!-- Optional: lets the launcher read the wallpaper to pre-blur it for in-window glass panels. -->
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
+    <!-- Phase 3: island fallback window, Control Center toggles and Wi-Fi/data state. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.WRITE_SETTINGS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!-- Phase 2 widgets: weather (Open-Meteo) needs the network and, optionally, coarse location;
          calendar and earbud battery are asked lazily from the widgets. -->
