@@ -30,6 +30,17 @@ val LocalGlassDarkMode = staticCompositionLocalOf { true }
 val LocalGlassContentColor = compositionLocalOf { Color.White }
 /** Luminance used when a surface has no backdrop sampler (0 dark .. 1 light). */
 val LocalFallbackLuminance = staticCompositionLocalOf { 0.3f }
+/**
+ * Colour for text drawn straight on a screen background (section titles, large titles), picked
+ * by contrast against the dimmed wallpaper by the screen root. White unless the root knows better.
+ */
+val LocalScreenContentColor = compositionLocalOf { Color.White }
+/** Accent override of the enclosing glass role (Appearance → Edit theme); null = theme accent. */
+val LocalGlassAccent = compositionLocalOf<Color?> { null }
+
+/** Accent for controls at this point of the tree: the enclosing role's accent, else the theme accent. */
+@Composable
+fun currentAccent(): Color = LocalGlassAccent.current ?: GlassColors.Accent
 
 /**
  * Runtime theme values the Phase 4 theme engine sets (theme from wallpaper, theme editor, font

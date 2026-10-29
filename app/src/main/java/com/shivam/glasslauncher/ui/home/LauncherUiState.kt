@@ -26,6 +26,8 @@ data class MenuTarget(
     val folder: FolderItem?,
     val slot: Slot?,
     val anchor: Rect,
+    /** Opened from the app drawer: adds "Move to category". */
+    val fromDrawer: Boolean = false,
 )
 
 data class LockPrompt(val entry: AppEntry, val bounds: android.graphics.Rect?)
@@ -82,9 +84,11 @@ class LauncherUiState {
     var rename by mutableStateOf<RenameTarget?>(null)
     val drag = DragController()
     val toast = GlassToastState()
+    /** Phase 5 app drawer (swipe up from home). */
+    val drawer = com.shivam.glasslauncher.ui.drawer.DrawerUiState()
 
     val overlayOpen: Boolean
-        get() = spotlightOpen || folder != null || menu != null || lockPrompt != null || rename != null
+        get() = spotlightOpen || folder != null || menu != null || lockPrompt != null || rename != null || drawer.open
 
     fun openSpotlight(origin: Rect?) {
         menu = null
@@ -100,6 +104,7 @@ class LauncherUiState {
         menu != null -> { menu = null; true }
         spotlightOpen -> { spotlightOpen = false; true }
         folder != null -> { folder = null; true }
+        drawer.closeTop() -> true
         editMode -> { editMode = false; true }
         else -> false
     }
@@ -111,6 +116,7 @@ class LauncherUiState {
         spotlightOpen = false
         folder = null
         editMode = false
+        drawer.closeAll()
     }
 }
 

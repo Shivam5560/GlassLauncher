@@ -61,7 +61,7 @@ fun WidgetPickerSheet(widgets: WidgetUiState) {
     val providers by produceState<List<ProviderEntry>?>(null, widgets.picker != null) {
         if (widgets.picker != null) value = withContext(Dispatchers.IO) { GlassWidgetHost.get(context).providers() }
     }
-    val ours = WidgetKind.entries.filter { it != WidgetKind.APP_WIDGET }
+    val ours = WidgetKind.entries.filter { it != WidgetKind.APP_WIDGET && it.isAvailable(context) }
         .filter { query.isBlank() || it.title.contains(query, true) || it.description.contains(query, true) }
     val theirs = (providers ?: emptyList()).filter {
         query.isBlank() || it.label.contains(query, true) || it.appLabel.contains(query, true)

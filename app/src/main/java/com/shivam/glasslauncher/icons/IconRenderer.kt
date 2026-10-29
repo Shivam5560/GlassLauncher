@@ -65,6 +65,28 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
         _generation.value++
     }
 
+    @Volatile private var shape = IconShape.Squircle
+
+    /** Adaptive icon shape (Phase 5, Settings → Appearance → Icons). */
+    fun setShape(shape: IconShape) {
+        if (shape == this.shape) return
+        this.shape = shape
+        cache.evictAll()
+        _generation.value++
+    }
+
+    /** Outline of the current [IconShape] for a [size]-px icon. */
+    private fun shapePath(size: Float): android.graphics.Path = when (shape) {
+        IconShape.Squircle -> superellipseRectPath(size, size, size / 2f, 5f)
+        IconShape.Circle -> android.graphics.Path().apply { addCircle(size / 2f, size / 2f, size / 2f, android.graphics.Path.Direction.CW) }
+        IconShape.RoundedSquare -> superellipseRectPath(size, size, size * 0.22f, 2f)
+        IconShape.Teardrop -> android.graphics.Path().apply {
+            val r = size / 2f
+            val small = size * 0.16f
+            addRoundRect(0f, 0f, size, size, floatArrayOf(r, r, r, r, small, small, r, r), android.graphics.Path.Direction.CW)
+        }
+    }
+
     /** Per-app icons chosen with long-press → Edit Icon. */
     fun setOverrides(map: Map<String, IconOverride>) {
         if (map == overrides) return
@@ -150,7 +172,7 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
             val bmp = f?.takeIf { it.exists() }?.let { android.graphics.BitmapFactory.decodeFile(it.path) }
             if (bmp != null) {
                 canvas.save()
-                canvas.clipPath(superellipseRectPath(size.toFloat(), size.toFloat(), size / 2f, 5f))
+                canvas.clipPath(shapePath(size.toFloat()))
                 canvas.drawBitmap(bmp, null, android.graphics.Rect(0, 0, size, size), Paint(Paint.FILTER_BITMAP_FLAG))
                 canvas.restore()
             }
@@ -166,7 +188,7 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
         }
         val s = size.toFloat()
         canvas.save()
-        canvas.clipPath(superellipseRectPath(s, s, s / 2f, 5f))
+        canvas.clipPath(shapePath(s))
         canvas.drawPaint(Paint().apply {
             shader = android.graphics.LinearGradient(0f, 0f, 0f, s, 0xFF303136.toInt(), 0xFF111113.toInt(), android.graphics.Shader.TileMode.CLAMP)
         })
@@ -179,7 +201,7 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
 
     /** Adaptive icons: background + foreground layers expanded so the 72/108 safe zone fills the squircle. */
     private fun renderSquircle(canvas: Canvas, icon: Drawable, size: Int) {
-        val clip = superellipseRectPath(size.toFloat(), size.toFloat(), size / 2f, 5f)
+        val clip = shapePath(size.toFloat())
         canvas.save()
         canvas.clipPath(clip)
         if (icon is AdaptiveIconDrawable) {
@@ -222,7 +244,7 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
     private fun maskToSquircle(bmp: Bitmap) {
         val size = bmp.width.toFloat()
         val c = Canvas(bmp)
-        val path = superellipseRectPath(size, size, size / 2f, 5f)
+        val path = shapePath(size)
         path.toggleInverseFillType()
         c.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR) })
     }

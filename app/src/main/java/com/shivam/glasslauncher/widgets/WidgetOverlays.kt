@@ -112,15 +112,8 @@ private fun WidgetMenuOverlay(widgets: WidgetUiState, launcher: LauncherUiState)
 }
 
 @Composable
-internal fun MenuItem(text: String, icon: ImageVector?, destructive: Boolean = false, onClick: () -> Unit) {
-    GlassSurface(Modifier.fillMaxWidth().padding(vertical = 1.dp), shape = GlassShape.Row, variant = GlassVariant.Clear, onClick = onClick) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-            val color = if (destructive) GlassColors.Red else LocalGlassContentColor.current
-            GlassText(text, Modifier.weight(1f), style = GlassType.Body, color = color, maxLines = 1)
-            if (icon != null) GlassIcon(icon, size = 20.dp, tint = color)
-        }
-    }
-}
+internal fun MenuItem(text: String, icon: ImageVector?, destructive: Boolean = false, onClick: () -> Unit) =
+    com.shivam.glasslauncher.ui.glass.GlassMenuRow(text, icon, destructive, onClick = onClick)
 
 /** Per-widget settings on a glass sheet. */
 @Composable
@@ -159,7 +152,8 @@ private fun WidgetEditSheet(widgets: WidgetUiState, layout: HomeLayout) {
                 WidgetKind.CALENDAR -> item("calendar") { CalendarSettings() }
                 WidgetKind.BATTERY -> item("battery") { BluetoothSettings() }
                 WidgetKind.APP_WIDGET -> item("app") { AppWidgetSettings(widgets, inst, layout) }
-                WidgetKind.SEARCH -> Unit
+                WidgetKind.SEARCH, WidgetKind.GLANCE, WidgetKind.COMPASS -> Unit
+                WidgetKind.ICON_GROUP -> item("group") { IconGroupSettings(widgets, inst) }
             }
             item("remove") {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {

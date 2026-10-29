@@ -178,7 +178,8 @@ class GlassGestureService : AccessibilityService() {
         }
         if (c.showPill) {
             val p = GlassPillView(this)
-            safeAdd(p, overlayParams(dp(124f).toInt(), dp(5.5f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL, false).apply { y = dp(8f).toInt() })
+            // View is larger than the capsule so its halo and stretch are not clipped.
+            safeAdd(p, overlayParams(dp(140f).toInt(), dp(16f).toInt(), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL, false).apply { y = dp(3f).toInt() })
             pill = p
         }
         val edgeW = dp(c.edgeZoneWidth).toInt()
@@ -255,6 +256,7 @@ class GlassGestureService : AccessibilityService() {
                         lastY = e.rawY
                     }
                     pill?.translationY = -(dy.coerceIn(0f, dp(40f)) * 0.5f)
+                    pill?.stretch = (dy / threshold(48f)).coerceIn(0f, 1f)
                     if (!armed && dy > threshold(48f) && dy > abs(e.rawX - downX)) {
                         armed = true
                         handler.postDelayed(holdCheck, 40)
@@ -281,8 +283,9 @@ class GlassGestureService : AccessibilityService() {
         private fun reset() {
             armed = false
             vt?.recycle(); vt = null
-            pill?.animate()?.translationY(0f)?.setDuration(220)?.start()
+            pill?.animate()?.translationY(0f)?.setDuration(220)?.setInterpolator(android.view.animation.OvershootInterpolator(1.6f))?.start()
             pill?.brighten = 0f
+            pill?.stretch = 0f
         }
     }
 

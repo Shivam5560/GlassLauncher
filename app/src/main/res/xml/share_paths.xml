@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Phase 5 "Share your home screen": the rendered PNG lives in cache/share/ only. -->
+<paths>
+    <cache-path name="share" path="share/" />
+</paths>

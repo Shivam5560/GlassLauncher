@@ -25,7 +25,10 @@ enum class WidgetKind(val title: String, val description: String, val sizes: Lis
     BATTERY("Batteries", "Phone and Bluetooth device batteries.", listOf(WidgetSize.SMALL, WidgetSize.MEDIUM)),
     PHOTOS("Photos", "Your picked photos, gently moving.", listOf(WidgetSize.SMALL, WidgetSize.MEDIUM, WidgetSize.LARGE)),
     NOTES("Notes", "A quick note you edit in place.", listOf(WidgetSize.SMALL, WidgetSize.MEDIUM, WidgetSize.LARGE)),
-    SEARCH("Search", "A search bar that opens Spotlight.", listOf(WidgetSize.BAR)),
+    SEARCH("Smart search", "A search bar that opens Spotlight: apps, contacts, maths, web.", listOf(WidgetSize.BAR)),
+    GLANCE("At a glance", "Big clock with the date, weather and your next event. No panel.", listOf(WidgetSize.MEDIUM)),
+    COMPASS("Compass", "Heading from the rotation sensor.", listOf(WidgetSize.SMALL)),
+    ICON_GROUP("Icon group", "Several apps on one glass card.", listOf(WidgetSize.SMALL, WidgetSize.LARGE)),
     APP_WIDGET("App widget", "", emptyList());
 
     companion object {
@@ -46,6 +49,8 @@ object WidgetKeys {
     const val APP_WIDGET_PROVIDER = "provider"
     /** Third-party widgets in the Today view: height in grid rows. */
     const val TODAY_ROWS = "rows"
+    /** Icon group: comma-separated app keys. */
+    const val GROUP_APPS = "apps"
 }
 
 /** One widget instance: what it is, its size, and its settings. Placement lives elsewhere. */
@@ -67,6 +72,8 @@ data class WidgetState(
     val instances: Map<String, WidgetInstance> = emptyMap(),
     val today: List<String> = emptyList(),
     val seeded: Boolean = false,
+    /** Phase 5: the default home header + photo + calendar widgets were placed once. */
+    val homeSeeded: Boolean = false,
 ) {
     fun toJson(): String {
         val inst = JSONArray()
@@ -84,6 +91,7 @@ data class WidgetState(
             .put("instances", inst)
             .put("today", JSONArray(today))
             .put("seeded", seeded)
+            .put("homeSeeded", homeSeeded)
             .toString()
     }
 
@@ -103,7 +111,7 @@ data class WidgetState(
             }
             val todayArr = root.optJSONArray("today") ?: JSONArray()
             val today = List(todayArr.length()) { todayArr.getString(it) }.filter { it in map }
-            return WidgetState(map, today, root.optBoolean("seeded", false))
+            return WidgetState(map, today, root.optBoolean("seeded", false), root.optBoolean("homeSeeded", false))
         }
     }
 }

@@ -27,7 +27,8 @@ enum class IconStyle(val title: String) { Auto("Auto"), Light("Light"), Dark("Da
 enum class ThemeSource(val title: String) { Default("Default"), Wallpaper("Wallpaper"), Manual("Custom") }
 
 data class PolishSettings(
-    val iconStyle: IconStyle = IconStyle.Auto,
+    /** Phase 5: Dark by default (Glass Icons' dark variant). */
+    val iconStyle: IconStyle = IconStyle.Dark,
     /** Glyph colour for tinted icons; 0 = use the accent colour. */
     val tintedIconColor: Int = 0,
     val themeSource: ThemeSource = ThemeSource.Default,

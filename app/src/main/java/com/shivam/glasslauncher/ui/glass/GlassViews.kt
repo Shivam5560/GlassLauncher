@@ -71,11 +71,29 @@ open class GlassShapeView(context: Context) : View(context) {
     }
 }
 
-/** The iOS-style home indicator: a glass capsule. */
+/**
+ * The home indicator: a slim glass capsule centred in a slightly larger view, with a soft dark
+ * halo so it stays visible over light apps, that stretches while the finger pulls it up.
+ */
 class GlassPillView(context: Context) : GlassShapeView(context) {
+    private val halo = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = Color.argb(70, 0, 0, 0)
+        maskFilter = android.graphics.BlurMaskFilter(3f * context.resources.displayMetrics.density, android.graphics.BlurMaskFilter.Blur.NORMAL)
+    }
+
+    /** 0..1 pull of the bottom swipe: the pill widens and thickens a little. */
+    var stretch = 0f
+        set(value) { field = value.coerceIn(0f, 1f); invalidate() }
+
     override fun onDraw(canvas: Canvas) {
-        val h = height.toFloat()
-        drawGlass(canvas, 0f, 0f, width.toFloat(), h, h / 2f, 2f)
+        val d = resources.displayMetrics.density
+        val baseW = width - 16f * d
+        val w = baseW * (1f + 0.14f * stretch)
+        val h = 5f * d * (1f + 0.3f * stretch)
+        val left = (width - w) / 2f
+        val top = (height - h) / 2f
+        canvas.drawRoundRect(left, top, left + w, top + h, h / 2f, h / 2f, halo)
+        drawGlass(canvas, left, top, w, h, h / 2f, 2f)
     }
 }
 

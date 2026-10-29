@@ -82,6 +82,11 @@ class AppRepository(private val context: Context, private val scope: CoroutineSc
                     isWorkProfile = isWork,
                     category = AppCategory.of(info.applicationInfo),
                     info = info,
+                    drawerCategory = DrawerCategorizer.categorize(
+                        info.componentName.packageName,
+                        info.applicationInfo.category,
+                        info.applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_IS_GAME != 0,
+                    ),
                 )
             }
         }

@@ -104,8 +104,11 @@ fun FolderOverlay(
     }
     if (current != null && !draggingOut) BackHandler { ui.folder = null }
 
+    val immersive = ctx.appearance.immersiveFolders
     Box(Modifier.fillMaxSize().graphicsLayer { alpha = if (draggingOut) 0f else 1f }) {
         if (!draggingOut) GlassScrim(progress) { ui.folder = null }
+        // Immersive folders: a deeper dim and no floating panel (Settings → Appearance → Folder).
+        if (!draggingOut && immersive) GlassScrim(progress * 1.6f, null)
         GlassMorph(
             visible = current != null,
             origin = last.origin,
@@ -124,7 +127,12 @@ fun FolderOverlay(
                     GlassText(title, Modifier.padding(horizontal = 20.dp, vertical = 8.dp), style = GlassType.Title, maxLines = 1)
                 }
                 Spacer(Modifier.height(18.dp))
-                GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.rounded(38.dp), role = null) {
+                val panel: @Composable (@Composable () -> Unit) -> Unit = if (immersive) {
+                    { inner -> Box(Modifier.fillMaxWidth()) { inner() } }
+                } else {
+                    { inner -> GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.rounded(38.dp), role = null) { inner() } }
+                }
+                panel {
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(if (entries.size > 9) 4 else 3),
                         modifier = Modifier.fillMaxWidth().heightIn(max = 460.dp).padding(18.dp),
@@ -167,8 +175,10 @@ fun FolderOverlay(
                                 BadgedIcon(60.dp, ctx.badges[entry.packageName]?.takeIf { ctx.showBadges } ?: 0, false, {}, 0f) {
                                     AppIconImage(entry, 60.dp)
                                 }
-                                Spacer(Modifier.height(5.dp))
-                                GlassText(ctx.label(entry), style = GlassType.IconLabel, maxLines = 1)
+                                if (ctx.appearance.folderLabels) {
+                                    Spacer(Modifier.height(5.dp))
+                                    GlassText(ctx.label(entry), style = GlassType.IconLabel, maxLines = 1)
+                                }
                             }
                         }
                     }
@@ -261,6 +271,9 @@ fun ContextMenuOverlay(
                             if (slot != null) MenuRow("Remove Folder", GlassIcons.Minus, destructive = true) { close(); callbacks.remove(slot) }
                         } else if (entry != null) {
                             if (slot is Slot.Page || slot is Slot.Dock) MenuRow("Edit Home Screen", GlassIcons.Grid) { close(); ui.editMode = true }
+                            if (target.fromDrawer) {
+                                MenuRow("Move to category", GlassIcons.Grid) { close(); ui.drawer.moveApp = entry }
+                            }
                             MenuRow("Rename", GlassIcons.Pencil) {
                                 close(); ui.rename = RenameTarget(entry.key, null, ctx.label(entry), target.anchor)
                             }
@@ -296,19 +309,13 @@ private fun MenuRow(
     bitmap: androidx.compose.ui.graphics.ImageBitmap? = null,
     onClick: () -> Unit,
 ) {
-    GlassSurface(
-        Modifier.fillMaxWidth().padding(vertical = 1.dp),
-        shape = GlassShape.Row,
-        variant = GlassVariant.Clear,
+    com.shivam.glasslauncher.ui.glass.GlassMenuRow(
+        text,
+        icon,
+        destructive,
+        trailing = if (bitmap != null) ({ Image(bitmap, null, Modifier.size(24.dp)) }) else null,
         onClick = onClick,
-    ) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
-            val color = if (destructive) GlassColors.Red else LocalGlassContentColor.current
-            GlassText(text, Modifier.weight(1f), style = GlassType.Body, color = color, maxLines = 1)
-            if (bitmap != null) Image(bitmap, null, Modifier.size(24.dp))
-            else if (icon != null) GlassIcon(icon, size = 20.dp, tint = color)
-        }
-    }
+    )
 }
 
 /** Rename an app label or a folder on a glass panel with a glass text field. */

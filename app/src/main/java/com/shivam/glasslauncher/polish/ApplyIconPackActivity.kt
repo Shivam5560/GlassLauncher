@@ -5,6 +5,8 @@ import android.os.Bundle
 import com.shivam.glasslauncher.GlassApp
 import com.shivam.glasslauncher.icons.IconPack
 import com.shivam.glasslauncher.settings.SettingsActivity
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * `com.shivam.glasslauncher.action.APPLY_ICON_PACK` with the pack's package name in
@@ -17,7 +19,14 @@ class ApplyIconPackActivity : Activity() {
         super.onCreate(savedInstanceState)
         val pkg = intent.getStringExtra(EXTRA_ICON_PACK)
         val ok = pkg != null && IconPack.installed(this).any { it.packageName == pkg }
-        if (ok) GlassApp.from(this).settings.setIconPack(pkg!!)
+        if (ok) {
+            // Write synchronously: this activity finishes at once and HyperOS may kill a process
+            // that was only started for it, which used to lose an asynchronous DataStore write.
+            runBlocking {
+                withTimeoutOrNull(3000) { GlassApp.from(this@ApplyIconPackActivity).settings.setIconPackNow(pkg!!) }
+            }
+        }
+        setResult(if (ok) RESULT_OK else RESULT_CANCELED)
         startActivity(SettingsActivity.intent(this, if (ok) "iconstyle" else "iconpack"))
         finish()
     }

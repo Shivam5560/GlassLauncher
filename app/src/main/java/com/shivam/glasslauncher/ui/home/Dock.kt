@@ -57,7 +57,7 @@ fun Dock(
                     HomeCell(
                         slot = Slot.Dock(i),
                         item = items.getOrNull(i),
-                        iconSize = 60.dp,
+                        iconSize = 60.dp * ctx.appearance.iconScale.coerceIn(0.7f, 1.2f),
                         ctx = ctx,
                         drag = drag,
                         callbacks = callbacks,

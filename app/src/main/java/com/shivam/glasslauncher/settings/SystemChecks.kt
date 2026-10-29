@@ -173,7 +173,7 @@ object SystemChecks {
                 confirmable = !restrictedInferred,
             ),
             CheckResult(
-                "gestures", "Glass Gestures (Accessibility)", "Home/Back/Recents swipes, home pill, and double-tap to lock.",
+                "gestures", "Glass Gestures (Accessibility)", "HyperOS forces 3-button navigation for every third-party launcher; this service brings back Home/Back/Recents swipes and the home pill, plus double-tap to lock and hiding the nav bar in ultra-immersive mode.",
                 if (gestures) CheckStatus.Ok else CheckStatus.Off, if (gestures) "On" else "Off",
                 if (gestures) null else "Turn on", CheckFix.OpenIntents(accessibilityIntents(context)),
             ),
@@ -238,7 +238,57 @@ object SystemChecks {
                 if (shortcuts) CheckStatus.Ok else CheckStatus.Warning, if (shortcuts) "Available" else "Unavailable",
                 if (shortcuts) null else "Set as default", CheckFix.OpenIntents(homeIntents(context)),
             ),
-        ) + com.shivam.glasslauncher.widgets.WidgetChecks.all(context) + OverlayChecks.all(context) + phase4Checks(context, home)
+        ) + com.shivam.glasslauncher.widgets.WidgetChecks.all(context) + OverlayChecks.all(context) + phase4Checks(context, home) + phase5Checks(context, settings, home, gestures)
+    }
+
+    /** Phase 5 rows (docs/CONSTRAINTS.md, "Smart Launcher parity"). No new runtime permissions. */
+    private fun phase5Checks(context: Context, settings: LauncherSettings, home: Boolean, gestures: Boolean): List<CheckResult> {
+        val glassIcons = try {
+            context.packageManager.getPackageInfo(GlassApp.GLASS_ICONS_PACKAGE, 0); true
+        } catch (e: Exception) { false }
+        val iconsApplied = settings.iconPack == GlassApp.GLASS_ICONS_PACKAGE
+        val compass = context.getSystemService(android.hardware.SensorManager::class.java)
+            ?.getDefaultSensor(android.hardware.Sensor.TYPE_ROTATION_VECTOR) != null
+        return listOf(
+            CheckResult(
+                "glassicons", "Glass Icons", "The default icon pack (dark variant). Its Apply button and Glass's own default both store it in Glass's settings.",
+                when {
+                    iconsApplied -> CheckStatus.Ok
+                    glassIcons -> CheckStatus.Warning
+                    else -> CheckStatus.Info
+                },
+                when {
+                    iconsApplied -> "In use"
+                    glassIcons -> "Installed, another pack chosen"
+                    else -> "Not installed — system icons"
+                },
+                if (glassIcons && !iconsApplied) "Choose pack" else null, CheckFix.InApp("iconpack"),
+            ),
+            CheckResult(
+                "drawershortcuts", "Drawer shortcuts", "App shortcuts added to drawer categories open only while Glass is the default Home app.",
+                if (home) CheckStatus.Ok else CheckStatus.Warning, if (home) "Available" else "Unavailable",
+                if (home) null else "Set as default", CheckFix.OpenIntents(homeIntents(context)),
+            ),
+            CheckResult(
+                "immersive", "Ultra-immersive", "Hides the status bar on Home and in the drawer; the navigation bar is hidden only with Glass Gestures on, because HyperOS forces 3-button navigation for other launchers.",
+                when {
+                    !settings.immersive -> CheckStatus.Info
+                    gestures -> CheckStatus.Ok
+                    else -> CheckStatus.Warning
+                },
+                when {
+                    !settings.immersive -> "Off"
+                    gestures -> "Status and navigation bars hidden"
+                    else -> "Status bar only — turn on Glass Gestures"
+                },
+                if (settings.immersive && !gestures) "Turn on gestures" else null, CheckFix.OpenIntents(accessibilityIntents(context)),
+            ),
+            CheckResult(
+                "compass", "Compass widget", "Uses the rotation-vector sensor (no permission). Without it the widget isn't offered.",
+                if (compass) CheckStatus.Ok else CheckStatus.Info, if (compass) "Sensor present" else "No sensor — widget hidden",
+                null, CheckFix.None,
+            ),
+        )
     }
 
     /** Phase 4 rows (docs/CONSTRAINTS.md, "Icons, wallpapers, polish"). */

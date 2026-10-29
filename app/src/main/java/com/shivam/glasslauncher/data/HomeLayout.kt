@@ -49,6 +49,8 @@ data class HomeLayout(
     val widgets: List<HomeWidget> = emptyList(),
     val keptPages: Set<Int> = emptySet(),
     val defaultPage: Int = 0,
+    /** Phase 5: app drawer categories, manual moves, folders, shortcuts and sorting. */
+    val drawer: DrawerConfig = DrawerConfig(),
 ) {
     fun widgetsOn(page: Int): List<HomeWidget> = widgets.filter { it.page == page }
 
@@ -93,6 +95,7 @@ data class HomeLayout(
         }))
         root.put("keptPages", JSONArray(keptPages.toList()))
         root.put("defaultPage", defaultPage)
+        root.put("drawer", drawer.toJson())
         return root.toString()
     }
 
@@ -139,7 +142,8 @@ data class HomeLayout(
             val keptArr = root.optJSONArray("keptPages") ?: JSONArray()
             val kept = List(keptArr.length()) { keptArr.getInt(it) }.filter { it in pages.indices }.toSet()
             val defaultPage = root.optInt("defaultPage", 0).coerceIn(0, pages.size - 1)
-            return HomeLayout(pages, dock, labels, known, widgets, kept, defaultPage)
+            val drawer = root.optJSONObject("drawer")?.let { DrawerConfig.fromJson(it) } ?: DrawerConfig()
+            return HomeLayout(pages, dock, labels, known, widgets, kept, defaultPage, drawer)
         }
     }
 }
@@ -162,6 +166,7 @@ object LayoutOps {
         val widgets: MutableList<HomeWidget> = layout.widgets.toMutableList()
         val kept: MutableSet<Int> = layout.keptPages.toMutableSet()
         var defaultPage = layout.defaultPage
+        val drawer = layout.drawer
 
         fun blocked(page: Int, index: Int): Boolean =
             widgets.any { it.page == page && it.rect.contains(index % GRID_COLUMNS, index / GRID_COLUMNS) }
@@ -187,6 +192,7 @@ object LayoutOps {
                 widgets = widgets.mapNotNull { w -> remap[w.page]?.let { w.copy(page = it) } },
                 keptPages = kept.mapNotNull { remap[it] }.toSet(),
                 defaultPage = remap[defaultPage] ?: 0,
+                drawer = drawer,
             )
         }
 

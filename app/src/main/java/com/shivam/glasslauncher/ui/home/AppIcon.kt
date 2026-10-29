@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.shivam.glasslauncher.data.AppEntry
 import com.shivam.glasslauncher.data.FolderItem
 import com.shivam.glasslauncher.ui.glass.GlassColors
@@ -112,17 +113,22 @@ fun NotificationBadge(count: Int, modifier: Modifier = Modifier) {
     }
 }
 
-/** Home-screen label under an icon: white with a soft shadow (dark text on very light wallpapers). */
+/**
+ * Label under an icon: white with a soft shadow (dark text on very light wallpapers). Size and
+ * two-line wrapping come from Settings → Appearance → Icons.
+ */
 @Composable
-fun IconLabel(text: String, lightWallpaper: Boolean, modifier: Modifier = Modifier) {
+fun IconLabel(text: String, lightWallpaper: Boolean, modifier: Modifier = Modifier, sizeSp: Float = 11.5f, twoLines: Boolean = false) {
     Text(
         text,
         modifier = modifier,
         style = GlassType.IconLabel.copy(
+            fontSize = sizeSp.sp,
+            lineHeight = (sizeSp * 1.2f).sp,
             shadow = if (lightWallpaper) null else Shadow(Color(0x99000000), Offset(0f, 1f), 4f),
         ),
         color = if (lightWallpaper) Color(0xFF1C1C1E) else Color.White,
-        maxLines = 1,
+        maxLines = if (twoLines) 2 else 1,
         overflow = TextOverflow.Ellipsis,
         textAlign = TextAlign.Center,
     )

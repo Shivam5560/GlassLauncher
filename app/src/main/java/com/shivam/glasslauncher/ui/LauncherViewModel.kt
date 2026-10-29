@@ -13,6 +13,11 @@ import com.shivam.glasslauncher.GlassApp
 import com.shivam.glasslauncher.badges.BadgeStore
 import com.shivam.glasslauncher.data.AppCategory
 import com.shivam.glasslauncher.data.AppEntry
+import com.shivam.glasslauncher.data.DrawerApp
+import com.shivam.glasslauncher.data.DrawerConfig
+import com.shivam.glasslauncher.data.DrawerItem
+import com.shivam.glasslauncher.data.DrawerOps
+import com.shivam.glasslauncher.data.DrawerShortcut
 import com.shivam.glasslauncher.data.DropTarget
 import com.shivam.glasslauncher.data.HomeLayout
 import com.shivam.glasslauncher.data.LauncherSettings
@@ -80,6 +85,31 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
         }
         groups
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    // --- App drawer (Phase 5) ----------------------------------------------------------------
+
+    /** Drawer pages: category id -> folders, shortcuts and apps, sorted. */
+    val drawerPages: StateFlow<Map<String, List<DrawerItem>>> = combine(visibleApps, layout.filterNotNull(), g.usage.changes) { list, lay, _ ->
+        Triple(list, lay, g.usage.ranked())
+    }.mapLatest { (list, lay, ranked) ->
+        kotlinx.coroutines.withContext(Dispatchers.Default) {
+            val rank = ranked.withIndex().associate { it.value to it.index }
+            val apps = list.map { DrawerApp(it.key, lay.labels[it.key] ?: it.label, it.drawerCategory, it.info.firstInstallTime) }
+            DrawerOps.pages(lay.drawer, apps, rank)
+        }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
+    fun updateDrawer(transform: (DrawerConfig) -> DrawerConfig) = g.layout.update { it.copy(drawer = transform(it.drawer)) }
+
+    fun setDrawerLastCategory(id: String) = g.settings.setDrawerLastCategory(id)
+
+    fun moveToCategory(entry: AppEntry, categoryId: String) =
+        updateDrawer { DrawerOps.assign(it, entry.key, categoryId, entry.drawerCategory) }
+
+    fun startDrawerShortcut(activity: Activity, s: DrawerShortcut, bounds: Rect?): Boolean {
+        val user = appsByKey.value[s.appKey]?.user ?: android.os.Process.myUserHandle()
+        return g.actions.startShortcut(s.packageName, s.shortcutId, user, bounds)
+    }
 
     // --- Spotlight -------------------------------------------------------------------------
 

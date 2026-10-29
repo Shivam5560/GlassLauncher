@@ -45,6 +45,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.shivam.glasslauncher.GlassApp
 import com.shivam.glasslauncher.ui.glass.Backdrop
+import com.shivam.glasslauncher.ui.glass.Contrast
+import com.shivam.glasslauncher.ui.glass.LocalScreenContentColor
+import com.shivam.glasslauncher.ui.glass.SurfaceKind
+import com.shivam.glasslauncher.ui.glass.screenTextShadow
+import androidx.compose.ui.graphics.toArgb
 import com.shivam.glasslauncher.ui.glass.GlassIconButton
 import com.shivam.glasslauncher.ui.glass.GlassIcons
 import com.shivam.glasslauncher.ui.glass.GlassShape
@@ -110,7 +115,8 @@ private fun SettingsRoot(start: String, resumeTick: Int, onFinish: () -> Unit) {
     val nav = remember { SettingsNav(start, onFinish) }
     val toast = remember { GlassToastState() }
     val light = rememberGlassLight(settings.glass.tiltLighting)
-    val crossBlur = rememberCrossWindowBlur(settings.glass.blurRadius)
+    val bgRole = settings.glass.role(SurfaceKind.Background)
+    val crossBlur = rememberCrossWindowBlur(bgRole.blur ?: settings.glass.blurRadius)
     val wallpaperLayer = rememberGraphicsLayer()
     val hasWallpaper = settings.glass.wallpaperBackdrop && snapshot.image != null
     val backdrop = remember(hasWallpaper, snapshot) { Backdrop(if (hasWallpaper) listOf(wallpaperLayer) else emptyList(), snapshot) }
@@ -126,13 +132,21 @@ private fun SettingsRoot(start: String, resumeTick: Int, onFinish: () -> Unit) {
                     if (img != null) {
                         Image(img, null, Modifier.fillMaxSize().blur(settings.glass.blurRadius.dp), contentScale = ContentScale.Crop)
                     } else {
-                        GlassSurface(Modifier.fillMaxSize(), shape = GlassShape.rounded(0.dp), backdrop = null, role = null)
+                        GlassSurface(Modifier.fillMaxSize(), shape = GlassShape.rounded(0.dp), backdrop = null, role = null, kind = SurfaceKind.Background)
                     }
                 }
-                // Light dim so white text stays legible over bright wallpapers.
-                Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.22f)))
-                key(nav.current) {
-                    SettingsScreen(nav, settings, snapshot, resumeTick, toast, onFinish)
+                // Background role (Appearance → Edit theme → Background): a dim so text drawn
+                // straight on the wallpaper (titles, section headers) stays legible; its colour is
+                // picked by contrast against the dimmed wallpaper.
+                val dim = androidx.compose.ui.graphics.Color(bgRole.color ?: 0xFF000000.toInt()).copy(alpha = 1f)
+                val dimAlpha = bgRole.opacity ?: 0.38f
+                Box(Modifier.fillMaxSize().background(dim.copy(alpha = dimAlpha)))
+                val screenText = bgRole.contentColor?.let { androidx.compose.ui.graphics.Color(it) }
+                    ?: androidx.compose.ui.graphics.Color(Contrast.pickText(Contrast.glassLuminance(Contrast.gammaToLinear(snapshot.globalLuminance), dim.toArgb(), dimAlpha)))
+                androidx.compose.runtime.CompositionLocalProvider(LocalScreenContentColor provides screenText) {
+                    key(nav.current) {
+                        SettingsScreen(nav, settings, snapshot, resumeTick, toast, onFinish)
+                    }
                 }
                 GlassToastHost(toast)
             }
@@ -155,7 +169,10 @@ fun ScreenScaffold(title: String, nav: SettingsNav, content: LazyListScope.() ->
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            item("title") { GlassText(title, Modifier.padding(start = 4.dp, bottom = 2.dp), style = GlassType.LargeTitle, color = androidx.compose.ui.graphics.Color.White) }
+            item("title") {
+                val c = LocalScreenContentColor.current
+                GlassText(title, Modifier.padding(start = 4.dp, bottom = 2.dp), style = GlassType.LargeTitle.copy(shadow = screenTextShadow(c)), color = c)
+            }
             content()
             item("navpad") { Spacer(Modifier.navigationBarsPadding().height(8.dp)) }
         }

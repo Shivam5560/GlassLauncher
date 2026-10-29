@@ -37,6 +37,7 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.dp
 import com.shivam.glasslauncher.ui.glass.LiquidGlassShader.setGlassUniforms
 import kotlin.math.roundToInt
 
@@ -53,9 +54,10 @@ import kotlin.math.roundToInt
  *     Below API 33 or if the shader fails, a blur + tint + gradient + 1px highlight fallback.
  *  4. [content], with [LocalGlassContentColor] set for legible text on this glass.
  *
- * Adaptive tone: the luminance of the wallpaper behind the panel picks light glass with dark
- * text over dark areas and dark glass with light text over light areas (biased to dark glass in
- * system dark mode), unless the style forces a tone.
+ * Contrast: glass is dark-tinted by default and the text colour ([LocalGlassContentColor]) is
+ * picked from the measured luminance of the backdrop mixed with the tint ([Contrast]), so text
+ * meets WCAG AA and is never white on light glass. [kind] selects the per-role overrides of the
+ * Global appearance editor (tint, opacity, blur, text colour, stroke, accent).
  *
  * @param variant Regular (frosted) for large panels, Clear (transparent, stronger lensing) for small controls.
  * @param onClick makes the glass pressable: pressed glass brightens and swells slightly.
@@ -78,10 +80,14 @@ fun GlassSurface(
     contentAlignment: Alignment = Alignment.TopStart,
     propagateMinConstraints: Boolean = false,
     role: Role? = Role.Button,
+    kind: SurfaceKind? = null,
     content: @Composable BoxScope.() -> Unit = {},
 ) {
     val style = LocalGlassStyle.current
     val res = style.resolve(variant)
+    val roleStyle = style.role(kind ?: if (variant == GlassVariant.Clear) SurfaceKind.Cards else SurfaceKind.Panel)
+    val blurDp = roleStyle.blur?.let { if (variant == GlassVariant.Clear) it * 0.22f else it }?.dp ?: res.blur
+    val tintOpacity = roleStyle.opacity?.let { if (variant == GlassVariant.Clear) it * 0.35f else it } ?: res.tintOpacity
     val light = LocalGlassLight.current
     val darkMode = LocalGlassDarkMode.current
     val fallbackLum = LocalFallbackLuminance.current
@@ -107,23 +113,23 @@ fun GlassSurface(
             (l * 20f).roundToInt() / 20f
         }
     }
+    // Dark-tinted glass by default. Auto only lightens the glass over light backdrops in light
+    // mode; the text colour is picked by measured contrast either way (never white on light).
     val toneTarget = when (style.tone) {
         GlassTone.Light -> 1f
         GlassTone.Dark -> 0f
-        GlassTone.Auto -> {
-            // light glass over dark areas, dark glass over light areas; dark mode prefers dark glass
-            val threshold = if (darkMode) 0.22f else 0.42f
-            ((threshold + 0.12f - luminance) / 0.24f).coerceIn(0f, 1f)
-        }
+        GlassTone.Auto -> if (!darkMode && tintOverride == null) ((luminance - 0.72f) / 0.12f).coerceIn(0f, 1f) * 0.8f else 0f
     }
     val tone by animateFloatAsState(toneTarget, spring(stiffness = 120f), label = "glassTone")
 
-    val baseTint = tintOverride ?: Color(style.tintColor).copy(alpha = 1f)
-    val tint = if (tintOverride != null) baseTint else lerp(lerp(baseTint, Color.Black, 0.2f), lerp(baseTint, Color.White, 0.85f), tone)
-    val tintAmount = if (tintOverride != null) 0.55f else res.tintOpacity + 0.22f * tone
-    val contentColor = lerp(Color.White, Color(0xFF16161A), tone)
+    val baseTint = tintOverride ?: Color(roleStyle.color ?: style.tintColor).copy(alpha = 1f)
+    val tint = if (tintOverride != null) baseTint else lerp(baseTint, lerp(baseTint, Color.White, 0.85f), tone)
+    val tintAmount = if (tintOverride != null) 0.55f else (tintOpacity + 0.22f * tone).coerceAtMost(1f)
+    val contentColor = roleStyle.contentColor?.let { Color(it) }
+        ?: Color(Contrast.textOnGlass(luminance, tint.toArgb(), tintAmount))
+    val strokeDp = roleStyle.stroke
 
-    val shader = remember { if (style.liquidEffects) LiquidGlassShader.createEffectShader() else null }
+    val shader = remember(style.liquidEffects) { if (style.liquidEffects) LiquidGlassShader.createEffectShader() else null }
 
     val clickModifier = if (onClick != null || onLongClick != null) {
         Modifier.combinedClickable(
@@ -158,7 +164,13 @@ fun GlassSurface(
                 .graphicsLayer {
                     clip = true
                     this.shape = shape
-                    val blurPx = res.blur.toPx()
+                    val blurPx = blurDp.toPx()
+                    // Thin surfaces (rows, pills) get a proportionally smaller lens, so flat rows
+                    // never show streaky refraction along their long edges.
+                    val minSide = minOf(size.width, size.height)
+                    val refractionPx = minOf(res.refraction.toPx(), minSide * 0.08f)
+                    val rimPx = minOf(res.rim.toPx(), minSide * 0.3f)
+                    val chroma = if (minSide < 64.dp.toPx()) res.chroma * 0.5f else res.chroma
                     if (shader != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         val l = light.value
                         val c = Color(tint.toArgb())
@@ -167,9 +179,9 @@ fun GlassSurface(
                             height = size.height,
                             radius = shape.radiusPx(size, density),
                             exponent = shape.exponent,
-                            rim = res.rim.toPx(),
-                            refraction = res.refraction.toPx(),
-                            chroma = res.chroma,
+                            rim = rimPx,
+                            refraction = refractionPx,
+                            chroma = chroma,
                             lightX = l.x,
                             lightY = l.y,
                             specular = res.specular,
@@ -230,8 +242,21 @@ fun GlassSurface(
                     },
             )
         }
-        CompositionLocalProvider(LocalGlassContentColor provides contentColor) {
-            content()
+        if (strokeDp > 0f) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .drawBehind {
+                        val outline = shape.createOutline(size, layoutDirection, this)
+                        drawOutline(outline, contentColor.copy(alpha = 0.35f), style = Stroke(width = strokeDp.dp.toPx()))
+                    },
+            )
+        }
+        val accent = roleStyle.accent?.let { Color(it) }
+        if (accent != null) {
+            CompositionLocalProvider(LocalGlassContentColor provides contentColor, LocalGlassAccent provides accent) { content() }
+        } else {
+            CompositionLocalProvider(LocalGlassContentColor provides contentColor) { content() }
         }
     }
 }

@@ -70,6 +70,25 @@ class WidgetUiState(
 
     // --- Adding ----------------------------------------------------------------------------
 
+    /**
+     * Phase 5 default home (once): a large clock/date/weather/next-event header across the top of
+     * the first page, then rounded photo and calendar widgets; icons reflow below them.
+     */
+    fun seedHomeIfNeeded(layout: HomeLayout) {
+        val s = repo.state.value ?: return
+        if (s.homeSeeded) return
+        repo.markHomeSeeded()
+        if (layout.widgetsOn(0).isNotEmpty()) return
+        val glance = repo.create(WidgetKind.GLANCE, WidgetSize.MEDIUM)
+        val photos = repo.create(WidgetKind.PHOTOS, WidgetSize.SMALL)
+        val calendar = repo.create(WidgetKind.CALENDAR, WidgetSize.SMALL)
+        layoutRepo.update { l ->
+            var next = LayoutOps.addWidget(l, glance.id, 0, 4, 2, GridRect(0, 0, 4, 2))
+            next = LayoutOps.addWidget(next, photos.id, 0, 2, 2, GridRect(0, 2, 2, 2))
+            LayoutOps.addWidget(next, calendar.id, 0, 2, 2, GridRect(2, 2, 2, 2))
+        }
+    }
+
     fun addOurs(kind: WidgetKind, size: WidgetSize, target: PickerTarget) {
         val inst = repo.create(kind, size, defaultConfig(kind))
         when (target) {

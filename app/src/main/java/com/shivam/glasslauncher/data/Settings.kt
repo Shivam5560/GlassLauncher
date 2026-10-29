@@ -18,7 +18,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import com.shivam.glasslauncher.icons.IconShape
 import com.shivam.glasslauncher.ui.glass.GlassStyle
+import com.shivam.glasslauncher.ui.glass.RoleStyle
+import com.shivam.glasslauncher.ui.glass.ThemePreset
 import com.shivam.glasslauncher.ui.glass.GlassTone
 import com.shivam.glasslauncher.ui.glass.GlassVariant
 
@@ -47,6 +50,31 @@ data class GestureSettings(
     val pauseWithKeyboard: Boolean = true,
 )
 
+/** Which drawer category opens first (Settings → App drawer). */
+enum class DrawerLaunchView(val title: String) { LastCategory("Last opened"), First("First category") }
+
+/** How drawer category pages change. */
+enum class DrawerTransition(val title: String) { Slide("Slide"), Fade("Fade"), Depth("Depth"), None("None") }
+
+/** Home page transition (Settings → Appearance → Home animation). */
+enum class HomeAnimation(val title: String) { Slide("Slide"), Fade("Fade"), Depth("Depth"), Cube("Cube") }
+
+/** Phase 5 global appearance values that are not glass material (those live in [GlassStyle]). */
+data class Appearance(
+    /** Icon size multiplier on home and in the drawer. */
+    val iconScale: Float = 1f,
+    val iconShape: IconShape = IconShape.Squircle,
+    /** Label text size (sp). */
+    val labelSize: Float = 11.5f,
+    val twoLineLabels: Boolean = false,
+    /** Drawer labels (home labels are [LauncherSettings.showLabels]). */
+    val drawerLabels: Boolean = true,
+    /** Folders open full screen over a strong blur instead of a floating panel. */
+    val immersiveFolders: Boolean = false,
+    val folderLabels: Boolean = true,
+    val homeAnimation: HomeAnimation = HomeAnimation.Slide,
+)
+
 data class LauncherSettings(
     val glass: GlassStyle = GlassStyle(),
     val gestures: GestureSettings = GestureSettings(),
@@ -55,12 +83,22 @@ data class LauncherSettings(
     val locked: Set<String> = emptySet(),
     val doubleTapToLock: Boolean = true,
     val swipeDownForSpotlight: Boolean = true,
-    val showLabels: Boolean = true,
+    /** Labels under home-screen icons. Phase 5 default: off (clean home); the drawer keeps labels. */
+    val showLabels: Boolean = false,
     val showBadges: Boolean = true,
     val onboardingDone: Boolean = false,
     /** HyperOS has no API to read Autostart reliably; the user confirms it in System check. */
     val autostartConfirmed: Boolean = false,
     val restrictedSettingsConfirmed: Boolean = false,
+    /** True once the user (or Glass Icons' Apply button) picked an icon pack, "System icons" included. */
+    val iconPackChosen: Boolean = false,
+    val appearance: Appearance = Appearance(),
+    val drawerLaunchView: DrawerLaunchView = DrawerLaunchView.LastCategory,
+    val drawerTransition: DrawerTransition = DrawerTransition.Slide,
+    /** Category id the drawer showed last. */
+    val drawerLastCategory: String? = null,
+    /** Ultra-immersive: hide the status bar (and nav bar with Glass gestures) on home and drawer. */
+    val immersive: Boolean = false,
 )
 
 class SettingsRepository(private val context: Context, private val scope: CoroutineScope) {
@@ -101,6 +139,38 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         val gKeyboard = booleanPreferencesKey("g_keyboard_pause")
         val autostartConfirmed = booleanPreferencesKey("autostart_confirmed")
         val restrictedConfirmed = booleanPreferencesKey("restricted_confirmed")
+        // Phase 5
+        val styleVersion = intPreferencesKey("glass_style_version")
+        val roles = stringPreferencesKey("glass_roles")
+        val widgetRadius = floatPreferencesKey("glass_widget_radius")
+        val preset = stringPreferencesKey("glass_preset")
+        val iconScale = floatPreferencesKey("ap_icon_scale")
+        val iconShape = stringPreferencesKey("ap_icon_shape")
+        val labelSize = floatPreferencesKey("ap_label_size")
+        val twoLine = booleanPreferencesKey("ap_two_line")
+        val drawerLabels = booleanPreferencesKey("ap_drawer_labels")
+        val immersiveFolders = booleanPreferencesKey("ap_immersive_folders")
+        val folderLabels = booleanPreferencesKey("ap_folder_labels")
+        val homeAnim = stringPreferencesKey("ap_home_anim")
+        val drawerLaunch = stringPreferencesKey("drawer_launch_view")
+        val drawerTransition = stringPreferencesKey("drawer_transition")
+        val drawerLast = stringPreferencesKey("drawer_last_category")
+        val immersive = booleanPreferencesKey("immersive")
+    }
+
+    init {
+        // Phase 5: move users still on the old, too-strong lens defaults to the toned-down ones.
+        scope.launch {
+            context.settingsStore.edit { p ->
+                if ((p[K.styleVersion] ?: 0) >= 5) return@edit
+                if (p[K.refraction] == 0.6f) p[K.refraction] = 0.3f
+                if (p[K.chroma] == 0.35f) p[K.chroma] = 0.15f
+                if (p[K.edge] == 0.65f) p[K.edge] = 0.45f
+                if (p[K.tintOpacity] == 0.30f) p[K.tintOpacity] = 0.42f
+                if (p[K.tint] == 0xFF1E2028.toInt()) p[K.tint] = 0xFF16171D.toInt()
+                p[K.styleVersion] = 5
+            }
+        }
     }
 
     val flow: Flow<LauncherSettings> = context.settingsStore.data.map { p ->
@@ -119,6 +189,9 @@ class SettingsRepository(private val context: Context, private val scope: Corout
                 tiltLighting = p[K.tilt] ?: d.glass.tiltLighting,
                 wallpaperBackdrop = p[K.wallpaperBackdrop] ?: d.glass.wallpaperBackdrop,
                 liquidEffects = p[K.liquid] ?: d.glass.liquidEffects,
+                roles = RoleStyle.decode(p[K.roles]),
+                widgetCornerRadius = p[K.widgetRadius] ?: d.glass.widgetCornerRadius,
+                preset = p[K.preset]?.let { v -> ThemePreset.entries.firstOrNull { it.name == v } } ?: d.glass.preset,
             ),
             gestures = GestureSettings(
                 bottomEnabled = p[K.gBottom] ?: d.gestures.bottomEnabled,
@@ -145,6 +218,21 @@ class SettingsRepository(private val context: Context, private val scope: Corout
             onboardingDone = p[K.onboarding] ?: d.onboardingDone,
             autostartConfirmed = p[K.autostartConfirmed] ?: false,
             restrictedSettingsConfirmed = p[K.restrictedConfirmed] ?: false,
+            iconPackChosen = p[K.iconPack] != null,
+            appearance = Appearance(
+                iconScale = p[K.iconScale] ?: d.appearance.iconScale,
+                iconShape = p[K.iconShape]?.let { v -> IconShape.entries.firstOrNull { it.name == v } } ?: d.appearance.iconShape,
+                labelSize = p[K.labelSize] ?: d.appearance.labelSize,
+                twoLineLabels = p[K.twoLine] ?: d.appearance.twoLineLabels,
+                drawerLabels = p[K.drawerLabels] ?: d.appearance.drawerLabels,
+                immersiveFolders = p[K.immersiveFolders] ?: d.appearance.immersiveFolders,
+                folderLabels = p[K.folderLabels] ?: d.appearance.folderLabels,
+                homeAnimation = p[K.homeAnim]?.let { v -> HomeAnimation.entries.firstOrNull { it.name == v } } ?: d.appearance.homeAnimation,
+            ),
+            drawerLaunchView = p[K.drawerLaunch]?.let { v -> DrawerLaunchView.entries.firstOrNull { it.name == v } } ?: d.drawerLaunchView,
+            drawerTransition = p[K.drawerTransition]?.let { v -> DrawerTransition.entries.firstOrNull { it.name == v } } ?: d.drawerTransition,
+            drawerLastCategory = p[K.drawerLast],
+            immersive = p[K.immersive] ?: d.immersive,
         )
     }
 
@@ -167,6 +255,9 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         it[K.tilt] = style.tiltLighting
         it[K.wallpaperBackdrop] = style.wallpaperBackdrop
         it[K.liquid] = style.liquidEffects
+        it[K.roles] = RoleStyle.encode(style.roles)
+        it[K.widgetRadius] = style.widgetCornerRadius
+        it[K.preset] = style.preset.name
     }
 
     fun resetGlass() = setGlass(GlassStyle())
@@ -191,6 +282,24 @@ class SettingsRepository(private val context: Context, private val scope: Corout
     fun setRestrictedConfirmed(v: Boolean) = edit { it[K.restrictedConfirmed] = v }
 
     fun setIconPack(pkg: String) = edit { it[K.iconPack] = pkg }
+
+    /** Writes the icon pack and waits until it is on disk (used by the cross-app Apply intent). */
+    suspend fun setIconPackNow(pkg: String) { context.settingsStore.edit { it[K.iconPack] = pkg } }
+
+    fun setAppearance(a: Appearance) = edit {
+        it[K.iconScale] = a.iconScale
+        it[K.iconShape] = a.iconShape.name
+        it[K.labelSize] = a.labelSize
+        it[K.twoLine] = a.twoLineLabels
+        it[K.drawerLabels] = a.drawerLabels
+        it[K.immersiveFolders] = a.immersiveFolders
+        it[K.folderLabels] = a.folderLabels
+        it[K.homeAnim] = a.homeAnimation.name
+    }
+    fun setDrawerLaunchView(v: DrawerLaunchView) = edit { it[K.drawerLaunch] = v.name }
+    fun setDrawerTransition(v: DrawerTransition) = edit { it[K.drawerTransition] = v.name }
+    fun setDrawerLastCategory(id: String) = edit { it[K.drawerLast] = id }
+    fun setImmersive(v: Boolean) = edit { it[K.immersive] = v }
     fun setHidden(key: String, hidden: Boolean) = edit {
         val cur = it[K.hidden] ?: emptySet()
         it[K.hidden] = if (hidden) cur + key else cur - key

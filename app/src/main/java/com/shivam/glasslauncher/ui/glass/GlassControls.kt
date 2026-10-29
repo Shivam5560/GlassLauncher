@@ -52,6 +52,17 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.Image
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.semantics.Role
 import kotlin.math.roundToInt
 
 /** Text that defaults to the colour of the glass it sits on. */
@@ -97,7 +108,7 @@ fun GlassButton(
         variant = variant,
         onClick = if (enabled) onClick else null,
         tintOverride = when {
-            prominent -> GlassColors.Accent
+            prominent -> currentAccent()
             destructive -> GlassColors.Red
             else -> null
         },
@@ -148,7 +159,7 @@ fun GlassChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Mo
         variant = GlassVariant.Clear,
         onClick = onClick,
         highlighted = selected,
-        tintOverride = if (selected) GlassColors.Accent else null,
+        tintOverride = if (selected) currentAccent() else null,
         contentAlignment = Alignment.Center,
     ) {
         GlassText(
@@ -189,7 +200,7 @@ fun GlassSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: 
             modifier = Modifier.size(width = 56.dp, height = 32.dp),
             shape = GlassShape.Capsule,
             variant = GlassVariant.Clear,
-            tintOverride = if (checked) GlassColors.Green else null,
+            tintOverride = if (checked) (LocalGlassAccent.current ?: GlassColors.Green) else null,
             role = null,
         )
         GlassSurface(
@@ -246,12 +257,13 @@ fun GlassSlider(
     ) {
         widthPx = with(density) { maxWidth.toPx() }
         val content = LocalGlassContentColor.current
+        val accent = currentAccent()
         Canvas(Modifier.fillMaxWidth().height(6.dp)) {
             val y = size.height / 2
             val x0 = thumbPx / 2
             val x1 = size.width - thumbPx / 2
             drawLine(content.copy(alpha = 0.22f), androidx.compose.ui.geometry.Offset(x0, y), androidx.compose.ui.geometry.Offset(x1, y), strokeWidth = size.height, cap = StrokeCap.Round)
-            drawLine(GlassColors.Accent, androidx.compose.ui.geometry.Offset(x0, y), androidx.compose.ui.geometry.Offset(x0 + (x1 - x0) * fraction, y), strokeWidth = size.height, cap = StrokeCap.Round)
+            drawLine(accent, androidx.compose.ui.geometry.Offset(x0, y), androidx.compose.ui.geometry.Offset(x0 + (x1 - x0) * fraction, y), strokeWidth = size.height, cap = StrokeCap.Round)
         }
         val travel = with(density) { (maxWidth - thumb).toPx() }
         GlassSurface(
@@ -331,7 +343,7 @@ fun GlassTextField(
                     onValueChange = onValueChange,
                     singleLine = true,
                     textStyle = GlassType.Body.copy(color = color),
-                    cursorBrush = SolidColor(GlassColors.Accent),
+                    cursorBrush = SolidColor(currentAccent()),
                     keyboardOptions = keyboardOptions,
                     keyboardActions = keyboardActions,
                     modifier = Modifier.fillMaxWidth().let { if (focusRequester != null) it.focusRequester(focusRequester) else it },
@@ -345,7 +357,11 @@ fun GlassTextField(
     }
 }
 
-/** Section of grouped rows on one glass card (iOS "inset grouped" list). */
+/**
+ * Section of grouped rows on ONE glass card (iOS "inset grouped" list): rows inside are plain
+ * (no glass of their own) and separated by hairline dividers, so a section reads as a single
+ * calm panel instead of a stack of slabs.
+ */
 @Composable
 fun GlassListGroup(
     modifier: Modifier = Modifier,
@@ -353,32 +369,75 @@ fun GlassListGroup(
     footer: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val screenColor = LocalScreenContentColor.current
     Column(modifier.fillMaxWidth()) {
         if (title != null) {
             GlassText(
                 title.uppercase(),
                 Modifier.padding(start = 20.dp, bottom = 6.dp),
-                style = GlassType.Caption,
-                color = Color.White.copy(alpha = 0.7f),
+                style = GlassType.Caption.copy(shadow = screenTextShadow(screenColor)),
+                color = screenColor.copy(alpha = 0.8f),
             )
         }
-        GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.Card, role = null) {
-            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), content = content)
+        GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.Card, role = null, kind = SurfaceKind.Cards, variant = GlassVariant.Regular) {
+            Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                val scope = this
+                DividedColumn(LocalGlassContentColor.current.copy(alpha = 0.14f), inset = 16.dp) { scope.content() }
+            }
         }
         if (footer != null) {
             GlassText(
                 footer,
                 Modifier.padding(start = 20.dp, end = 20.dp, top = 6.dp),
-                style = GlassType.Footnote,
-                color = Color.White.copy(alpha = 0.65f),
+                style = GlassType.Footnote.copy(shadow = screenTextShadow(screenColor)),
+                color = screenColor.copy(alpha = 0.75f),
             )
         }
     }
 }
 
+/** A soft shadow under white text drawn straight on a wallpaper; none under dark text. */
+fun screenTextShadow(color: Color): Shadow? =
+    if (color.luminance() > 0.5f) Shadow(Color(0x80000000), androidx.compose.ui.geometry.Offset(0f, 1f), 6f) else null
+
+/** Stacks children vertically and draws a hairline between consecutive non-empty children. */
+@Composable
+private fun DividedColumn(dividerColor: Color, inset: Dp, content: @Composable () -> Unit) {
+    val dividers = remember { ArrayList<Int>() }
+    Layout(
+        content = content,
+        modifier = Modifier.fillMaxWidth().drawWithContent {
+            drawContent()
+            val x0 = inset.toPx()
+            val stroke = 1f.coerceAtLeast(density * 0.5f)
+            for (y in dividers) {
+                drawLine(dividerColor, androidx.compose.ui.geometry.Offset(x0, y.toFloat()), androidx.compose.ui.geometry.Offset(size.width, y.toFloat()), strokeWidth = stroke)
+            }
+        },
+    ) { measurables, constraints ->
+        val child = constraints.copy(minHeight = 0)
+        val placeables = measurables.map { it.measure(child) }
+        val width = if (constraints.hasBoundedWidth) constraints.maxWidth else (placeables.maxOfOrNull { it.width } ?: 0)
+        val height = placeables.sumOf { it.height }.coerceIn(constraints.minHeight, if (constraints.hasBoundedHeight) constraints.maxHeight else Int.MAX_VALUE)
+        layout(width, height) {
+            dividers.clear()
+            var y = 0
+            var first = true
+            for (p in placeables) {
+                if (p.height > 0) {
+                    if (!first) dividers += y
+                    first = false
+                }
+                p.placeRelative(0, y)
+                y += p.height
+            }
+        }
+    }
+}
+
 /**
- * A row inside a [GlassListGroup]. Rows are themselves Clear glass so a press brightens and
- * swells just the row.
+ * A plain row inside a [GlassListGroup]: no glass of its own (the group card is the glass);
+ * pressing it shows a soft highlight.
  */
 @Composable
 fun GlassRow(
@@ -386,37 +445,43 @@ fun GlassRow(
     modifier: Modifier = Modifier,
     subtitle: String? = null,
     icon: ImageVector? = null,
-    iconTint: Color = GlassColors.Accent,
+    iconTint: Color = currentAccent(),
     onClick: (() -> Unit)? = null,
     showChevron: Boolean = onClick != null,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
-    GlassSurface(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp),
-        shape = GlassShape.Row,
-        variant = GlassVariant.Clear,
-        onClick = onClick,
-        role = if (onClick != null) androidx.compose.ui.semantics.Role.Button else null,
+    val interactions = remember { MutableInteractionSource() }
+    val pressed by interactions.collectIsPressedAsState()
+    val content = LocalGlassContentColor.current
+    Row(
+        modifier
+            .fillMaxWidth()
+            .then(
+                if (onClick != null) Modifier.clickable(interactionSource = interactions, indication = null, role = Role.Button, onClick = onClick)
+                else Modifier,
+            )
+            .background(if (pressed && onClick != null) content.copy(alpha = 0.10f) else Color.Transparent)
+            .heightIn(min = 52.dp)
+            .padding(horizontal = 16.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 50.dp).padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (icon != null) {
-                GlassSurface(Modifier.size(30.dp), shape = GlassShape.rounded(8.dp), variant = GlassVariant.Clear, tintOverride = iconTint, contentAlignment = Alignment.Center, role = null) {
-                    GlassIcon(icon, size = 18.dp, tint = Color.White)
-                }
-                Spacer(Modifier.width(12.dp))
+        if (icon != null) {
+            Box(
+                Modifier.size(30.dp).clip(GlassShape.rounded(8.dp)).background(iconTint),
+                contentAlignment = Alignment.Center,
+            ) {
+                GlassIcon(icon, size = 18.dp, tint = Color(Contrast.pickText(Contrast.relativeLuminance(iconTint.toArgb()))))
             }
-            Column(Modifier.weight(1f)) {
-                GlassText(title, style = GlassType.Body, maxLines = 2)
-                if (subtitle != null) GlassText(subtitle, style = GlassType.Footnote, secondary = true, maxLines = 3)
-            }
-            trailing()
-            if (showChevron) {
-                Spacer(Modifier.width(6.dp))
-                GlassIcon(GlassIcons.ChevronRight, size = 16.dp, tint = LocalGlassContentColor.current.copy(alpha = 0.45f))
-            }
+            Spacer(Modifier.width(12.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            GlassText(title, style = GlassType.Body, maxLines = 2)
+            if (subtitle != null) GlassText(subtitle, style = GlassType.Footnote, color = content.copy(alpha = 0.72f), maxLines = 3)
+        }
+        trailing()
+        if (showChevron) {
+            Spacer(Modifier.width(6.dp))
+            GlassIcon(GlassIcons.ChevronRight, size = 16.dp, tint = content.copy(alpha = 0.5f))
         }
     }
 }
@@ -441,7 +506,7 @@ fun GlassSliderRow(
 
 /** A row with a [GlassSwitch]. */
 @Composable
-fun GlassSwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, subtitle: String? = null, icon: ImageVector? = null, iconTint: Color = GlassColors.Accent) {
+fun GlassSwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, subtitle: String? = null, icon: ImageVector? = null, iconTint: Color = currentAccent()) {
     GlassRow(title = title, subtitle = subtitle, icon = icon, iconTint = iconTint, onClick = { onCheckedChange(!checked) }, showChevron = false) {
         GlassSwitch(checked, onCheckedChange)
     }
@@ -487,6 +552,37 @@ fun GlassIndexScrubber(letters: List<String>, onLetter: (String) -> Unit, modifi
             verticalArrangement = Arrangement.SpaceEvenly,
         ) {
             letters.forEach { GlassText(it, style = GlassType.Caption, maxLines = 1) }
+        }
+    }
+}
+
+/**
+ * Makes a plain (non-glass) element pressable with a soft highlight: used for rows inside a glass
+ * card or menu, so only the card is glass.
+ */
+@Composable
+fun Modifier.glassPressable(onClick: () -> Unit, shape: androidx.compose.ui.graphics.Shape = GlassShape.Row, enabled: Boolean = true): Modifier {
+    val interactions = remember { MutableInteractionSource() }
+    val pressed by interactions.collectIsPressedAsState()
+    val content = LocalGlassContentColor.current
+    return this
+        .clip(shape)
+        .clickable(interactionSource = interactions, indication = null, enabled = enabled, role = Role.Button, onClick = onClick)
+        .background(if (pressed) content.copy(alpha = 0.12f) else Color.Transparent)
+}
+
+/** A row of a glass context menu: text and a trailing glyph, no glass of its own. */
+@Composable
+fun GlassMenuRow(text: String, icon: ImageVector?, destructive: Boolean = false, trailing: (@Composable () -> Unit)? = null, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().glassPressable(onClick).padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        val color = if (destructive) GlassColors.Red else LocalGlassContentColor.current
+        GlassText(text, Modifier.weight(1f), style = GlassType.Body, color = color, maxLines = 1)
+        when {
+            trailing != null -> trailing()
+            icon != null -> GlassIcon(icon, size = 20.dp, tint = color)
         }
     }
 }

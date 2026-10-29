@@ -70,6 +70,8 @@ data class HomeContext(
     val showBadges: Boolean,
     val editMode: Boolean,
     val lightWallpaper: Boolean,
+    /** Phase 5 icon/label/folder appearance. */
+    val appearance: com.shivam.glasslauncher.data.Appearance = com.shivam.glasslauncher.data.Appearance(),
 ) {
     fun label(entry: AppEntry) = labels[entry.key] ?: entry.label
     fun badge(item: HomeItem): Int {
@@ -107,7 +109,8 @@ fun HomeGridPage(
     ) {
         val cellW = maxWidth / GRID_COLUMNS
         val cellH = maxHeight / GRID_ROWS
-        val iconSize = minOf(64.dp, cellW * 0.7f, cellH * 0.6f)
+        val scale = ctx.appearance.iconScale.coerceIn(0.7f, 1.3f)
+        val iconSize = minOf(64.dp * scale, cellW * 0.82f, cellH * 0.72f)
         Column(Modifier.fillMaxSize()) {
             for (r in 0 until GRID_ROWS) {
                 Row(Modifier.fillMaxWidth().weight(1f)) {
@@ -264,6 +267,8 @@ fun HomeCell(
                 if (isSource) "" else text,
                 ctx.lightWallpaper,
                 Modifier.width(iconSize + 18.dp),
+                sizeSp = ctx.appearance.labelSize,
+                twoLines = ctx.appearance.twoLineLabels,
             )
         }
     }

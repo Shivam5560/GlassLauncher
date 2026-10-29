@@ -195,3 +195,6 @@ class IconPack(
         }
     }
 }
+
+/** Adaptive icon shape for icons Glass masks itself (Settings → Appearance → Icons). */
+enum class IconShape(val title: String) { Squircle("Squircle"), Circle("Circle"), RoundedSquare("Rounded square"), Teardrop("Teardrop") }

@@ -115,6 +115,8 @@ fun LauncherScreen(
     val ui = remember { LauncherUiState() }
     val widgetUi = remember(activity) { WidgetUiState(activity, scope, ui.toast) }
     val reduced = remember { reducedMotion(activity) }
+    // Widgets (icon group) launch apps through the same path as icons, lock check included.
+    val launchHolder = remember { arrayOfNulls<(com.shivam.glasslauncher.data.AppEntry, android.graphics.Rect?) -> Unit>(1) }
     val widgetEnv = remember(ui.editMode, reduced) {
         WidgetEnv(
             openSpotlight = { ui.openSpotlight(it) },
@@ -124,6 +126,7 @@ fun LauncherScreen(
             editWidget = { widgetUi.editing = it },
             editMode = ui.editMode,
             reducedMotion = reduced,
+            launchApp = { e, b -> launchHolder[0]?.invoke(e, b) },
         )
     }
 
@@ -184,6 +187,31 @@ fun LauncherScreen(
     LaunchedEffect(widgetStore != null) {
         if (widgetStore != null) widgetUi.repo.prune(layoutState.value.widgets.map { it.id }.toSet())
     }
+    // Phase 5 default home (header, photo and calendar widgets), once the app grid exists.
+    LaunchedEffect(widgetStore != null, layout.known.isNotEmpty()) {
+        if (widgetStore != null && layoutState.value.known.isNotEmpty()) {
+            delay(300)
+            widgetUi.seedHomeIfNeeded(layoutState.value)
+        }
+    }
+
+    // Ultra-immersive: hide the status bar (and the nav bar when Glass gestures replace it) on
+    // home and in the drawer; a swipe from the edge reveals them transiently.
+    val lifecycleTick = remember { androidx.compose.runtime.mutableIntStateOf(0) }
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) { lifecycleTick.intValue++ }
+    LaunchedEffect(settings.immersive, lifecycleTick.intValue) {
+        val gesturesOn = com.shivam.glasslauncher.gestures.GlassGestureService.isEnabled(activity)
+        ImmersiveMode.apply(activity.window, settings.immersive, hideNavigation = gesturesOn)
+    }
+
+    // KLWP and other live wallpapers scroll with the pages through wallpaper offsets. With a
+    // static wallpaper the offset stays centred so Glass's wallpaper copy lines up for refraction.
+    LaunchedEffect(snapshot.isLive, homePageCount) {
+        if (!snapshot.isLive) return@LaunchedEffect
+        androidx.compose.runtime.snapshotFlow { pagerState.currentPage + pagerState.currentPageOffsetFraction }.collect { pos ->
+            WallpaperOffsets.scroll(activity, pos, homePageCount + TODAY_PAGES + 1)
+        }
+    }
 
     val ctx = HomeContext(
         apps = appsByKey,
@@ -193,6 +221,7 @@ fun LauncherScreen(
         showBadges = settings.showBadges,
         editMode = ui.editMode,
         lightWallpaper = lightWallpaper,
+        appearance = settings.appearance,
     )
 
     fun computeHover(at: Offset): DropTarget? {
@@ -272,6 +301,8 @@ fun LauncherScreen(
         }
     }
 
+    launchHolder[0] = { e, b -> callbacks.launch(e, b) }
+
     // While dragging, dwell near a screen edge to flip pages.
     LaunchedEffect(dragging) {
         var dwell = 0
@@ -336,9 +367,12 @@ fun LauncherScreen(
                                 .weight(1f)
                                 .fillMaxWidth()
                                 .recordBackdrop(pagesLayer)
-                                .swipeDownToSearch(enabled = settings.swipeDownForSpotlight && !dragging && pagerState.currentPage in TODAY_PAGES until homePageCount + TODAY_PAGES) { origin ->
-                                    ui.openSpotlight(origin)
-                                },
+                                .verticalSwipes(
+                                    enabled = !dragging && !ui.editMode && pagerState.currentPage in TODAY_PAGES until homePageCount + TODAY_PAGES,
+                                    downEnabled = settings.swipeDownForSpotlight,
+                                    onDown = { origin -> ui.openSpotlight(origin) },
+                                    onUp = { ui.drawer.open = true },
+                                ),
                         ) {
                             HorizontalPager(
                                 state = pagerState,
@@ -348,6 +382,9 @@ fun LauncherScreen(
                                 key = { it },
                             ) { pagerPage ->
                                 val page = pagerPage - TODAY_PAGES
+                                val homeAnim = settings.appearance.homeAnimation
+                                val isHome = page in 0 until homePageCount
+                                Box(Modifier.fillMaxSize().graphicsLayer { if (isHome) homePageTransition(homeAnim, pagerState.currentPage + pagerState.currentPageOffsetFraction - pagerPage) }) {
                                 CompositionLocalProvider(LocalBackdrop provides wallpaperOnly) {
                                     if (pagerPage < TODAY_PAGES) {
                                         TodayView(widgetUi, ui.editMode, { ui.editMode = it }, lightWallpaper)
@@ -374,6 +411,7 @@ fun LauncherScreen(
                                             onMenu = { ui.menu = it },
                                         )
                                     }
+                                }
                                 }
                             }
                         }
@@ -418,6 +456,14 @@ fun LauncherScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             GlassButton("Settings", onClick = { openSettings(null) }, icon = GlassIcons.Gear)
                             GlassIconButton(WidgetGlyphs.Pages, onClick = { widgetUi.pageManager = true })
+                            // Share your home screen: rendered from our own layers, never a screenshot.
+                            GlassIconButton(com.shivam.glasslauncher.ui.drawer.DrawerGlyphs.Share, onClick = {
+                                ui.editMode = false
+                                scope.launch {
+                                    delay(450)
+                                    if (!HomeShare.share(activity, homeLayer, snapshot)) ui.toast.show("Couldn't render the home screen")
+                                }
+                            })
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             GlassIconButton(GlassIcons.Plus, onClick = {
@@ -447,6 +493,7 @@ fun LauncherScreen(
                 }
 
                 CompositionLocalProvider(LocalBackdrop provides overlayBackdrop) {
+                    com.shivam.glasslauncher.ui.drawer.AppDrawerOverlay(ui, vm, layout, settings, ctx, callbacks, openSettings, snapshot.globalLuminance)
                     FolderOverlay(ui, layout, groups, ctx, callbacks)
                     SpotlightOverlay(
                         ui = ui,
@@ -469,9 +516,12 @@ fun LauncherScreen(
 /** Pages before the first home page in the pager (the Today view). */
 private const val TODAY_PAGES = 1
 
-/** Swipe down anywhere on the home pages opens Spotlight (only unconsumed, mostly vertical drags). */
-private fun Modifier.swipeDownToSearch(enabled: Boolean, onSwipe: (Rect) -> Unit): Modifier =
-    if (!enabled) this else pointerInput(Unit) {
+/**
+ * Vertical swipes on the home pages: down opens Spotlight, up opens the app drawer (only
+ * unconsumed, mostly vertical drags, so icons, widgets and the pager keep their gestures).
+ */
+private fun Modifier.verticalSwipes(enabled: Boolean, downEnabled: Boolean, onDown: (Rect) -> Unit, onUp: () -> Unit): Modifier =
+    if (!enabled) this else pointerInput(downEnabled) {
         val threshold = 56.dp.toPx()
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
@@ -481,14 +531,41 @@ private fun Modifier.swipeDownToSearch(enabled: Boolean, onSwipe: (Rect) -> Unit
                 val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
                 if (!ch.pressed || ch.isConsumed) break
                 total += ch.positionChange()
-                if (total.y < -threshold / 2 || abs(total.x) > threshold) break
-                if (total.y > threshold && total.y > abs(total.x) * 1.4f) {
+                if (abs(total.x) > threshold) break
+                if (downEnabled && total.y > threshold && total.y > abs(total.x) * 1.4f) {
                     ch.consume()
                     val c = down.position
-                    onSwipe(Rect(c.x - 40f, c.y - 20f, c.x + 40f, c.y + 20f))
+                    onDown(Rect(c.x - 40f, c.y - 20f, c.x + 40f, c.y + 20f))
+                    break
+                }
+                if (total.y < -threshold && -total.y > abs(total.x) * 1.4f) {
+                    ch.consume()
+                    onUp()
                     break
                 }
             }
         }
     }
 
+/** Home page transition (Settings → Appearance → Home animation); [o] is the page's offset from the centre. */
+private fun androidx.compose.ui.graphics.GraphicsLayerScope.homePageTransition(anim: com.shivam.glasslauncher.data.HomeAnimation, o: Float) {
+    val a = abs(o).coerceIn(0f, 1f)
+    when (anim) {
+        com.shivam.glasslauncher.data.HomeAnimation.Slide -> Unit
+        com.shivam.glasslauncher.data.HomeAnimation.Fade -> {
+            translationX = o * size.width
+            alpha = 1f - a
+        }
+        com.shivam.glasslauncher.data.HomeAnimation.Depth -> {
+            val sc = 1f - 0.12f * a
+            scaleX = sc
+            scaleY = sc
+            alpha = 1f - 0.5f * a
+        }
+        com.shivam.glasslauncher.data.HomeAnimation.Cube -> {
+            cameraDistance = 14f * density
+            transformOrigin = androidx.compose.ui.graphics.TransformOrigin(if (o > 0f) 1f else 0f, 0.5f)
+            rotationY = -o.coerceIn(-1f, 1f) * 50f
+        }
+    }
+}

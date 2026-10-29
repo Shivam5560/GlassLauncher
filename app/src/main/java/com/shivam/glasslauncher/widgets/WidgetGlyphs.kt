@@ -94,6 +94,9 @@ object WidgetGlyphs {
     val Resize = icon("resize", "M9,20H20V9", "M14,20H20V14")
     val Sliders = icon("sliders", "M4,7H20", "M4,17H20", "M9,4.5V9.5", "M15,14.5V19.5")
 
+    val Compass = icon("compass", "M12,3a9,9 0 1,0 0,18a9,9 0 1,0 0,-18z", "M14.8,9.2L13.2,13.2L9.2,14.8L10.8,10.8Z")
+    val Glance = icon("glance", "M4,8H20", "M7,13H17", "M9,17H15")
+
     fun kind(k: WidgetKind): ImageVector = when (k) {
         WidgetKind.SMART_STACK -> Stack
         WidgetKind.MUSIC -> Note
@@ -104,6 +107,9 @@ object WidgetGlyphs {
         WidgetKind.PHOTOS -> Photo
         WidgetKind.NOTES -> Notes
         WidgetKind.SEARCH -> com.shivam.glasslauncher.ui.glass.GlassIcons.Search
+        WidgetKind.GLANCE -> Glance
+        WidgetKind.COMPASS -> Compass
+        WidgetKind.ICON_GROUP -> Widgets
         WidgetKind.APP_WIDGET -> Widgets
     }
 }

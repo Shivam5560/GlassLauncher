@@ -15,6 +15,8 @@ data class AppEntry(
     val isWorkProfile: Boolean,
     val category: AppCategory,
     val info: LauncherActivityInfo,
+    /** Phase 5 drawer category id from [DrawerCategorizer]. */
+    val drawerCategory: String = DrawerCategorizer.OTHER,
 ) {
     val packageName: String get() = component.packageName
     val searchTarget: FuzzyMatcher.Target by lazy { FuzzyMatcher.Target(label) }

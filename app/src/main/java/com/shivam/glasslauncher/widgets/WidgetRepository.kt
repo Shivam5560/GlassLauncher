@@ -88,6 +88,8 @@ class WidgetRepository private constructor(private val context: Context, private
         return inst
     }
 
+    fun markHomeSeeded() = mutate { it.copy(homeSeeded = true) }
+
     fun setConfig(id: String, key: String, value: String?) = mutate { s ->
         val inst = s.instances[id] ?: return@mutate s
         val cfg = if (value == null) inst.config - key else inst.config + (key to value)

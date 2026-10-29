@@ -94,6 +94,22 @@ class AppActions(private val context: Context) {
         }
     }
 
+    /** Starts a deep shortcut by id (drawer shortcuts); false when Glass isn't the default Home app or it is gone. */
+    fun startShortcut(packageName: String, shortcutId: String, user: android.os.UserHandle, bounds: Rect?): Boolean = try {
+        launcherApps.startShortcut(packageName, shortcutId, bounds, null, user)
+        true
+    } catch (e: Exception) {
+        Log.w(TAG, "startShortcut($packageName/$shortcutId) failed", e)
+        false
+    }
+
+    /** Opens the Play Store on a search (drawer header button); falls back to the web store. */
+    fun playStoreSearch(activity: Activity, query: String) {
+        val q = Uri.encode(query)
+        val market = Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=$q&c=apps")).setPackage("com.android.vending")
+        if (!startIntent(activity, market)) startIntent(activity, Intent(Intent.ACTION_VIEW, Uri.parse("https://play.google.com/store/search?q=$q&c=apps")))
+    }
+
     fun appInfo(entry: AppEntry) {
         try {
             launcherApps.startAppDetailsActivity(entry.component, entry.user, null, null)

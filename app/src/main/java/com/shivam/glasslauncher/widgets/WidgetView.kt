@@ -47,12 +47,15 @@ class WidgetEnv(
     val editWidget: (String) -> Unit,
     val editMode: Boolean,
     val reducedMotion: Boolean,
+    /** Opens an app through the launcher (lock check included); null outside the home screen. */
+    val launchApp: ((com.shivam.glasslauncher.data.AppEntry, android.graphics.Rect?) -> Unit)? = null,
 )
 
 val LocalWidgetEnv = compositionLocalOf<WidgetEnv?> { null }
 
-/** Continuous-corner widget outline (iOS widgets use about 22pt corners). */
-val WidgetShape = GlassShape.rounded(24.dp)
+/** Continuous-corner widget outline; radius from Settings → Appearance → Widget (default 24dp). */
+val WidgetShape: GlassShape
+    @Composable get() = GlassShape.rounded(com.shivam.glasslauncher.ui.glass.LocalGlassStyle.current.widgetCornerRadius.dp)
 
 /** True when the user turned animations off (Developer options or Remove animations). */
 fun reducedMotion(context: Context): Boolean =
@@ -72,6 +75,7 @@ fun WidgetFrame(
         variant = GlassVariant.Regular,
         onClick = onClick,
         role = null,
+        kind = com.shivam.glasslauncher.ui.glass.SurfaceKind.Widget,
     ) {
         Box(Modifier.fillMaxSize().padding(padding), content = content)
     }
@@ -90,6 +94,9 @@ fun WidgetContent(inst: WidgetInstance, modifier: Modifier = Modifier, size: Wid
         WidgetKind.PHOTOS -> PhotosWidget(inst, size, modifier)
         WidgetKind.NOTES -> NotesWidget(inst, size, modifier)
         WidgetKind.SEARCH -> SearchBarWidget(modifier)
+        WidgetKind.GLANCE -> GlanceWidget(modifier)
+        WidgetKind.COMPASS -> CompassWidget(modifier)
+        WidgetKind.ICON_GROUP -> IconGroupWidget(inst, size, modifier)
         WidgetKind.APP_WIDGET -> AppWidgetContent(inst, modifier)
     }
 }

@@ -93,6 +93,10 @@ fun SettingsScreen(
         PolishScreen(nav, toast)
         return
     }
+    if (isAppearanceScreen(nav.current)) {
+        AppearanceScreen(nav, settings)
+        return
+    }
     when (nav.current) {
         "glass" -> GlassTuningScreen(nav, settings)
         "wallpaper" -> WallpaperScreen(nav, wallpaper, toast)
@@ -142,6 +146,8 @@ private fun MainScreen(nav: SettingsNav, settings: LauncherSettings, wallpaper: 
         }
         item {
             GlassListGroup(title = "Appearance") {
+                GlassRow("Appearance", subtitle = "Theme, colours per surface, icons, labels, widgets, folders, animation", icon = GlassIcons.Sparkle, iconTint = Color(0xFFBF5AF2), onClick = { nav.push("appearance") })
+                GlassRow("App drawer", subtitle = "Categories, launch view, transition, sorting", icon = GlassIcons.Grid, iconTint = Color(0xFF30B0C7), onClick = { nav.push("drawer") })
                 GlassRow("Glass tuning", subtitle = "Variant, blur, tint, refraction, rim, lighting", icon = GlassIcons.Palette, iconTint = Color(0xFF5E5CE6), onClick = { nav.push("glass") })
                 GlassRow("Wallpaper", subtitle = wallpaper.path.title, icon = GlassIcons.Home, iconTint = Color(0xFF64D2FF), onClick = { nav.push("wallpaper") })
                 GlassRow("Icon pack", subtitle = settings.iconPack.ifEmpty { "System icons" }, icon = GlassIcons.Grid, iconTint = GlassColors.Orange, onClick = { nav.push("iconpack") })
@@ -153,6 +159,7 @@ private fun MainScreen(nav: SettingsNav, settings: LauncherSettings, wallpaper: 
                 GlassSwitchRow("Show app labels", settings.showLabels, { app.settings.setShowLabels(it) })
                 GlassSwitchRow("Notification badges", settings.showBadges, { app.settings.setShowBadges(it) })
                 GlassSwitchRow("Swipe down for Spotlight", settings.swipeDownForSpotlight, { app.settings.setSwipeDownForSpotlight(it) })
+                GlassSwitchRow("Ultra-immersive", settings.immersive, { app.settings.setImmersive(it) }, subtitle = if (gesturesOn) "Hide status and navigation bars on Home and in the drawer" else "Hide the status bar on Home and in the drawer")
                 if (gesturesOn) {
                     GlassSwitchRow("Double-tap to lock", settings.doubleTapToLock, { app.settings.setDoubleTapToLock(it) })
                 } else {
@@ -455,13 +462,16 @@ private fun AppToggleScreen(
                 }
             }
         }
-        items(list, key = { it.key }) { e ->
-            GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.Row, role = null) {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    AppIconImage(e, 36.dp)
-                    Spacer(Modifier.width(12.dp))
-                    GlassText(e.label, Modifier.weight(1f), style = GlassType.Body, maxLines = 1)
-                    GlassSwitch(isOn(e), { onToggle(e, it) })
+        // One glass card per block of apps (plain rows with dividers inside), not a slab per app.
+        items(list.chunked(12), key = { chunk -> chunk.first().key }) { chunk ->
+            GlassListGroup {
+                chunk.forEach { e ->
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        AppIconImage(e, 36.dp)
+                        Spacer(Modifier.width(12.dp))
+                        GlassText(e.label, Modifier.weight(1f), style = GlassType.Body, maxLines = 1)
+                        GlassSwitch(isOn(e), { onToggle(e, it) })
+                    }
                 }
             }
         }
@@ -493,7 +503,7 @@ private fun SystemCheckScreen(
     ScreenScaffold(if (setupMode) "Set up Glass" else "System check", nav) {
         if (setupMode) {
             item {
-                GlassListGroup(footer = "HyperOS turns off its own gestures while another launcher is default, and limits sideloaded apps. These steps restore gestures and keep Glass running. Do them in order.") {
+                GlassListGroup(footer = "HyperOS forces 3-button navigation whenever ANY third-party launcher is the default Home app (Smart Launcher and every other launcher too) — that is HyperOS, not Glass, and there is no setting to undo it. Glass Gestures (step 3) is the fix: swipe up for Home, swipe up and hold for Recents, swipe in from a side for Back. The other steps keep Glass running. Do them in order.") {
                     GlassRow("Welcome to Glass", subtitle = "About two minutes of setup", icon = GlassIcons.Sparkle, iconTint = GlassColors.Accent)
                 }
             }
