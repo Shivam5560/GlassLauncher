@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Glass Icon Sheet</title>
+<!-- Self-contained: no external requests. Every glyph is original, drawn for Glass on a 24-unit grid. -->
+<style>
+:root{--bg:#0b0c10;--fg:#eceef2;--mut:#9aa0ab;--line:rgba(255,255,255,.10);color-scheme:dark}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#f3f4f7;--fg:#15171c;--mut:#5d6370;--line:rgba(0,0,0,.10);color-scheme:light}}
+:root[data-theme="dark"]{--bg:#0b0c10;--fg:#eceef2;--mut:#9aa0ab;--line:rgba(255,255,255,.10);color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 "IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{max-width:1180px;margin:0 auto;padding:28px 16px 8px}
+h1{font-size:22px;font-weight:600;margin:0 0 4px;letter-spacing:-.01em}
+p{margin:0;color:var(--mut);max-width:72ch}
+.modes{display:flex;gap:6px;flex-wrap:wrap;margin:16px 0 4px}
+.modes button{font:inherit;font-size:13px;padding:7px 14px;border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--fg);cursor:pointer}
+.modes button[aria-pressed="true"]{background:var(--fg);color:var(--bg)}
+main{max-width:1180px;margin:0 auto;padding:8px 16px 48px;display:grid;gap:20px}
+.wall{border-radius:28px;padding:22px 18px;overflow:hidden}
+.wall.dark{background:radial-gradient(60% 50% at 18% 12%,#3a2a6b 0,transparent 70%),radial-gradient(50% 45% at 85% 30%,#0f4a5c 0,transparent 70%),radial-gradient(70% 60% at 55% 100%,#4a1d3a 0,transparent 70%),#07080d;color:#fff}
+.wall.light{background:radial-gradient(60% 50% at 15% 10%,#ffd9c2 0,transparent 70%),radial-gradient(55% 50% at 90% 25%,#c9dcff 0,transparent 70%),radial-gradient(70% 60% at 50% 100%,#e6d4ff 0,transparent 70%),#f4f1ee;color:#1a1c22}
+.wall h2{font-size:13px;font-weight:500;margin:0 0 14px;opacity:.75;letter-spacing:.02em}
+.row{display:flex;flex-wrap:wrap;gap:22px 18px;margin-bottom:26px;align-items:flex-start}
+.cell{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:60px}
+.cell span.l{font-size:11px;font-weight:500;opacity:.92;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+.wall.light .cell span.l{text-shadow:none}
+.size-tag{font-size:11px;opacity:.6;margin:0 0 8px}
+.ic{position:relative;display:block}
+.ic .bk{position:absolute;inset:0}
+.ic svg{position:absolute;inset:0;overflow:visible}
+</style>
+</head>
+<body>
+<header>
+  <h1>Glass icons: Tinted glass direction</h1>
+  <p>Twelve of the hardest and most-used system roles, drawn from scratch on a 24-unit grid, on a dark and a light wallpaper at 60, 120 and 180 px. Calendar and Clock are live. Switch the style to see the same artwork in each Glass icon mode. Text uses IBM Plex Sans when it is installed on this machine, otherwise the system sans.</p>
+  <div class="modes" role="group" aria-label="Icon style">
+    <button data-m="dark" aria-pressed="true">Dark (default)</button>
+    <button data-m="light" aria-pressed="false">Light</button>
+    <button data-m="tinted" aria-pressed="false">Tinted</button>
+    <button data-m="clear" aria-pressed="false">Clear</button>
+  </div>
+</header>
+<main id="main"></main>
+<script>
+// ---- Tokens: mirror docs/ICON_DIRECTION.md section 2 ----
+const HUE = {
+  comm:    ['#45D483','#0B5C33'],
+  blue:    ['#4A9DFF','#0F3C8F'],
+  sky:     ['#63C3FF','#1A4C9A'],
+  teal:    ['#34CDB5','#0A5753'],
+  photo:   ['#FF9A6B','#8A2546'],
+  graphite:['#737985','#1B1E24'],
+  safety:  ['#3FD6A0','#075442'],
+  cyan:    ['#4CD3E8','#0A4E66'],
+};
+const MODE = {
+  dark:  {alpha:.94, cap:.22, rim:.55, glow:.45, sh:.40},
+  light: {alpha:1,   cap:.30, rim:.70, glow:.35, sh:.18},
+  tinted:{alpha:.90, cap:.16, rim:.45, glow:.22, sh:.40},
+  clear: {alpha:1,   cap:.30, rim:.60, glow:.18, sh:.22},
+};
+const N = 5; // superellipse exponent
+function squircle(s){
+  const p=[], k=2/N, h=s/2;
+  for(let i=0;i<128;i++){const t=i/128*2*Math.PI, c=Math.cos(t), d=Math.sin(t);
+    p.push((h+h*Math.sign(c)*Math.abs(c)**k).toFixed(2)+' '+(h+h*Math.sign(d)*Math.abs(d)**k).toFixed(2));}
+  return 'M'+p.join('L')+'Z';
+}
+const SQ = squircle(100);
+function mix(a,b,t){const x=parseInt(a.slice(1),16),y=parseInt(b.slice(1),16);return '#'+[16,8,0].map(s=>Math.round(((x>>s)&255)*(1-t)+((y>>s)&255)*t).toString(16).padStart(2,'0')).join('');}
+
+// ---- Glyphs: 24-unit grid, stroke 1.75, round caps and joins. Original artwork. ----
+const S='fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"';
+const F='fill="currentColor"';
+function gear(){ // 8 teeth, outer r 9.4, root r 7.4
+  let d='';const n=32;
+  for(let i=0;i<n;i++){const a=i/n*2*Math.PI-Math.PI/2+Math.PI/n,r=(i%4<2)?9.4:7.4;d+=(i?'L':'M')+(12+r*Math.cos(a)).toFixed(2)+' '+(12+r*Math.sin(a)).toFixed(2);}
+  return d+'Z';
+}
+const G = {
+  phone:{name:'Phone',hue:'comm',svg:`<path ${F} d="M7.2 3.2h2.4c.7 0 1 .3 1.2 1l.8 3.1c.2.7 0 1.2-.5 1.6L9.6 10c1.2 2.6 2.9 4.3 5.4 5.4l1.1-1.5c.4-.5.9-.7 1.6-.5l3.1.8c.7.2 1 .5 1 1.2v2.4c0 2.2-1.8 4-4 3.9C9.5 21.3 2.7 14.5 3.2 7.1c.1-2.1 1.9-3.9 4-3.9z"/>`},
+  messages:{name:'Messages',hue:'comm',svg:`<path ${S} d="M5 4.5h14a2.5 2.5 0 0 1 2.5 2.5v8a2.5 2.5 0 0 1-2.5 2.5h-8.2L6 21v-3.5H5A2.5 2.5 0 0 1 2.5 15V7A2.5 2.5 0 0 1 5 4.5z"/><circle ${F} cx="8" cy="11" r="1.3"/><circle ${F} cx="12" cy="11" r="1.3"/><circle ${F} cx="16" cy="11" r="1.3"/>`},
+  camera:{name:'Camera',hue:'graphite',svg:`<path ${S} d="M4.5 7.5h3l1.6-2.3c.3-.4.7-.7 1.2-.7h3.4c.5 0 .9.3 1.2.7l1.6 2.3h3a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2h-15a2 2 0 0 1-2-2V9.5a2 2 0 0 1 2-2z"/><circle ${S} cx="12" cy="13.5" r="3.6"/><circle ${F} cx="18" cy="10.4" r=".9" opacity=".6"/>`},
+  photos:{name:'Photos',hue:'photo',svg:`<rect ${S} x="6.5" y="3" width="14.5" height="12" rx="2.2" opacity=".5"/><rect ${S} x="3" y="7" width="14.5" height="13" rx="2.2"/><circle ${F} cx="13.2" cy="11.2" r="1.6"/><path ${S} d="M3.6 18.2l4.3-4.6 3.4 3.6 1.9-1.9 3.6 3.4"/>`},
+  clock:{name:'Clock',hue:'graphite',live:'clock'},
+  calendar:{name:'Calendar',hue:'graphite',live:'cal'},
+  settings:{name:'Settings',hue:'graphite',svg:`<path ${S} d="${gear()}"/><circle ${S} cx="12" cy="12" r="3.1"/>`},
+  weather:{name:'Weather',hue:'sky',svg:`<circle cx="9.2" cy="8.8" r="3.6" style="fill:var(--sun)"/><path ${S} d="M9.2 2.4v1.3M3.9 4.6l.9.9M2.6 9h1.3M14.5 4.6l-.9.9" style="stroke:var(--sun)"/><path ${F} d="M8.6 20.5a4.1 4.1 0 0 1-.6-8.2 5.4 5.4 0 0 1 10.3 1.7 3.3 3.3 0 0 1-.6 6.5z"/>`},
+  maps:{name:'Maps',hue:'teal',svg:`<path ${S} d="M3.5 6.6l5.3-2.1 6.4 2.2 5.3-2.1v13l-5.3 2.1-6.4-2.2-5.3 2.1z"/><path ${S} d="M8.8 4.5v12.9M15.2 6.7v4.6" opacity=".5"/><path ${F} d="M16.8 9.4a3 3 0 0 1 3 3c0 2.2-3 5-3 5s-3-2.8-3-5a3 3 0 0 1 3-3z"/><circle cx="16.8" cy="12.3" r="1" style="fill:var(--hole)"/>`},
+  files:{name:'Files',hue:'blue',svg:`<path ${S} d="M3 7.2V6a2 2 0 0 1 2-2h4l2 2.2h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path ${S} d="M3 9.6h18" opacity=".5"/>`},
+  security:{name:'Security',hue:'safety',svg:`<path ${S} d="M12 2.8l7.5 2.8v5.6c0 4.6-3.1 8.4-7.5 10-4.4-1.6-7.5-5.4-7.5-10V5.6z"/><path ${S} d="M8.6 12.1l2.4 2.4 4.6-4.8"/>`},
+  cleaner:{name:'Cleaner',hue:'cyan',svg:`<path ${F} d="M10 3.2l1.5 4.3 4.3 1.5-4.3 1.5L10 14.8l-1.5-4.3L4.2 9l4.3-1.5z"/><path ${F} d="M17.5 12.5l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2-2.2-.8 2.2-.8z" opacity=".75"/><path ${S} d="M3.5 19.5c3.2 1.4 7 1.4 10.2 0" opacity=".5"/>`},
+};
+function liveGlyph(kind,m,lo){
+  const now=new Date();
+  if(kind==='cal'){
+    const wd=['SUN','MON','TUE','WED','THU','FRI','SAT'][now.getDay()];
+    const red = m==='tinted'?lo:'#FF6B5E';
+    return `<text x="12" y="7.6" text-anchor="middle" font-size="4.8" font-weight="600" letter-spacing=".5" fill="${red}" font-family="IBM Plex Sans,system-ui,sans-serif">${wd}</text><text x="12" y="20.6" text-anchor="middle" font-size="13.5" font-weight="500" fill="currentColor" font-family="IBM Plex Sans,system-ui,sans-serif" letter-spacing="-.6">${now.getDate()}</text>`;
+  }
+  let t=''; for(let i=0;i<12;i++){const a=i/12*2*Math.PI,r1=i%3?10.2:9.3,r2=11;t+=`M${(12+r1*Math.sin(a)).toFixed(2)} ${(12-r1*Math.cos(a)).toFixed(2)}L${(12+r2*Math.sin(a)).toFixed(2)} ${(12-r2*Math.cos(a)).toFixed(2)}`;}
+  const sec = m==='tinted'?lo:'#FF8A3D';
+  return `<path d="${t}" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" opacity=".7"/>
+  <line class="hh" x1="12" y1="12" x2="12" y2="6.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  <line class="mh" x1="12" y1="12" x2="12" y2="3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  <line class="sh" x1="12" y1="14" x2="12" y2="3.2" stroke="${sec}" stroke-width=".8" stroke-linecap="round"/>
+  <circle cx="12" cy="12" r="1.1" fill="${sec}"/>`;
+}
+
+let uid=0;
+function tile(key,size,m,onLight){
+  const g=G[key], P=MODE[m], id='t'+(uid++);
+  const [lo,hi]=HUE[g.hue];
+  let top=lo, bot=hi, glyph='#FFFFFF', bodyOp=P.alpha;
+  if(m==='light'){ bot=mix(hi,lo,.35); }
+  if(m==='tinted'){ top='#2C3038'; bot='#111318'; glyph=g.hue==='graphite'?'#C9CDD4':lo; }
+  if(m==='clear'){ top=bot='#FFFFFF'; bodyOp=onLight?.22:.09; glyph=onLight?'#1B1E24':'#FFFFFF'; }
+  const rimPx=Math.min(2,Math.max(1,size*.02)), rimU=rimPx*100/size;
+  const shA=onLight?P.sh*.6:P.sh;
+  const sh=`drop-shadow(0 ${(size*.025).toFixed(1)}px ${(size*.05).toFixed(1)}px rgba(0,0,0,${shA.toFixed(2)}))`;
+  const blur=Math.round(size*.14);
+  const back = m==='clear' ? `clip-path:path('${squircle(size)}');backdrop-filter:blur(${blur}px) saturate(1.7);-webkit-backdrop-filter:blur(${blur}px) saturate(1.7);` : 'display:none;';
+  const inner = g.live ? liveGlyph(g.live,'dark',lo) : g.svg; // live tiles keep their coral/orange accent in every mode
+  const hole = m==='tinted'?'#1A1D22':m==='clear'?(onLight?'#ece8f0':'#22242c'):mix(hi,lo,.2);
+  const sun = m==='tinted'?lo:(m==='clear'&&onLight?'#D99A00':'#FFD66B');
+  return `<span class="ic" style="width:${size}px;height:${size}px;filter:${sh}"><span class="bk" style="${back}"></span>
+<svg viewBox="0 0 100 100" width="${size}" height="${size}" role="img" aria-label="${g.name}" style="--hole:${hole};--sun:${sun}">
+<defs>
+ <linearGradient id="${id}b" x1=".15" y1="0" x2=".85" y2="1"><stop offset="0" stop-color="${top}"/><stop offset="1" stop-color="${bot}"/></linearGradient>
+ <linearGradient id="${id}r" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="${P.rim}"/><stop offset=".55" stop-color="#fff" stop-opacity="${(P.rim*.18).toFixed(2)}"/><stop offset="1" stop-color="#fff" stop-opacity=".04"/></linearGradient>
+ <linearGradient id="${id}c" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity="${P.cap}"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+ <radialGradient id="${id}g" cx=".5" cy="1" r=".5" fx=".5" fy="1"><stop offset="0" stop-color="${lo}" stop-opacity="${P.glow}"/><stop offset="1" stop-color="${lo}" stop-opacity="0"/></radialGradient>
+ <clipPath id="${id}k"><path d="${SQ}"/></clipPath>
+ <filter id="${id}s" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy=".5" stdDeviation=".55" flood-color="#000" flood-opacity="${m==='clear'&&onLight?.12:.28}"/></filter>
+</defs>
+<path d="${SQ}" fill="url(#${id}b)" fill-opacity="${bodyOp}"/>
+<g clip-path="url(#${id}k)">
+ <ellipse cx="50" cy="104" rx="46" ry="22" fill="url(#${id}g)"/>
+ <ellipse cx="40" cy="-4" rx="72" ry="46" fill="url(#${id}c)"/>
+ <path d="${SQ}" fill="none" stroke="url(#${id}r)" stroke-width="${(rimU*2).toFixed(2)}"/>
+</g>
+<g transform="translate(26 26) scale(2)" color="${glyph}" opacity=".96" filter="url(#${id}s)">${inner}</g>
+</svg></span>`;
+}
+
+const ORDER=['phone','messages','camera','photos','clock','calendar','settings','weather','maps','files','security','cleaner'];
+let mode='dark';
+function render(){
+  uid=0;
+  document.getElementById('main').innerHTML = [['dark','Dark wallpaper'],['light','Light wallpaper']].map(([w,label])=>{
+    const onLight=w==='light';
+    const rows=[60,120,180].map(sz=>`<div class="size-tag">${sz} px${sz===60?' (home-grid size, with label)':''}</div><div class="row">${ORDER.map(k=>`<div class="cell">${tile(k,sz,mode,onLight)}${sz===60?`<span class="l">${G[k].name}</span>`:''}</div>`).join('')}</div>`).join('');
+    return `<section class="wall ${w}"><h2>${label} · ${mode[0].toUpperCase()+mode.slice(1)} style</h2>${rows}</section>`;
+  }).join('');
+  tick();
+}
+function tick(){
+  const d=new Date(), s=d.getSeconds(), mi=d.getMinutes()+s/60, h=(d.getHours()%12)+mi/60;
+  document.querySelectorAll('.hh').forEach(e=>e.setAttribute('transform',`rotate(${h*30} 12 12)`));
+  document.querySelectorAll('.mh').forEach(e=>e.setAttribute('transform',`rotate(${mi*6} 12 12)`));
+  document.querySelectorAll('.sh').forEach(e=>e.setAttribute('transform',`rotate(${s*6} 12 12)`));
+}
+document.querySelectorAll('.modes button').forEach(b=>b.onclick=()=>{mode=b.dataset.m;document.querySelectorAll('.modes button').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));render();});
+{const q=new URLSearchParams(location.search).get('m'); if(MODE[q]) mode=q;
+ document.querySelectorAll('.modes button').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.m===mode)));}
+render(); setInterval(tick,1000);
+</script>
+</body>
+</html>
