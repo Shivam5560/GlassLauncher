@@ -96,6 +96,8 @@ fun HomeGridPage(
     drag: DragController,
     callbacks: HomeCallbacks,
     onDoubleTap: (() -> Unit)?,
+    /** Long-press on empty page space (not on an icon or widget): enters Edit Home Screen. */
+    onLongPressEmpty: (() -> Unit)? = null,
     blocked: BooleanArray? = null,
     widgetLayer: (@Composable BoxScope.(cellW: Dp, cellH: Dp) -> Unit)? = null,
 ) {
@@ -104,8 +106,13 @@ fun HomeGridPage(
             .fillMaxSize()
             .padding(horizontal = 10.dp)
             .then(
-                if (onDoubleTap == null) Modifier
-                else Modifier.pointerInput(onDoubleTap) { detectTapGestures(onDoubleTap = { onDoubleTap() }) },
+                if (onDoubleTap == null && onLongPressEmpty == null) Modifier
+                else Modifier.pointerInput(onDoubleTap, onLongPressEmpty) {
+                    detectTapGestures(
+                        onDoubleTap = onDoubleTap?.let { f -> { _: androidx.compose.ui.geometry.Offset -> f() } },
+                        onLongPress = onLongPressEmpty?.let { f -> { _: androidx.compose.ui.geometry.Offset -> f() } },
+                    )
+                },
             ),
     ) {
         val cellW = maxWidth / GRID_COLUMNS

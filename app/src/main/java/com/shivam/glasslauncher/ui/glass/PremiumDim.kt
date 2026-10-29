@@ -11,14 +11,14 @@ import androidx.compose.ui.graphics.Color
  * The input is the wallpaper luminance from [WallpaperSource.Snapshot.luminance] (gamma-encoded, 0..1).
  */
 object PremiumDim {
-    /** Floor: dark wallpapers keep nearly all their detail. */
-    const val MIN_ALPHA = 0.12f
+    /** Floor: dark wallpapers still get a light, even dim. */
+    const val MIN_ALPHA = 0.2f
 
     /**
      * Ceiling: the AA solution reaches about 0.82 on a white wallpaper, which blacks out the picture.
-     * Capped so bright wallpapers stay visible (page 2's dim is 0.3); text on glass cards has its own scrim.
+     * Kept at 0.3 (owner: "0.2-0.3") so bright wallpapers stay visible; text on glass cards has its own scrim.
      */
-    const val MAX_ALPHA = 0.5f
+    const val MAX_ALPHA = 0.3f
 
     /** Largest linear luminance under the dim that still gives white text AA: (1.05 / AA) - 0.05. */
     private val MAX_WHITE_TEXT_LINEAR = 1.05f / Contrast.AA - 0.05f

@@ -180,6 +180,7 @@ fun LauncherScreen(
     val crossWindowBlur = rememberCrossWindowBlur(if (overlayOpen) glass.blurRadius else 0f)
     val overlayAnimState = animateFloatAsState(if (overlayOpen) 1f else 0f, spring(dampingRatio = 1f, stiffness = 300f), label = "overlay")
     val overlayAnim by overlayAnimState
+    val editShift by animateFloatAsState(if (ui.editMode) with(LocalDensity.current) { 36.dp.toPx() } else 0f, spring(dampingRatio = 1f, stiffness = 400f), label = "editShift")
     val lightWallpaper = snapshot.globalLuminance > 0.7f
 
     val wallpaperLayer = rememberGraphicsLayer()
@@ -561,7 +562,13 @@ fun LauncherScreen(
                                 val page = ring.of(pagerPage) - TODAY_PAGES
                                 val homeAnim = settings.appearance.homeAnimation
                                 val isHome = page in 0 until homePageCount
-                                Box(Modifier.fillMaxSize().padding(bottom = if (isHome) chromePad else 0.dp).graphicsLayer { if (isHome) homePageTransition(homeAnim, pagerState.currentPage + pagerState.currentPageOffsetFraction - pagerPage) }) {
+                                Box(Modifier.fillMaxSize().padding(bottom = if (isHome) chromePad else 0.dp).graphicsLayer {
+                                    if (isHome) {
+                                        homePageTransition(homeAnim, pagerState.currentPage + pagerState.currentPageOffsetFraction - pagerPage)
+                                        // Edit mode: the toolbar (Settings, pages, share, +, Done) sits above the first row, so the page slides down under it.
+                                        translationY += editShift
+                                    }
+                                }) {
                                 CompositionLocalProvider(LocalBackdrop provides wallpaperOnly) {
                                     if (page < 0) {
                                         // The dim keeps white text at AA for any wallpaper, so Today always uses light text.
@@ -575,6 +582,10 @@ fun LauncherScreen(
                                             drag = ui.drag,
                                             callbacks = callbacks,
                                             onDoubleTap = if (doubleTapBound) doubleTap else null,
+                                            onLongPressEmpty = if (ui.editMode) null else ({
+                                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                ui.editMode = true
+                                            }),
                                             blocked = remember(layout, page) { layout.blockedCells(page) },
                                             widgetLayer = { cellW, cellH -> HomeWidgetsLayer(page, pageWidgets, cellW, cellH, widgetUi, ui.editMode) },
                                         )
