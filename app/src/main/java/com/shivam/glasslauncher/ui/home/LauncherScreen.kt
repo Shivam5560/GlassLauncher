@@ -118,7 +118,7 @@ fun LauncherScreen(
     val groups by vm.libraryGroups.collectAsState()
     val snapshot by vm.wallpaper.collectAsState()
     val generation by vm.iconGeneration.collectAsState()
-    val activity = LocalContext.current as Activity
+    val activity = androidx.activity.compose.LocalActivity.current ?: return
     val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val haptics = LocalHapticFeedback.current

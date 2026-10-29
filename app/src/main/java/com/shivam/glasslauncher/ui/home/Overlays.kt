@@ -206,7 +206,7 @@ fun ContextMenuOverlay(
 ) {
     val current = ui.menu
     val target = rememberLast(current) ?: return
-    val activity = LocalContext.current as Activity
+    val activity = androidx.activity.compose.LocalActivity.current ?: return
     var progress by remember { mutableFloatStateOf(0f) }
     if (current != null) BackHandler { ui.menu = null }
     val entry = target.entry
@@ -367,7 +367,7 @@ fun RenameOverlay(ui: LauncherUiState, vm: LauncherViewModel) {
 fun LockPromptOverlay(ui: LauncherUiState, vm: LauncherViewModel, ctx: HomeContext) {
     val current = ui.lockPrompt
     val last = rememberLast(current) ?: return
-    val activity = LocalContext.current as Activity
+    val activity = androidx.activity.compose.LocalActivity.current ?: return
     GlassAlert(
         visible = current != null,
         title = "“${ctx.label(last.entry)}” is locked",

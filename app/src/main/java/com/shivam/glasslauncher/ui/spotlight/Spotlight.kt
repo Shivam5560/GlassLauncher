@@ -3,7 +3,6 @@
 package com.shivam.glasslauncher.ui.spotlight
 
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
@@ -13,7 +12,6 @@ import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,18 +25,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -56,7 +53,6 @@ import com.shivam.glasslauncher.data.AppEntry
 import com.shivam.glasslauncher.search.ContactResult
 import com.shivam.glasslauncher.search.SpotlightResults
 import com.shivam.glasslauncher.ui.LauncherViewModel
-import com.shivam.glasslauncher.ui.glass.GlassButton
 import com.shivam.glasslauncher.ui.glass.GlassColors
 import com.shivam.glasslauncher.ui.glass.GlassIconButton
 import com.shivam.glasslauncher.ui.glass.GlassIcons
@@ -70,7 +66,6 @@ import com.shivam.glasslauncher.ui.glass.GlassSurface
 import com.shivam.glasslauncher.ui.glass.GlassText
 import com.shivam.glasslauncher.ui.glass.GlassTextField
 import com.shivam.glasslauncher.ui.glass.GlassType
-import com.shivam.glasslauncher.ui.glass.GlassVariant
 import com.shivam.glasslauncher.ui.home.AppIconImage
 import com.shivam.glasslauncher.ui.home.LauncherUiState
 import com.shivam.glasslauncher.ui.home.rememberLast
@@ -101,7 +96,7 @@ fun SpotlightOverlay(
     val suggestions by vm.suggestions.collectAsState()
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
-    val activity = LocalContext.current as Activity
+    val activity = androidx.activity.compose.LocalActivity.current ?: return
     var progress by remember { mutableFloatStateOf(0f) }
 
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -153,8 +148,8 @@ fun SpotlightOverlay(
             // A tap on empty space (not on a result, field or button) goes back to Home.
             Column(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { close() } }.padding(horizontal = 14.dp)) {
                 Spacer(Modifier.height(10.dp))
-                // iOS 27: the island grows into a black "Search or Ask" pill; tap outside or Back closes.
-                SearchOrAskField(
+                // Search stays within thumb reach and exposes an explicit way back home.
+                SpotlightSearchField(
                     query = query,
                     onQuery = { vm.query.value = it },
                     focus = focus,
@@ -163,6 +158,7 @@ fun SpotlightOverlay(
                         if (top != null) { close(); onLaunch(top, null) }
                         else if (query.isNotBlank()) { close(); vm.actions.webSearch(activity, query) }
                     },
+                    onClose = { close() },
                     onVoice = {
                         close()
                         try {
@@ -224,14 +220,14 @@ private fun SpotlightResultsList(
     ) {
         if (suggestions.isNotEmpty() && query.isBlank()) {
             item("suggestions") {
-                GlassListGroup(title = "Siri Suggestions") {
+                GlassListGroup(title = "Suggested for you") {
                     AppIconRow(suggestions, label, onLaunch)
                 }
             }
         }
         if (query.isBlank()) {
             item("hint") {
-                GlassListGroup(footer = "Type to search apps, contacts and settings, do maths like 12*7+3 or convert units like 5 km to mi.") {
+                GlassListGroup(footer = "Find an app, a contact or a setting. You can also try 12 × 7 or 5 km to mi.") {
                     GlassRow("Glass Settings", icon = GlassIcons.Gear, iconTint = Color(0xFF8E8E93), onClick = onOpenSettings)
                 }
             }
@@ -362,39 +358,21 @@ private fun AppResultRow(e: AppEntry, label: String, onLaunch: (AppEntry, androi
 
 private fun Rect.toAndroid() = android.graphics.Rect(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
 
-/** iOS 27 "Search or Ask": a black pill at the island's place with a search glyph and a mic. */
+/** One shared glass search control with clear, voice and close actions. */
 @Composable
-private fun SearchOrAskField(
+private fun SpotlightSearchField(
     query: String,
     onQuery: (String) -> Unit,
-    focus: androidx.compose.ui.focus.FocusRequester,
+    focus: FocusRequester,
     onGo: () -> Unit,
     onVoice: () -> Unit,
+    onClose: () -> Unit,
 ) {
-    Row(
-        Modifier.fillMaxWidth().height(48.dp)
-            .background(Color.Black.copy(alpha = 0.88f), androidx.compose.foundation.shape.RoundedCornerShape(24.dp))
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        com.shivam.glasslauncher.ui.glass.GlassIcon(GlassIcons.Search, size = 18.dp, tint = Color.White.copy(alpha = 0.6f))
-        Spacer(Modifier.width(10.dp))
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (query.isEmpty()) GlassText("Search or Ask", style = GlassType.Body, color = Color.White.copy(alpha = 0.5f), maxLines = 1)
-            androidx.compose.foundation.text.BasicTextField(
-                value = query,
-                onValueChange = onQuery,
-                singleLine = true,
-                textStyle = GlassType.Body.copy(color = Color.White),
-                cursorBrush = androidx.compose.ui.graphics.SolidColor(Color.White),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
-                keyboardActions = KeyboardActions(onGo = { onGo() }),
-                modifier = Modifier.fillMaxWidth().focusRequester(focus),
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        Box(Modifier.size(32.dp).clickable(onClick = onVoice), contentAlignment = Alignment.Center) {
-            com.shivam.glasslauncher.ui.glass.GlassIcon(com.shivam.glasslauncher.overlay.OverlayIcons.Mic, size = 20.dp, tint = Color.White.copy(alpha = 0.75f))
-        }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        GlassTextField(query, onQuery, Modifier.weight(1f), placeholder = "Apps, contacts & more", focusRequester = focus,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go), keyboardActions = KeyboardActions(onGo = { onGo() }))
+        if (query.isBlank()) GlassIconButton(com.shivam.glasslauncher.overlay.OverlayIcons.Mic,
+            onClick = onVoice, size = 44.dp, contentDescription = "Voice search")
+        GlassIconButton(GlassIcons.Close, onClick = onClose, size = 44.dp, contentDescription = "Close search")
     }
 }

@@ -133,7 +133,7 @@ half4 main(float2 p) {
     private fun createApi33(withBackdrop: Boolean) = RuntimeShader(source(withBackdrop))
 
     private fun create(withBackdrop: Boolean): RuntimeShader? = try {
-        createApi33(withBackdrop)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) createApi33(withBackdrop) else null
     } catch (t: Throwable) {
         Log.w("LiquidGlass", "AGSL compile failed, falling back to blur + tint", t)
         null

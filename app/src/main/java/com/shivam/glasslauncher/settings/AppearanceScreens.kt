@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -107,6 +108,7 @@ private fun GlobalAppearanceScreen(nav: SettingsNav, settings: LauncherSettings)
     var draft by remember { mutableStateOf(settings.glass) }
     var look by remember { mutableStateOf(settings.appearance) }
     var role by remember { mutableStateOf(SurfaceKind.Panel) }
+    var advanced by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(draft) {
         delay(150)
         if (draft != settings.glass) app.settings.setGlass(draft)
@@ -118,10 +120,10 @@ private fun GlobalAppearanceScreen(nav: SettingsNav, settings: LauncherSettings)
     val gesturesOn = remember { GlassGestureService.isEnabled(app) }
 
     CompositionLocalProvider(LocalGlassStyle provides draft) {
-        ScreenScaffold("Appearance", nav) {
+        ScreenScaffold("Appearance", nav, subtitle = "Shape the look. Keep the feeling.") {
             item("preview") { AppearancePreview(look, settings.showLabels) }
             item("presets") {
-                GlassListGroup(title = "Launcher theme", footer = "Solid: opaque panels, no blur. Frosted: blur and tint, no lens. Liquid Glass: blur, tint and a gentle lens. AMOLED: pure black panels and background, no blur. Editing anything below switches to Custom.") {
+                GlassListGroup(title = "Choose your material", footer = "Solid for clarity. Frosted for softness. Liquid for depth. AMOLED for pure black.") {
                     Column(Modifier.padding(12.dp)) {
                         val presets = listOf(ThemePreset.Solid, ThemePreset.Frosted, ThemePreset.Liquid, ThemePreset.Amoled)
                         GlassSegmented(presets.map { it.title }, presets.indexOf(draft.preset), { i -> draft = GlassStyle.applyPreset(draft, presets[i]) })
@@ -130,42 +132,6 @@ private fun GlobalAppearanceScreen(nav: SettingsNav, settings: LauncherSettings)
                             GlassText("Custom", style = GlassType.Footnote, secondary = true)
                         }
                     }
-                }
-            }
-            item("edit") {
-                val r = draft.role(role)
-                fun set(next: RoleStyle) { draft = draft.withRole(role, next) }
-                GlassListGroup(
-                    title = "Edit theme",
-                    footer = when (role) {
-                        SurfaceKind.Background -> "The dim behind Settings and the app drawer."
-                        SurfaceKind.Cards -> "Buttons, chips, switches, settings cards and small controls."
-                        SurfaceKind.Widget -> "Every widget panel."
-                        SurfaceKind.Panel -> "Dock, folders, menus, sheets and the drawer's category bar."
-                    } + " Automatic text colour keeps WCAG AA contrast.",
-                ) {
-                    Column(Modifier.padding(12.dp)) {
-                        GlassSegmented(listOf("Background", "Cards", "Widget", "Panel"), role.ordinal, { role = SurfaceKind.entries[it] })
-                    }
-                    ColorRow("Colour", r.color, roleColors) { set(r.copy(color = it)) }
-                    GlassSliderRow("Opacity", r.opacity ?: draft.defaultOpacity(role), 0f..1f, { "${(it * 100).toInt()}%" }) { set(r.copy(opacity = it)) }
-                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        GlassText("Text & icon colour", style = GlassType.Callout)
-                        Spacer(Modifier.height(8.dp))
-                        val sel = when (r.contentColor) {
-                            null -> 0
-                            0xFFFFFFFF.toInt() -> 1
-                            else -> 2
-                        }
-                        GlassSegmented(listOf("Automatic", "White", "Black"), sel, { i ->
-                            set(r.copy(contentColor = when (i) { 1 -> 0xFFFFFFFF.toInt(); 2 -> 0xFF050507.toInt(); else -> null }))
-                        })
-                    }
-                    GlassSliderRow("Blur radius", r.blur ?: draft.blurRadius, 0f..60f, { "${it.toInt()} dp" }) { set(r.copy(blur = it)) }
-                    GlassSliderRow("Stroke", r.stroke, 0f..3f, { if (it < 0.05f) "None" else "%.1f dp".format(it) }) { set(r.copy(stroke = if (it < 0.05f) 0f else it)) }
-                    GlassSliderRow("Shadow", r.shadow, 0f..24f, { if (it < 0.5f) "None" else "${it.toInt()} dp" }) { set(r.copy(shadow = if (it < 0.5f) 0f else it)) }
-                    ColorRow("Accent colour", r.accent, accentColors) { set(r.copy(accent = it)) }
-                    GlassRow("Reset ${role.title.lowercase()}", icon = GlassIcons.Close, iconTint = Color(0xFF8E8E93), onClick = { draft = draft.withRole(role, RoleStyle()) }, showChevron = false)
                 }
             }
             item("icons") {
@@ -217,6 +183,48 @@ private fun GlobalAppearanceScreen(nav: SettingsNav, settings: LauncherSettings)
                     else "The navigation bar stays because HyperOS forces 3-button navigation for other launchers; turn on Glass Gestures to hide it.",
                 ) {
                     GlassSwitchRow("Ultra-immersive mode", settings.immersive, { app.settings.setImmersive(it) })
+                }
+            }
+            item("advanced-toggle") {
+                GlassListGroup {
+                    GlassSwitchRow("Fine-tune each surface", advanced, { advanced = it },
+                        subtitle = "Custom colours, opacity, blur & lighting")
+                }
+            }
+            if (advanced) item("edit") {
+                val r = draft.role(role)
+                fun set(next: RoleStyle) { draft = draft.withRole(role, next) }
+                GlassListGroup(
+                    title = "Edit theme",
+                    footer = when (role) {
+                        SurfaceKind.Background -> "The dim behind Settings and the app drawer."
+                        SurfaceKind.Cards -> "Buttons, chips, switches, settings cards and small controls."
+                        SurfaceKind.Widget -> "Every widget panel."
+                        SurfaceKind.Panel -> "Dock, folders, menus, sheets and the drawer's category bar."
+                    } + " Automatic text colour keeps WCAG AA contrast.",
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        GlassSegmented(listOf("Background", "Cards", "Widget", "Panel"), role.ordinal, { role = SurfaceKind.entries[it] })
+                    }
+                    ColorRow("Colour", r.color, roleColors) { set(r.copy(color = it)) }
+                    GlassSliderRow("Opacity", r.opacity ?: draft.defaultOpacity(role), 0f..1f, { "${(it * 100).toInt()}%" }) { set(r.copy(opacity = it)) }
+                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                        GlassText("Text & icon colour", style = GlassType.Callout)
+                        Spacer(Modifier.height(8.dp))
+                        val sel = when (r.contentColor) {
+                            null -> 0
+                            0xFFFFFFFF.toInt() -> 1
+                            else -> 2
+                        }
+                        GlassSegmented(listOf("Automatic", "White", "Black"), sel, { i ->
+                            set(r.copy(contentColor = when (i) { 1 -> 0xFFFFFFFF.toInt(); 2 -> 0xFF050507.toInt(); else -> null }))
+                        })
+                    }
+                    GlassSliderRow("Blur radius", r.blur ?: draft.blurRadius, 0f..60f, { "${it.toInt()} dp" }) { set(r.copy(blur = it)) }
+                    GlassSliderRow("Stroke", r.stroke, 0f..3f, { if (it < 0.05f) "None" else "%.1f dp".format(it) }) { set(r.copy(stroke = if (it < 0.05f) 0f else it)) }
+                    GlassSliderRow("Shadow", r.shadow, 0f..24f, { if (it < 0.5f) "None" else "${it.toInt()} dp" }) { set(r.copy(shadow = if (it < 0.5f) 0f else it)) }
+                    ColorRow("Accent colour", r.accent, accentColors) { set(r.copy(accent = it)) }
+                    GlassRow("Reset ${role.title.lowercase()}", icon = GlassIcons.Close, iconTint = Color(0xFF8E8E93), onClick = { draft = draft.withRole(role, RoleStyle()) }, showChevron = false)
                 }
             }
             item("reset") {
@@ -325,7 +333,9 @@ private fun AppearancePreview(look: Appearance, homeLabels: Boolean) {
                     GlassSurface(Modifier.size(width = 96.dp, height = 40.dp), shape = GlassShape.rounded(style.widgetCornerRadius.coerceAtMost(20f).dp), kind = SurfaceKind.Widget, role = null, contentAlignment = Alignment.Center) {
                         GlassText("Widget", style = GlassType.Subhead)
                     }
-                    GlassButton("Button", onClick = {})
+                    GlassSurface(shape = GlassShape.Capsule, variant = GlassVariant.Clear, role = null) {
+                        GlassText("Glass", Modifier.padding(horizontal = 16.dp, vertical = 10.dp), style = GlassType.Subhead)
+                    }
                     GlassText("Accent", style = GlassType.Subhead, color = currentAccent())
                 }
             }
