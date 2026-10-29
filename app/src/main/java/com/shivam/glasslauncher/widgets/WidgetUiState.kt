@@ -41,6 +41,8 @@ class WidgetUiState(
     var menu by mutableStateOf<WidgetMenu?>(null)
     /** Instance whose edit sheet is open. */
     var editing by mutableStateOf<String?>(null)
+    /** Home widget showing resize handles and nudge arrows outside Edit mode (menu: Resize & Move). */
+    var arranging by mutableStateOf<String?>(null)
     var pageManager by mutableStateOf(false)
     /** A third-party widget is being bound/configured. */
     private var bindJob: kotlinx.coroutines.Job? = null

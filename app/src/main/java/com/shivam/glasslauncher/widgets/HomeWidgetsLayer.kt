@@ -1,5 +1,9 @@
 package com.shivam.glasslauncher.widgets
 
+import kotlinx.coroutines.delay
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
@@ -95,6 +99,7 @@ private fun HomeWidgetFrame(
         val snapped = GridPlacement.snap(rect.col + d.x / cellWPx, rect.row + d.y / cellHPx, rect.w, rect.h, GRID_COLUMNS, GRID_ROWS)
         GridPlacement.nearestFree(snapped, others, GRID_COLUMNS, GRID_ROWS)
     }
+    val arranging = ui.arranging == w.id
     val shown = resize ?: rect
     val rotation = jiggleRotation(editMode && drag == null && resize == null)
 
@@ -115,7 +120,7 @@ private fun HomeWidgetFrame(
 
     Box(
         Modifier
-            .zIndex(if (drag != null) 2f else 1f)
+            .zIndex(if (drag != null || arranging) 3f else 1f)
             .offset(cellW * rect.col, cellH * rect.row)
             .size(cellW * shown.w, cellH * shown.h)
             .graphicsLayer {
@@ -171,33 +176,52 @@ private fun HomeWidgetFrame(
                     },
             )
             RemoveBadge(onClick = { ui.remove(w.id) }, modifier = Modifier.align(Alignment.TopStart).offset((-8).dp, (-8).dp))
-            if (drag == null && inst != null) {
-                val spec = resizeSpec(inst, context, cellW.value, cellH.value)
-                if (spec != null) {
-                    // Each handle moves one or two edges (cells, fractional); the rect snaps like SL6's free rectangle.
-                    fun dragEdges(dl: Float, dt: Float, dr: Float, db: Float) {
-                        resize = GridPlacement.resizeEdges(
-                            rect, dl, dt, dr, db, GRID_COLUMNS, GRID_ROWS,
-                            minW = spec.minW, minH = spec.minH,
-                            maxW = if (spec.horizontal) GRID_COLUMNS else rect.w,
-                            maxH = if (spec.vertical) GRID_ROWS else rect.h,
-                        ).let { r -> if (GridPlacement.collides(r, others)) resize ?: rect else r }
-                    }
-                    val endResize: () -> Unit = {
-                        val r = resize
-                        resize = null
-                        if (r != null && r != rect) ui.resizeWidget(w.id, r.w, r.h, r.col, r.row)
-                    }
-                    ResizeHandle(Modifier.align(Alignment.BottomEnd).offset(6.dp, 6.dp), { t -> dragEdges(0f, 0f, t.x / cellWPx, t.y / cellHPx) }, endResize)
-                    if (spec.horizontal) {
-                        ResizeHandle(Modifier.align(Alignment.CenterEnd).offset(6.dp, 0.dp), { t -> dragEdges(0f, 0f, t.x / cellWPx, 0f) }, endResize, axisY = false, size = 24.dp)
-                        ResizeHandle(Modifier.align(Alignment.CenterStart).offset((-6).dp, 0.dp), { t -> dragEdges(t.x / cellWPx, 0f, 0f, 0f) }, endResize, axisY = false, size = 24.dp)
-                    }
-                    if (spec.vertical) {
-                        ResizeHandle(Modifier.align(Alignment.BottomCenter).offset(0.dp, 6.dp), { t -> dragEdges(0f, 0f, 0f, t.y / cellHPx) }, endResize, axisX = false, size = 24.dp)
-                        ResizeHandle(Modifier.align(Alignment.TopCenter).offset(0.dp, (-6).dp), { t -> dragEdges(0f, t.y / cellHPx, 0f, 0f) }, endResize, axisX = false, size = 24.dp)
-                    }
+        }
+        if ((editMode || arranging) && drag == null && inst != null) {
+            val spec = resizeSpec(inst, context, cellW.value, cellH.value)
+            if (spec != null) {
+                // Each handle moves one or two edges (cells, fractional); the rect snaps like SL6's free rectangle.
+                fun dragEdges(dl: Float, dt: Float, dr: Float, db: Float) {
+                    resize = GridPlacement.resizeEdges(
+                        rect, dl, dt, dr, db, GRID_COLUMNS, GRID_ROWS,
+                        minW = spec.minW, minH = spec.minH,
+                        maxW = if (spec.horizontal) GRID_COLUMNS else rect.w,
+                        maxH = if (spec.vertical) GRID_ROWS else rect.h,
+                    ).let { r -> if (GridPlacement.collides(r, others)) resize ?: rect else r }
                 }
+                val endResize: () -> Unit = {
+                    val r = resize
+                    resize = null
+                    if (r != null && r != rect) ui.resizeWidget(w.id, r.w, r.h, r.col, r.row)
+                }
+                ResizeHandle(Modifier.align(Alignment.BottomEnd).offset(6.dp, 6.dp), { t -> dragEdges(0f, 0f, t.x / cellWPx, t.y / cellHPx) }, endResize)
+                if (spec.horizontal) {
+                    ResizeHandle(Modifier.align(Alignment.CenterEnd).offset(6.dp, 0.dp), { t -> dragEdges(0f, 0f, t.x / cellWPx, 0f) }, endResize, axisY = false, size = 24.dp)
+                    ResizeHandle(Modifier.align(Alignment.CenterStart).offset((-6).dp, 0.dp), { t -> dragEdges(t.x / cellWPx, 0f, 0f, 0f) }, endResize, axisY = false, size = 24.dp)
+                }
+                if (spec.vertical) {
+                    ResizeHandle(Modifier.align(Alignment.BottomCenter).offset(0.dp, 6.dp), { t -> dragEdges(0f, 0f, 0f, t.y / cellHPx) }, endResize, axisX = false, size = 24.dp)
+                    ResizeHandle(Modifier.align(Alignment.TopCenter).offset(0.dp, (-6).dp), { t -> dragEdges(0f, t.y / cellHPx, 0f, 0f) }, endResize, axisX = false, size = 24.dp)
+                }
+            }
+        }
+
+        if (arranging && !editMode) {
+            // Fine positioning: one-cell nudges and Done; handles above resize. Closes on its own after a few idle seconds.
+            androidx.activity.compose.BackHandler { ui.arranging = null }
+            LaunchedEffect(rect) { delay(10_000); ui.arranging = null }
+            fun nudge(dx: Int, dy: Int) {
+                val r = rect.copy(col = rect.col + dx, row = rect.row + dy)
+                if (r.col >= 0 && r.row >= 0 && r.right <= GRID_COLUMNS && r.bottom <= GRID_ROWS && !GridPlacement.collides(r, others)) ui.moveWidget(w.id, page, r)
+                else haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            }
+            // Inside the widget's own bounds: Compose only delivers touches there.
+            Row(Modifier.align(Alignment.BottomCenter).offset(0.dp, (-14).dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                com.shivam.glasslauncher.ui.glass.GlassChip("\u2190", selected = false, onClick = { nudge(-1, 0) })
+                com.shivam.glasslauncher.ui.glass.GlassChip("\u2191", selected = false, onClick = { nudge(0, -1) })
+                com.shivam.glasslauncher.ui.glass.GlassChip("\u2193", selected = false, onClick = { nudge(0, 1) })
+                com.shivam.glasslauncher.ui.glass.GlassChip("\u2192", selected = false, onClick = { nudge(1, 0) })
+                com.shivam.glasslauncher.ui.glass.GlassChip("\u2713", selected = true, onClick = { ui.arranging = null })
             }
         }
     }

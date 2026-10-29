@@ -102,6 +102,7 @@ private fun WidgetMenuOverlay(widgets: WidgetUiState, launcher: LauncherUiState)
                                 }
                             }
                         }
+                        if (last.onHome && inst != null) MenuItem("Resize & Move", GlassIcons.Grid) { close(); widgets.arranging = inst.id }
                         MenuItem("Add Widget", GlassIcons.Plus) { close(); widgets.picker = if (last.onHome) PickerTarget.Home(last.page) else PickerTarget.Today }
                         MenuItem(if (last.onHome) "Edit Home Screen" else "Edit Today View", GlassIcons.Grid) { close(); launcher.editMode = true }
                         MenuItem("Remove Widget", GlassIcons.Minus, destructive = true) { close(); widgets.remove(last.id) }
