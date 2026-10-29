@@ -140,6 +140,8 @@ data class GlassStyle(
      */
     fun defaultOpacity(kind: SurfaceKind): Float = when (kind) {
         SurfaceKind.Background -> 0.5f
+        // Widgets are thinner than panels so the wallpaper colour shows through the glass.
+        SurfaceKind.Widget -> tintOpacity * 0.6f
         else -> tintOpacity
     }
 

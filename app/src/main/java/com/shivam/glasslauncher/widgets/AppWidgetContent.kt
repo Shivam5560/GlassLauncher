@@ -7,6 +7,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -15,6 +16,8 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.shivam.glasslauncher.ui.glass.GlassShape
+
+private const val APP_WIDGET_ALPHA = 0.8f
 
 /**
  * A third-party Android widget (AppWidgetHostView) wrapped in glass: a Regular glass frame with
@@ -45,7 +48,8 @@ fun AppWidgetContent(inst: WidgetInstance, modifier: Modifier = Modifier) {
             key(id) {
                 AndroidView(
                     factory = { ctx -> host.createView(ctx, id, info) },
-                    modifier = Modifier.fillMaxSize(),
+                    // Third-party widgets paint an opaque card; fading it lets the liquid glass frame show through.
+                    modifier = Modifier.fillMaxSize().alpha(APP_WIDGET_ALPHA),
                     update = { view -> host.updateSize(view, w, h) },
                 )
             }
