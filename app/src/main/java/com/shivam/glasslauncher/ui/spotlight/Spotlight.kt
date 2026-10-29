@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,12 +31,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -64,6 +65,7 @@ import com.shivam.glasslauncher.ui.glass.GlassVariant
 import com.shivam.glasslauncher.ui.home.AppIconImage
 import com.shivam.glasslauncher.ui.home.LauncherUiState
 import com.shivam.glasslauncher.ui.home.rememberLast
+import kotlinx.coroutines.delay
 
 private var askedContacts = false
 
@@ -131,7 +133,8 @@ fun SpotlightOverlay(
             contentAlignment = Alignment.TopCenter,
             onProgress = { progress = it },
         ) {
-            Column(Modifier.fillMaxSize().padding(horizontal = 14.dp)) {
+            // A tap on empty space (not on a result, field or button) goes back to Home.
+            Column(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { close() } }.padding(horizontal = 14.dp)) {
                 Spacer(Modifier.height(10.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     GlassTextField(

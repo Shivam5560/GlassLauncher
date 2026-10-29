@@ -255,7 +255,9 @@ fun AppDrawerOverlay(
                 .fillMaxSize()
                 .graphicsLayer { alpha = progress.value }
                 .background(dim.copy(alpha = dimAlpha))
-                .swipeDownToClose(closeDistance) { close() },
+                .swipeDownToClose(closeDistance) { close() }
+                // A tap on empty space (not on an app, folder or button) goes back to Home.
+                .pointerInput(Unit) { detectTapGestures { close() } },
         ) {
             Box(
                 Modifier
