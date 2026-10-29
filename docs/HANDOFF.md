@@ -75,6 +75,20 @@ the phone's **default Home** (SL6 is still installed).
    (drawer GPU 8 -> 7 ms, Spotlight 9 -> 7 ms, CPU 13/14 ms). Experiments: lens shader off saves ~2 ms, smaller
    blur radius alone saves nothing. Remaining: live blur on home-page panels (dock/widgets), lens interior early-out
    like SL6 (`if -sd >= refractionHeight return content`), open-animation cost.
+   **Tooling**: REA's JADX provider lives outside the repo: `~/tools/jadx/jadx-headless-mcp-0.7.1-all.jar` (sha256 verified
+   against REA's pin). Use `JAVA_HOME=<openjdk17> REA_JADX_MCP_JAR=~/tools/jadx/jadx-headless-mcp-0.7.1-all.jar
+   npx -y rea-agents@6.8.0 search-android-classes <apk> <query>` (the running MCP server needs a restart to see the env var).
+   SL6 strings: `aapt2 dump strings <apk>` (English block is roughly string #2400-3750).
+   **Direction (owner)**: SL6's polished feature flows are the base; Glass's island, notification panel, App Library, Today
+   view and iOS status bar stay on top. Done: "Add Widget" in the widget long-press menu; picker apps collapse to a row with a
+   count badge (`0b25af6`). SL6 options Glass still lacks: blur vibrancy (backdrop saturation), widget shadow blur/opacity,
+   transparent widget background, darker extra pages, greyscale mode ("fine positioning" doesn't fit a cell grid).
+   **Figma reference** (owner's copy of the iOS and iPadOS 27 kit, signed in, page Examples > "iPhone - System": Control
+   Center, Home Screen, Quick Actions, Widgets, Lock Screen, Notifications): lock-screen notifications are near-pill frosted
+   platters with a squircle app icon, semibold title, message and a right-aligned time, stacks with slivers peeking below, an
+   expanded variant with content plus a glass action list. Glass's platters (24 dp, hairline) and stacks already match; the
+   iOS status bar (time left, cutout, signal, wifi, white battery pill) also matches. Unchecked: Control Center, Home Screen
+   Quick Actions and Widgets frames, and the Colors page.
 5. Earlier backlog (SL6 parity): popup widgets, widget stack, grid presets, Private Space, Nova import…
 
 ## Device workflow
