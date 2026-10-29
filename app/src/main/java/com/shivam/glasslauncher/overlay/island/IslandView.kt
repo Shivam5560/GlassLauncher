@@ -226,7 +226,7 @@ private fun Leading(a: IslandActivity, ui: IslandUi, size: Dp) {
 private fun Trailing(a: IslandActivity, ui: IslandUi, h: Dp) {
     val small = GlassType.Subhead.copy(fontWeight = FontWeight.SemiBold)
     when (val c = a.content) {
-        is IslandContent.Music -> AudioBars(c.playing, Modifier.size(width = h * 0.62f, height = h * 0.5f))
+        is IslandContent.Music -> AudioBars(c.playing, Modifier.size(width = h * 0.62f, height = h * 0.5f), ui.media?.art)
         is IslandContent.Charging -> GlassText("${c.level}%", style = small, color = Green, maxLines = 1)
         is IslandContent.Call -> if (c.incoming) GlassText("Incoming", style = small, color = Green, maxLines = 1) else LiveClock(c.since, false, small, Green)
         is IslandContent.Clock -> if (c.hasChronometer) LiveClock(c.base, c.countDown, small, Orange) else GlassText(c.text, style = small, color = Orange, maxLines = 1)
@@ -249,7 +249,7 @@ private fun ExpandedContent(a: IslandActivity, ui: IslandUi) {
                     GlassText(c.title.ifBlank { ui.media?.appLabel ?: "Now playing" }, style = GlassType.Headline, color = white, maxLines = 1)
                     GlassText(c.artist, style = GlassType.Callout, color = white.copy(alpha = 0.6f), maxLines = 1)
                 }
-                AudioBars(c.playing, Modifier.size(width = 26.dp, height = 20.dp))
+                AudioBars(c.playing, Modifier.size(width = 26.dp, height = 20.dp), ui.media?.art)
             }
             MusicProgress(ui.media)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
@@ -367,7 +367,9 @@ private fun AlbumArt(media: MediaInfo?, size: Dp) {
  * permission (Visualizer), so the bars dance to a fixed rhythm while music plays and rest when paused.
  */
 @Composable
-fun AudioBars(playing: Boolean, modifier: Modifier, color: Color = Color.White) {
+fun AudioBars(playing: Boolean, modifier: Modifier, art: android.graphics.Bitmap? = null) {
+    // HyperOS-style waves: each bar a gradient of the album art's two main vivid colours.
+    val colors = remember(art) { runCatching { waveColors(art) }.getOrElse { listOf(Color.White, Color.White) } }
     val transition = rememberInfiniteTransition(label = "bars")
     val periods = listOf(420, 560, 380, 500)
     val heights = periods.mapIndexed { i, p ->
@@ -381,7 +383,11 @@ fun AudioBars(playing: Boolean, modifier: Modifier, color: Color = Color.White) 
         heights.forEachIndexed { i, h ->
             val v = 0.22f + (h.value - 0.22f) * calm
             val bh = size.height * v
-            drawRoundRect(color, Offset(i * (w + gap), (size.height - bh) / 2f), androidx.compose.ui.geometry.Size(w, bh), CornerRadius(w / 2f, w / 2f))
+            val top = (size.height - bh) / 2f
+            drawRoundRect(
+                androidx.compose.ui.graphics.Brush.verticalGradient(colors, startY = top, endY = top + bh),
+                Offset(i * (w + gap), top), androidx.compose.ui.geometry.Size(w, bh), CornerRadius(w / 2f, w / 2f),
+            )
         }
     }
 }
@@ -462,4 +468,34 @@ private fun ringerLabel(mode: RingerMode) = when (mode) {
     RingerMode.Silent -> "Silent"
     RingerMode.Vibrate -> "Vibrate"
     RingerMode.Normal -> "Ring"
+}
+
+/**
+ * Two vivid colours from [art] (the most common saturated hues), brightened for the black island;
+ * white without art or with a greyscale cover.
+ */
+internal fun waveColors(art: android.graphics.Bitmap?): List<Color> {
+    if (art == null) return listOf(Color.White, Color.White)
+    val small = android.graphics.Bitmap.createScaledBitmap(art, 16, 16, true)
+    val buckets = Array(12) { FloatArray(4) } // count, sum r, g, b
+    val hsv = FloatArray(3)
+    for (y in 0 until 16) for (x in 0 until 16) {
+        val c = small.getPixel(x, y)
+        android.graphics.Color.colorToHSV(c, hsv)
+        if (hsv[1] < 0.3f || hsv[2] < 0.3f) continue
+        val b = buckets[(hsv[0] / 30f).toInt().coerceIn(0, 11)]
+        b[0] += 1f; b[1] += android.graphics.Color.red(c).toFloat(); b[2] += android.graphics.Color.green(c).toFloat(); b[3] += android.graphics.Color.blue(c).toFloat()
+    }
+    if (small !== art) small.recycle()
+    fun vivid(b: FloatArray): Color {
+        android.graphics.Color.RGBToHSV((b[1] / b[0]).toInt(), (b[2] / b[0]).toInt(), (b[3] / b[0]).toInt(), hsv)
+        hsv[1] = hsv[1].coerceAtLeast(0.55f); hsv[2] = 1f
+        return Color(android.graphics.Color.HSVToColor(hsv))
+    }
+    val top = buckets.filter { it[0] > 0f }.sortedByDescending { it[0] }
+    return when {
+        top.isEmpty() -> listOf(Color.White, Color.White)
+        top.size == 1 -> listOf(vivid(top[0]), androidx.compose.ui.graphics.lerp(vivid(top[0]), Color.White, 0.45f))
+        else -> listOf(vivid(top[0]), vivid(top[1]))
+    }
 }

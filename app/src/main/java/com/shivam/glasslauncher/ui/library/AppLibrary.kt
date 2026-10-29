@@ -19,8 +19,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -80,11 +78,7 @@ fun AppLibrary(
     var listMode by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
 
-    // Capped so tile icons match Home's 64 dp on wide screens (else they grow to ~90 dp).
-    Column(
-        Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp)
-            .wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = TileWidth * 2 + TileSpacing),
-    ) {
+    Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp)) {
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             GlassTextField(
@@ -141,9 +135,10 @@ private fun LibraryTile(
             role = null,
         ) {
             BoxWithConstraints(Modifier.fillMaxSize().padding(TilePad)) {
-                val icon = (maxWidth - TileGap) / 2
-                Column(verticalArrangement = Arrangement.spacedBy(TileGap)) {
-                    for (r in 0 until 2) Row(horizontalArrangement = Arrangement.spacedBy(TileGap)) {
+                // Capped near Home's icon size on wide screens (tiles still fill the width); spare room spreads evenly.
+                val icon = minOf((maxWidth - TileGap) / 2, TileIconMax)
+                Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceEvenly) {
+                    for (r in 0 until 2) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                         for (c in 0 until 2) {
                             val i = r * 2 + c
                             Box(Modifier.size(icon), contentAlignment = Alignment.Center) {
@@ -184,8 +179,8 @@ private fun MiniGrid(apps: List<AppEntry>, size: Dp, onClick: () -> Unit) {
 
 private val TilePad = 12.dp
 private val TileGap = 10.dp
-private val TileSpacing = 22.dp
-private val TileWidth = 64.dp * 2 + TileGap + TilePad * 2
+private val TileSpacing = 18.dp
+private val TileIconMax = 68.dp
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable

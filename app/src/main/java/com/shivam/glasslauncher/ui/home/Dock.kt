@@ -54,7 +54,7 @@ fun Dock(
     GlassSurface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = DockMargin, end = DockMargin, bottom = DockMargin)
+            .padding(start = DockMargin, end = DockMargin, bottom = DockBottom)
             .onGloballyPositioned { onBounds(it.boundsInWindow()) },
         shape = GlassShape.rounded(maxOf(34.dp, screenRadius - DockMargin)),
         role = null,
@@ -146,3 +146,5 @@ private fun PageDotRow(homePages: Int, current: Int, c: Color) {
 private fun Modifier.dot(color: Color): Modifier = this.drawBehind { drawCircle(color) }
 
 private val DockMargin = 14.dp
+/** Extra room under the dock so the gesture pill sits clear of it. */
+private val DockBottom = 22.dp

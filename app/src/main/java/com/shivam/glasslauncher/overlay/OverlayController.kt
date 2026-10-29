@@ -16,6 +16,7 @@ import android.view.WindowInsets
 import android.view.WindowManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -25,7 +26,10 @@ import com.shivam.glasslauncher.overlay.controlcenter.ControlCenterPanel
 import com.shivam.glasslauncher.overlay.controlcenter.SystemControls
 import com.shivam.glasslauncher.overlay.island.CutoutInfo
 import com.shivam.glasslauncher.overlay.island.IslandEngine
+import com.shivam.glasslauncher.overlay.island.IslandKind
 import com.shivam.glasslauncher.overlay.island.IslandWindow
+import com.shivam.glasslauncher.overlay.notifications.LockScreenNotifications
+import com.shivam.glasslauncher.ui.glass.OverlayWallpaperBackdrop
 import com.shivam.glasslauncher.overlay.notifications.NotificationCenterPanel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -89,19 +93,23 @@ class OverlayController(
         measureScreen()
         service.registerComponentCallbacks(configCallbacks)
         scope.launch { engine.ui.collect { island?.update(it) } }
-        scope.launch { settingsFlow.map { it.island }.distinctUntilChanged().collect { island?.setSettings(it) } }
-        scope.launch { engine.signals.locked.collect { locked = it; updateHidden() } }
+        scope.launch { settingsFlow.map { it.island }.distinctUntilChanged().collect { island?.setSettings(it); updateHidden() } }
+        scope.launch { engine.signals.locked.collect { locked = it; updateHidden(); updateLockScreen() } }
         if (accessibility != null) {
             scope.launch {
                 settingsFlow.map { Triple(it.controlCenter, it.notificationCenter, it.cornerWidth to it.cornerHeight) }
                     .distinctUntilChanged()
-                    .collect { rebuildCorners() }
+                    .collect { rebuildCorners(); updateLockScreen() }
             }
         }
         OverlayRuntime.calibrating.let { flow -> scope.launch { flow.collect { island?.setCalibrating(it) } } }
     }
 
     fun detach() {
+        setSystemBanners(true)
+        setSystemLockNotifications(true)
+        lockWindow?.destroy()
+        lockWindow = null
         closePanel(immediate = true)
         try { service.unregisterComponentCallbacks(configCallbacks) } catch (_: Exception) { }
         removeCorners()
@@ -175,6 +183,9 @@ class OverlayController(
         openPanel(kind)
     }
 
+    /** From the accessibility service on window changes: HyperOS doesn't always send USER_PRESENT on a swipe unlock. */
+    fun refreshLocked() = engine.signals.updateLocked()
+
     /** From the accessibility service: whether the status bar window is on screen. */
     fun onStatusBar(visible: Boolean) = setStatusBarHidden(!visible)
 
@@ -195,6 +206,93 @@ class OverlayController(
             else -> null
         }
         island?.setHidden(reason)
+        val s = settingsFlow.value.island
+        setSystemBanners(!(accessibility != null && reason == null && s.enabled && s.isOn(IslandKind.Peek)))
+    }
+
+    // --- lock screen notifications (accessibility host only) ---
+
+    private var lockWindow: ComposeOverlayWindow? = null
+    private var systemLockNotifications: Boolean? = null
+
+    private val lockHost = object : PanelHost {
+        override val context: Context get() = service
+        override fun close() = Unit
+        override fun launch(intent: Intent?): Boolean = host.launch(intent)
+        override fun openSystemQuickSettings() = Unit
+        override fun switchPanel() = Unit
+    }
+
+    /**
+     * Glass draws the lock screen's notifications (widget glass) while Notification Center is on, and
+     * HyperOS's own lock-screen list is switched off so they don't show twice (WRITE_SECURE_SETTINGS).
+     */
+    private fun updateLockScreen() {
+        val ours = accessibility != null && settingsFlow.value.notificationCenter
+        setSystemLockNotifications(!ours)
+        val show = ours && locked
+        if (show == (lockWindow != null)) return
+        if (!show) {
+            lockJob?.cancel()
+            lockWindow?.destroy()
+            lockWindow = null
+            return
+        }
+        val bounds = wm.currentWindowMetrics.bounds
+        val params = ComposeOverlayWindow.params(
+            windowType,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+            "GlassLockNotifications",
+        ).apply {
+            gravity = Gravity.TOP
+            // Below HyperOS's lock clock, which grows to ~45% of the screen once its own list is off.
+            y = (bounds.height() * 0.47f).toInt()
+        }
+        val maxHeight = with(androidx.compose.ui.unit.Density(density)) { (bounds.height() * 0.38f).toDp() }
+        val w = ComposeOverlayWindow(service, params) {
+            OverlayTheme {
+                val snap by com.shivam.glasslauncher.GlassApp.from(service).wallpaper.snapshot.collectAsState()
+                OverlayWallpaperBackdrop(snap) { LockScreenNotifications(lockHost, maxHeight) }
+            }
+        }
+        if (!w.show()) return
+        lockWindow = w
+        // Unlock events are unreliable on HyperOS and a leftover window would eat home swipes:
+        // poll the keyguard while the cards are up.
+        lockJob = scope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(300)
+                engine.signals.updateLocked()
+            }
+        }
+    }
+
+    private var lockJob: Job? = null
+
+    private fun setSystemLockNotifications(on: Boolean) {
+        // Only the accessibility host owns system settings (the island-only fallback must not fight it).
+        if (accessibility == null || on == systemLockNotifications) return
+        systemLockNotifications = on
+        try {
+            android.provider.Settings.Secure.putInt(service.contentResolver, "lock_screen_show_notifications", if (on) 1 else 0)
+        } catch (_: SecurityException) { }
+    }
+
+    private var systemBanners: Boolean? = null
+
+    /**
+     * HyperOS heads-up banners are off while the island is showing (its peek replaces them) and back
+     * on whenever the island hides (games, video, landscape, lock screen), so calls are never missed.
+     * Needs WRITE_SECURE_SETTINGS (granted over adb); without it HyperOS banners just keep showing.
+     */
+    private fun setSystemBanners(on: Boolean) {
+        if (accessibility == null || on == systemBanners) return
+        systemBanners = on
+        try {
+            android.provider.Settings.Global.putInt(service.contentResolver, "heads_up_notifications_enabled", if (on) 1 else 0)
+        } catch (_: SecurityException) { }
     }
 
     /** From the accessibility service whenever the foreground app changes. */

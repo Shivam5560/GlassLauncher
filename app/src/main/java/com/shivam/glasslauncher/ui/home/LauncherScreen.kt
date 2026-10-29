@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
@@ -465,11 +466,14 @@ fun LauncherScreen(
                         .recordBackdrop(homeLayer),
                 ) {
                     // Status bar space is kept even while immersive hides it (as on iOS); the dock keeps its own bottom margin.
-                    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)) {
+                    // Pages run full height under the dots and dock (home pages pad for them), so the App Library
+                    // and Today view are not cut off by the faded-out dock's space.
+                    var chromeHeight by remember { androidx.compose.runtime.mutableIntStateOf(0) }
+                    val chromePad = with(LocalDensity.current) { chromeHeight.toDp() }
+                    Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)) {
                         Box(
                             Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
+                                .fillMaxSize()
                                 .recordBackdrop(pagesLayer)
                                 .homeGestures(
                                     enabled = !dragging && !ui.editMode && ringPage in TODAY_PAGES until homePageCount + TODAY_PAGES,
@@ -487,7 +491,7 @@ fun LauncherScreen(
                                 val page = ring.of(pagerPage) - TODAY_PAGES
                                 val homeAnim = settings.appearance.homeAnimation
                                 val isHome = page in 0 until homePageCount
-                                Box(Modifier.fillMaxSize().graphicsLayer { if (isHome) homePageTransition(homeAnim, pagerState.currentPage + pagerState.currentPageOffsetFraction - pagerPage) }) {
+                                Box(Modifier.fillMaxSize().padding(bottom = if (isHome) chromePad else 0.dp).graphicsLayer { if (isHome) homePageTransition(homeAnim, pagerState.currentPage + pagerState.currentPageOffsetFraction - pagerPage) }) {
                                 CompositionLocalProvider(LocalBackdrop provides wallpaperOnly) {
                                     if (page < 0) {
                                         TodayView(widgetUi, ui.editMode, { ui.editMode = it }, lightWallpaper)
@@ -523,6 +527,12 @@ fun LauncherScreen(
                             val pos = ringState.value.of(pagerState.currentPage) + pagerState.currentPageOffsetFraction
                             maxOf((pos - (homePageCount - 1 + TODAY_PAGES)).coerceIn(0f, 1f), (TODAY_PAGES - pos).coerceIn(0f, 1f))
                         }
+                        // Fully on the Library/Today: drop the chrome so it can't catch their touches (its height is kept).
+                        val chromeGone by remember { androidx.compose.runtime.derivedStateOf { libraryFraction() > 0.99f } }
+                        if (!chromeGone) Column(
+                            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                                .onSizeChanged { chromeHeight = it.height },
+                        ) {
                         Box(
                             Modifier.fillMaxWidth().padding(vertical = 8.dp).graphicsLayer { alpha = 1f - libraryFraction() },
                             contentAlignment = Alignment.Center,
@@ -547,6 +557,7 @@ fun LauncherScreen(
                                     translationY = f * 140.dp.toPx()
                                 },
                         )
+                        }
                     }
                 }
 

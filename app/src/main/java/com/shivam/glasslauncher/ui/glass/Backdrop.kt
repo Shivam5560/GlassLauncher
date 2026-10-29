@@ -111,3 +111,31 @@ fun SnapshotBackdropLayer(image: androidx.compose.ui.graphics.ImageBitmap?, laye
         if (image != null) drawImage(image, dstSize = IntSize(size.width.toInt(), size.height.toInt()))
     }
 }
+
+/**
+ * For overlay windows smaller than the screen (lock-screen cards): records the part of the wallpaper
+ * under this window, so glass inside [content] frosts the wallpaper the way home widgets do.
+ */
+@Composable
+fun OverlayWallpaperBackdrop(snapshot: WallpaperSource.Snapshot, content: @Composable () -> Unit) {
+    val image = snapshot.image
+    if (image == null) { content(); return }
+    val layer = androidx.compose.ui.graphics.rememberGraphicsLayer()
+    val view = androidx.compose.ui.platform.LocalView.current
+    val backdrop = androidx.compose.runtime.remember(snapshot) { Backdrop(listOf(layer), snapshot) }
+    androidx.compose.foundation.layout.Box {
+        Canvas(Modifier.matchParentSize().recordBackdrop(layer, drawToScreen = false)) {
+            val loc = IntArray(2).also(view::getLocationOnScreen)
+            val sx = image.width.toFloat() / snapshot.screenWidth
+            val sy = image.height.toFloat() / snapshot.screenHeight
+            drawImage(
+                image = image,
+                srcOffset = IntOffset((loc[0] * sx).toInt(), (loc[1] * sy).toInt()),
+                srcSize = IntSize((size.width * sx).toInt().coerceAtLeast(1), (size.height * sy).toInt().coerceAtLeast(1)),
+                dstOffset = IntOffset.Zero,
+                dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+            )
+        }
+        androidx.compose.runtime.CompositionLocalProvider(LocalBackdrop provides backdrop, content = content)
+    }
+}

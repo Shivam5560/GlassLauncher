@@ -20,6 +20,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -72,6 +75,7 @@ import com.shivam.glasslauncher.ui.glass.GlassText
 import com.shivam.glasslauncher.ui.glass.GlassTextField
 import com.shivam.glasslauncher.ui.glass.GlassType
 import com.shivam.glasslauncher.ui.glass.GlassVariant
+import com.shivam.glasslauncher.ui.glass.SurfaceKind
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Date
@@ -137,7 +141,9 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                 item("header") {
                     Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         GlassText("Notification Center", Modifier.weight(1f).padding(start = 4.dp), style = GlassType.Title, color = Color.White)
-                        val clear = NotificationGrouping.visible(entries).map { it.key }
+                        // Every non-media key, group summaries included: apps that keep their summary after
+                        // its children go would otherwise need a second Clear All.
+                        val clear = entries.filter { !it.isMedia }.map { it.key }
                         if (clear.isNotEmpty()) GlassChip("Clear All", selected = false, onClick = { NotificationHub.dismissAll(clear) })
                     }
                 }
@@ -149,7 +155,7 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                             GlassText(stack.appLabel, Modifier.weight(1f).padding(start = 4.dp), style = GlassType.Headline, color = Color.White, maxLines = 1)
                             GlassChip("Show less", selected = false, onClick = { expanded = expanded - stack.packageName })
                             Spacer(Modifier.width(8.dp))
-                            GlassIconButton(GlassIcons.Close, onClick = { NotificationHub.dismissAll(stack.items.map { it.key }) }, size = 30.dp)
+                            GlassIconButton(GlassIcons.Close, onClick = { NotificationHub.dismissAll(appKeys(entries, stack.packageName)) }, size = 30.dp)
                         }
                     }
                     items(stack.items, key = { it.key }) { e ->
@@ -159,7 +165,7 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                     }
                 } else {
                     item("s:" + stack.packageName) {
-                        SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(stack.items.map { it.key }) }, enabled = true) {
+                        SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(appKeys(entries, stack.packageName)) }, enabled = true) {
                             CollapsedStack(stack, host, onExpand = { expanded = expanded + stack.packageName })
                         }
                     }
@@ -173,14 +179,39 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                     )
                 }
             }
-            item("limits") {
-                GlassText(
-                    "HyperOS pop-up banners can't be suppressed, so new notifications may still appear at the top. " +
-                        "A pull from the middle of the status bar may still open the HyperOS shade.",
-                    Modifier.padding(horizontal = 6.dp, vertical = 12.dp),
-                    style = GlassType.Footnote,
-                    color = Color.White.copy(alpha = 0.6f),
-                )
+        }
+    }
+}
+
+/**
+ * Lock screen: the media card and the newest app stacks in Glass's widget glass, replacing HyperOS's
+ * opaque lock-screen notifications. Tap a pile to fan it out; swipe a card or pile away.
+ */
+@Composable
+fun LockScreenNotifications(host: PanelHost, maxHeight: androidx.compose.ui.unit.Dp) {
+    val all by NotificationHub.entries.collectAsState()
+    val hidden by NotificationHub.hidden.collectAsState()
+    val entries = remember(all, hidden) { all.filter { (hidden[it.key] ?: -1L) < it.postTime } }
+    val media by MediaHub.state.collectAsState()
+    var expanded by remember { mutableStateOf(emptySet<String>()) }
+    val stacks = remember(entries, expanded) { NotificationGrouping.stacks(entries, expanded) }
+    // Capped above the unlock area; more cards scroll.
+    Column(
+        Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        media?.let { MediaCard(it, host, SurfaceKind.Widget) }
+        stacks.forEach { stack ->
+            if (stack.expanded) {
+                stack.items.take(4).forEach { e ->
+                    SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(listOf(e.key)) }, enabled = true) {
+                        NotificationCard(e, host, showActions = false, onClick = { expanded = expanded - stack.packageName }, kind = SurfaceKind.Widget)
+                    }
+                }
+            } else {
+                SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(appKeys(entries, stack.packageName)) }, enabled = true) {
+                    CollapsedStack(stack, host, onExpand = { expanded = expanded + stack.packageName }, kind = SurfaceKind.Widget)
+                }
             }
         }
     }
@@ -254,7 +285,7 @@ private fun SwipeToDismiss(onDismiss: () -> Unit, enabled: Boolean, content: @Co
 
 /** An iOS stack: the newest card in front with up to two smaller glass slivers peeking below. */
 @Composable
-private fun CollapsedStack(stack: NotifStack, host: PanelHost, onExpand: () -> Unit) {
+private fun CollapsedStack(stack: NotifStack, host: PanelHost, onExpand: () -> Unit, kind: SurfaceKind? = null) {
     val layers = stack.visibleLayers
     val openLatest: () -> Unit = { if (NotificationHub.open(host.context, stack.latest.key)) host.close() }
     val lift by animateFloatAsState(1f, spring(dampingRatio = 0.7f), label = "stack")
@@ -272,6 +303,7 @@ private fun CollapsedStack(stack: NotifStack, host: PanelHost, onExpand: () -> U
                 shape = GlassShape.Card,
                 variant = GlassVariant.Regular,
                 role = null,
+                kind = kind,
             )
         }
         NotificationCard(
@@ -280,17 +312,18 @@ private fun CollapsedStack(stack: NotifStack, host: PanelHost, onExpand: () -> U
             showActions = false,
             badge = if (stack.hiddenCount > 0) "+${stack.hiddenCount}" else null,
             onClick = if (stack.count > 1) onExpand else openLatest,
+            kind = kind,
         )
     }
 }
 
 @Composable
-private fun NotificationCard(e: NotifEntry, host: PanelHost, showActions: Boolean, onClick: () -> Unit, badge: String? = null) {
+private fun NotificationCard(e: NotifEntry, host: PanelHost, showActions: Boolean, onClick: () -> Unit, badge: String? = null, kind: SurfaceKind? = null) {
     val context = host.context
     var replyIndex by remember(e.key) { mutableStateOf<Int?>(null) }
     var reply by remember(e.key) { mutableStateOf("") }
     val focus = remember { FocusRequester() }
-    GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.Card, variant = GlassVariant.Regular, onClick = onClick) {
+    GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.Card, variant = GlassVariant.Regular, onClick = onClick, kind = kind) {
         Column(Modifier.fillMaxWidth().padding(14.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 OverlayAppIcon(e.packageName, 38.dp)
@@ -358,9 +391,9 @@ private fun NotificationCard(e: NotifEntry, host: PanelHost, showActions: Boolea
 
 /** The current media session, pinned above the notifications as a live card. */
 @Composable
-private fun MediaCard(m: MediaInfo, host: PanelHost) {
+private fun MediaCard(m: MediaInfo, host: PanelHost, kind: SurfaceKind? = null) {
     val open: () -> Unit = { if (MediaHub.openPlayer(host.context)) host.close() }
-    GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.Card, variant = GlassVariant.Regular, onClick = open) {
+    GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.Card, variant = GlassVariant.Regular, onClick = open, kind = kind) {
         Column(Modifier.fillMaxWidth().padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val bmp = remember(m.art) { m.art?.asImageBitmap() }
@@ -374,7 +407,7 @@ private fun MediaCard(m: MediaInfo, host: PanelHost) {
                     GlassText(m.title.ifBlank { m.appLabel }, style = GlassType.Headline, maxLines = 1)
                     GlassText(m.artist.ifBlank { m.appLabel }, style = GlassType.Callout, secondary = true, maxLines = 1)
                 }
-                AudioBars(m.playing, Modifier.size(width = 24.dp, height = 18.dp))
+                AudioBars(m.playing, Modifier.size(width = 24.dp, height = 18.dp), m.art)
             }
             if (m.durationMs > 0) {
                 Spacer(Modifier.height(10.dp))
@@ -402,3 +435,6 @@ private fun relativeTime(t: Long): String {
     return if (now - t < 60_000) "now"
     else DateUtils.getRelativeTimeSpanString(t, now, DateUtils.MINUTE_IN_MILLIS, DateUtils.FORMAT_ABBREV_RELATIVE).toString()
 }
+
+/** Every non-media notification of [pkg], group summaries included (see Clear All). */
+private fun appKeys(entries: List<NotifEntry>, pkg: String) = entries.filter { it.packageName == pkg && !it.isMedia }.map { it.key }

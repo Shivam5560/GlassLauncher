@@ -65,6 +65,11 @@ class GlassGestureService : AccessibilityService() {
         instance = this
         wm = getSystemService(WindowManager::class.java)
         overlays = OverlayRuntime.attachAccessibility(this)
+        // No window-state event arrives for the app already in front (e.g. Glass home after an update).
+        rootInActiveWindow?.packageName?.toString()?.let {
+            foregroundPackage = it
+            overlays?.onForegroundApp(it, false)
+        }
         val repo = SettingsRepository(applicationContext, scope)
         scope.launch {
             repo.flow.map { it.gestures }.distinctUntilChanged().collect {
@@ -109,6 +114,7 @@ class GlassGestureService : AccessibilityService() {
             }
             AccessibilityEvent.TYPE_WINDOWS_CHANGED -> {
                 val ws = try { windows } catch (e: Exception) { emptyList() }
+                overlays?.refreshLocked()
                 keyboardUp = ws.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
                 // The status bar is a short TYPE_SYSTEM window at the top (the shade is full height).
                 val bounds = Rect()

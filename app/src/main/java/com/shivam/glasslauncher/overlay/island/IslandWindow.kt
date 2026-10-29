@@ -137,7 +137,8 @@ class IslandWindow(
         val slots = slots()
         val primary = slots.primary
         val compactW = when (primary?.kind) {
-            null -> idleW
+            // Music keeps the idle pill's size: art and waves fit either side of the camera.
+            null, IslandKind.Music -> idleW
             IslandKind.Navigation, IslandKind.Peek -> h * 6.4f
             IslandKind.Charging, IslandKind.Ringer -> h * 5.2f
             else -> h * 5.6f
