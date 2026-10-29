@@ -93,6 +93,7 @@ class GlassGestureService : AccessibilityService() {
     }
 
     private var foregroundPackage: String? = null
+    private var activeAppWindow = -1
     private var keyboardUp = false
     private var paused = false
 
@@ -116,6 +117,17 @@ class GlassGestureService : AccessibilityService() {
                 val ws = try { windows } catch (e: Exception) { emptyList() }
                 overlays?.refreshLocked()
                 keyboardUp = ws.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+                // HyperOS skips the window-state event when Recents' "clear all" drops back to home, so the
+                // app in front is also read from the active app window (only when that window changes).
+                val app = ws.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.isActive }
+                if (app != null && app.id != activeAppWindow) {
+                    activeAppWindow = app.id
+                    val pkg = try { app.root?.packageName?.toString() } catch (e: Exception) { null }
+                    if (pkg != null && pkg != foregroundPackage) {
+                        foregroundPackage = pkg
+                        overlays?.onForegroundApp(pkg, pkg in config.excludedApps)
+                    }
+                }
                 // The status bar is a short TYPE_SYSTEM window at the top (the shade is full height).
                 val bounds = Rect()
                 overlays?.onStatusBar(ws.any {
