@@ -282,7 +282,8 @@ class GlassGestureService : AccessibilityService() {
                 MotionEvent.ACTION_MOVE -> {
                     vt?.addMovement(e)
                     val dy = downY - e.rawY
-                    if (abs(e.rawY - lastY) > dp(3f)) {
+                    // Real fingers wobble: only movement beyond 12 dp restarts the hold timer.
+                    if (abs(e.rawY - lastY) > dp(12f)) {
                         lastMoveTime = SystemClock.uptimeMillis()
                         lastY = e.rawY
                     }
@@ -300,7 +301,12 @@ class GlassGestureService : AccessibilityService() {
                     handler.removeCallbacks(holdCheck)
                     val dy = downY - e.rawY
                     val flung = vy > dp(900f) * config.sensitivity.coerceAtLeast(0.4f).let { 1f / it } && dy > dp(16f)
-                    if (!fired && (armed || flung)) {
+                    // iOS: a slow drag released mid-screen opens the app switcher; a quick flick goes home.
+                    val slowLong = armed && !flung && vy < dp(700f) && dy > dp(120f)
+                    if (!fired && slowLong) {
+                        haptic(v)
+                        performGlobalAction(GLOBAL_ACTION_RECENTS)
+                    } else if (!fired && (armed || flung)) {
                         haptic(v)
                         performGlobalAction(GLOBAL_ACTION_HOME)
                     }

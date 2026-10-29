@@ -209,7 +209,6 @@ class OverlayController(
 
     private fun updateHidden() {
         val reason = when {
-            locked -> "lock screen"
             panelKind != null -> "panel"
             landscape -> "landscape"
             fullscreen -> "fullscreen"
