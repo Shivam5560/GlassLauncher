@@ -14,6 +14,17 @@ import org.xmlpull.v1.XmlPullParserFactory
 data class IconPackInfo(val packageName: String, val label: String)
 
 /**
+ * Artwork variant of a pack drawable. Convention (used by Glass Icons, documented in README):
+ * for a drawable `name` mapped in appfilter.xml, `name_dark` is the dark-tile version and
+ * `name_tinted` is a white monochrome glyph on transparent that the launcher puts on its own tile
+ * and tints. Packs without these drawables simply fall back to `name`.
+ */
+enum class IconVariant(val suffix: String) { Light(""), Dark("_dark"), Tinted("_tinted") }
+
+/** A drawable resolved from a pack, and which variant it actually is. */
+class PackDrawable(val drawable: Drawable, val variant: IconVariant)
+
+/**
  * A parsed ADW/Nova-style icon pack: `appfilter.xml` maps `ComponentInfo{pkg/cls}` to drawable
  * names; `iconback`, `iconmask`, `iconupon` and `scale` describe how to theme unmapped icons.
  */
@@ -37,11 +48,47 @@ class IconPack(
         return try { res.getDrawableForDensity(id, density, null) } catch (e: Exception) { null }
     }
 
-    fun iconFor(component: ComponentName, density: Int): Drawable? {
-        val name = components["${component.packageName}/${component.className}"]
-            ?: packages[component.packageName]
-            ?: return null
-        return drawable(name, density)
+    fun iconFor(component: ComponentName, density: Int): Drawable? =
+        iconFor(component, density, IconVariant.Light)?.drawable
+
+    /** The mapped drawable name for [component], or null if the pack doesn't cover it. */
+    fun drawableNameFor(component: ComponentName): String? =
+        components["${component.packageName}/${component.className}"] ?: packages[component.packageName]
+
+    /** The mapped icon in [variant] if the pack has it, else its base drawable. */
+    fun iconFor(component: ComponentName, density: Int, variant: IconVariant): PackDrawable? =
+        drawableNameFor(component)?.let { named(it, density, variant) }
+
+    fun named(name: String, density: Int, variant: IconVariant): PackDrawable? {
+        if (variant != IconVariant.Light) drawable(name + variant.suffix, density)?.let { return PackDrawable(it, variant) }
+        return drawable(name, density)?.let { PackDrawable(it, IconVariant.Light) }
+    }
+
+    /**
+     * Every icon the pack offers, for the per-app icon picker: `drawable.xml` if the pack ships one,
+     * else the drawables named in appfilter.xml. Variant drawables are left out.
+     */
+    @SuppressLint("DiscouragedApi")
+    fun allDrawableNames(): List<String> {
+        val names = LinkedHashSet<String>()
+        val id = res.getIdentifier("drawable", "xml", packageName)
+        if (id != 0) {
+            try {
+                val parser = res.getXml(id)
+                var event = parser.eventType
+                while (event != XmlPullParser.END_DOCUMENT) {
+                    if (event == XmlPullParser.START_TAG && parser.name == "item") {
+                        parser.getAttributeValue(null, "drawable")?.let { names += it }
+                    }
+                    event = parser.next()
+                }
+                parser.close()
+            } catch (e: Exception) {
+                Log.w(TAG, "Bad drawable.xml in $packageName", e)
+            }
+        }
+        if (names.isEmpty()) names += components.values
+        return names.filterNot { n -> IconVariant.entries.any { v -> v != IconVariant.Light && n.endsWith(v.suffix) } }
     }
 
     fun backFor(seed: Int, density: Int): Drawable? =

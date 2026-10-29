@@ -50,7 +50,45 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
         }
     }
 
+    @Volatile private var variant = IconVariant.Light
+    @Volatile private var tintColor = Color.WHITE
+    @Volatile private var overrides: Map<String, IconOverride> = emptyMap()
+    @Volatile var customDir: java.io.File? = null
+    private val packs = HashMap<String, IconPack?>()
+
+    /** Icon style (Phase 4): which variant of pack artwork to use, and the tinted glyph colour. */
+    fun setStyle(variant: IconVariant, tintColor: Int) {
+        if (variant == this.variant && tintColor == this.tintColor) return
+        this.variant = variant
+        this.tintColor = tintColor
+        cache.evictAll()
+        _generation.value++
+    }
+
+    /** Per-app icons chosen with long-press → Edit Icon. */
+    fun setOverrides(map: Map<String, IconOverride>) {
+        if (map == overrides) return
+        overrides = map
+        cache.evictAll()
+        _generation.value++
+    }
+
+    /** Any installed pack, parsed once and cached. Call off the main thread. */
+    fun loadPack(packageName: String): IconPack? = synchronized(packs) {
+        if (packageName == currentPackName) pack?.let { return it }
+        packs.getOrPut(packageName) { IconPack.load(context, packageName) }
+    }
+
+    /** A pack drawable rendered the way the home screen would show it (current variant). */
+    fun renderPackIcon(packageName: String, drawable: String, size: Int): ImageBitmap? {
+        val pd = loadPack(packageName)?.named(drawable, context.resources.displayMetrics.densityDpi, variant) ?: return null
+        val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        drawPack(Canvas(out), pd, size)
+        return out.asImageBitmap()
+    }
+
     fun invalidatePackage(pkg: String?) {
+        synchronized(packs) { if (pkg == null) packs.clear() else packs.remove(pkg) }
         if (pkg == null) cache.evictAll() else {
             cache.snapshot().keys.filter { it.contains(pkg) }.forEach { cache.remove(it) }
         }
@@ -74,11 +112,14 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
     private fun render(entry: AppEntry, size: Int): Bitmap {
         val density = context.resources.displayMetrics.densityDpi
         val p = pack
-        val mapped = p?.iconFor(entry.component, density)
         val out = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(out)
-        if (mapped != null) {
-            drawDrawable(canvas, mapped, 0, 0, size, size)
+        val overridden = overrides[entry.key]?.let { renderOverride(canvas, it, size, density) } ?: false
+        val mapped = if (overridden) null else p?.iconFor(entry.component, density, variant)
+        if (overridden) {
+            // drawn above
+        } else if (mapped != null) {
+            drawPack(canvas, mapped, size)
         } else {
             val raw = try { entry.info.getIcon(density) } catch (e: Exception) { null }
                 ?: context.packageManager.defaultActivityIcon
@@ -96,6 +137,44 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
             return b
         }
         return out
+    }
+
+    private fun renderOverride(canvas: Canvas, o: IconOverride, size: Int, density: Int): Boolean = when (o) {
+        is IconOverride.Pack -> {
+            val pd = loadPack(o.packageName)?.named(o.drawable, density, variant)
+            if (pd != null) drawPack(canvas, pd, size)
+            pd != null
+        }
+        is IconOverride.Custom -> {
+            val f = customDir?.let { java.io.File(it, o.file) }
+            val bmp = f?.takeIf { it.exists() }?.let { android.graphics.BitmapFactory.decodeFile(it.path) }
+            if (bmp != null) {
+                canvas.save()
+                canvas.clipPath(superellipseRectPath(size.toFloat(), size.toFloat(), size / 2f, 5f))
+                canvas.drawBitmap(bmp, null, android.graphics.Rect(0, 0, size, size), Paint(Paint.FILTER_BITMAP_FLAG))
+                canvas.restore()
+            }
+            bmp != null
+        }
+    }
+
+    /** Pack artwork; a tinted glyph goes on our own dark glass tile, coloured with the tint colour. */
+    private fun drawPack(canvas: Canvas, pd: PackDrawable, size: Int) {
+        if (pd.variant != IconVariant.Tinted) {
+            drawDrawable(canvas, pd.drawable, 0, 0, size, size)
+            return
+        }
+        val s = size.toFloat()
+        canvas.save()
+        canvas.clipPath(superellipseRectPath(s, s, s / 2f, 5f))
+        canvas.drawPaint(Paint().apply {
+            shader = android.graphics.LinearGradient(0f, 0f, 0f, s, 0xFF303136.toInt(), 0xFF111113.toInt(), android.graphics.Shader.TileMode.CLAMP)
+        })
+        canvas.restore()
+        val glyph = pd.drawable.mutate()
+        glyph.colorFilter = android.graphics.PorterDuffColorFilter(tintColor, PorterDuff.Mode.SRC_IN)
+        drawDrawable(canvas, glyph, 0, 0, size, size)
+        glyph.colorFilter = null
     }
 
     /** Adaptive icons: background + foreground layers expanded so the 72/108 safe zone fills the squircle. */

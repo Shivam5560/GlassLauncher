@@ -9,7 +9,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.State
 import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -29,8 +31,19 @@ val LocalGlassContentColor = compositionLocalOf { Color.White }
 /** Luminance used when a surface has no backdrop sampler (0 dark .. 1 light). */
 val LocalFallbackLuminance = staticCompositionLocalOf { 0.3f }
 
+/**
+ * Runtime theme values the Phase 4 theme engine sets (theme from wallpaper, theme editor, font
+ * picker). Snapshot state, so every composable reading [GlassColors.Accent] or [GlassType]
+ * recomposes when they change.
+ */
+object GlassRuntimeTheme {
+    val DefaultAccent = Color(0xFF0A84FF)
+    var accent by mutableStateOf<Color>(DefaultAccent)
+    var fontFamily by mutableStateOf<FontFamily>(Inter)
+}
+
 object GlassColors {
-    val Accent = Color(0xFF0A84FF)
+    val Accent: Color get() = GlassRuntimeTheme.accent
     val Green = Color(0xFF30D158)
     val Red = Color(0xFFFF453A)
     val Orange = Color(0xFFFF9F0A)
@@ -46,17 +59,17 @@ val Inter = FontFamily(
     Font(R.font.inter_bold, FontWeight.Bold),
 )
 
-/** iOS-like type ramp in Inter, with slightly tightened tracking like SF Pro. */
+/** iOS-like type ramp (Inter by default, or the font picked in Settings), with slightly tightened tracking like SF Pro. */
 object GlassType {
-    val LargeTitle = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 32.sp, letterSpacing = (-0.6).sp)
-    val Title = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Bold, fontSize = 22.sp, letterSpacing = (-0.4).sp)
-    val Headline = TextStyle(fontFamily = Inter, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, letterSpacing = (-0.3).sp)
-    val Body = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Normal, fontSize = 17.sp, letterSpacing = (-0.3).sp)
-    val Callout = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Normal, fontSize = 15.sp, letterSpacing = (-0.2).sp)
-    val Subhead = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 13.sp, letterSpacing = (-0.05).sp)
-    val Footnote = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Normal, fontSize = 13.sp)
-    val Caption = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.05.sp)
-    val IconLabel = TextStyle(fontFamily = Inter, fontWeight = FontWeight.Medium, fontSize = 11.5.sp, letterSpacing = (-0.05).sp)
+    val LargeTitle get() = TextStyle(fontFamily = GlassRuntimeTheme.fontFamily, fontWeight = FontWeight.Bold, fontSize = 32.sp, letterSpacing = (-0.6).sp)
+    val Title get() = TextStyle(fontFamily = GlassRuntimeTheme.fontFamily, fontWeight = FontWeight.Bold, fontSize = 22.sp, letterSpacing = (-0.4).sp)
+    val Headline get() = TextStyle(fontFamily = GlassRuntimeTheme.fontFamily, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, letterSpacing = (-0.3).sp)
+    val Body get() = TextStyle(fontFamily = GlassRuntimeTheme.fontFamily, fontWeight = FontWeight.Normal, fontSize = 17.sp, letterSpacing = (-0.3).sp)
+    val Callout get() = TextStyle(fontFamily = GlassRuntimeTheme.fontFamily, fontWeight = FontWeight.Normal, fontSize = 15.sp, letterSpacing = (-0.2).sp)
+    val Subhead get() = TextStyle(fontFamily = GlassRuntimeTheme.fontFamily, fontWeight = FontWeight.Medium, fontSize = 13.sp, letterSpacing = (-0.05).sp)
+    val Footnote get() = TextStyle(fontFamily = GlassRuntimeTheme.fontFamily, fontWeight = FontWeight.Normal, fontSize = 13.sp)
+    val Caption get() = TextStyle(fontFamily = GlassRuntimeTheme.fontFamily, fontWeight = FontWeight.Medium, fontSize = 11.sp, letterSpacing = 0.05.sp)
+    val IconLabel get() = TextStyle(fontFamily = GlassRuntimeTheme.fontFamily, fontWeight = FontWeight.Medium, fontSize = 11.5.sp, letterSpacing = (-0.05).sp)
 }
 
 /**

@@ -25,15 +25,27 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Check generated icon pack is up to date
+        run: |
+          python3 tools/icons/generate_icons.py
+          git diff --exit-code -- glassicons/src/main/res glassicons/src/main/assets/appfilter.xml
+
       - name: Unit tests
         run: ./gradlew --no-daemon testDebugUnitTest
 
-      - name: Assemble debug APK
-        run: ./gradlew --no-daemon assembleDebug
+      - name: Assemble debug APKs (Glass Launcher + Glass Icons)
+        run: ./gradlew --no-daemon :app:assembleDebug :glassicons:assembleDebug
 
-      - name: Upload debug APK
+      - name: Upload Glass Launcher APK
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+      - name: Upload Glass Icons APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: glassicons-debug
+          path: glassicons/build/outputs/apk/debug/glassicons-debug.apk
           if-no-files-found: error

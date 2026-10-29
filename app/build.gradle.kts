@@ -50,11 +50,12 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.foundation)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.ui.text.google.fonts)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.work.runtime.ktx)
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)
-    // Real org.json for JVM unit tests (android.jar only has stubs): Open-Meteo parsing tests.
+    // Real org.json for JVM unit tests (android.jar only has stubs): Open-Meteo parsing and backup round-trip.
     testImplementation(libs.org.json)
 }

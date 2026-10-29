@@ -264,6 +264,9 @@ fun ContextMenuOverlay(
                             MenuRow("Rename", GlassIcons.Pencil) {
                                 close(); ui.rename = RenameTarget(entry.key, null, ctx.label(entry), target.anchor)
                             }
+                            MenuRow("Edit Icon", GlassIcons.Palette) {
+                                close(); activity.startActivity(com.shivam.glasslauncher.settings.SettingsActivity.intent(activity, "editicon:${entry.key}"))
+                            }
                             when {
                                 slot is Slot.InFolder -> MenuRow("Remove from Folder", GlassIcons.Minus) { close(); vm.removeFromFolder(slot, entry.key) }
                                 slot != null -> MenuRow("Remove from Home", GlassIcons.Minus) { close(); callbacks.remove(slot) }

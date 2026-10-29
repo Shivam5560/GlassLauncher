@@ -31,12 +31,15 @@ class GlassApp : Application() {
     val wallpaper by lazy { WallpaperSource(this, scope) }
     val search by lazy { SearchEngine(this) }
     val actions by lazy { AppActions(this) }
+    /** Phase 4: theme, fonts, icon style and per-app icons, wallpapers, pinned shortcuts. */
+    val polish by lazy { com.shivam.glasslauncher.polish.Polish(this) }
 
     override fun onCreate() {
         super.onCreate()
         apps.start()
         layout.load()
         wallpaper.start()
+        polish.start()
         scope.launch {
             settings.state.filterNotNull().map { it.iconPack }.distinctUntilChanged().collect { icons.setIconPack(it) }
         }

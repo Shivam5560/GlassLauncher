@@ -238,6 +238,23 @@ object SystemChecks {
                 if (shortcuts) CheckStatus.Ok else CheckStatus.Warning, if (shortcuts) "Available" else "Unavailable",
                 if (shortcuts) null else "Set as default", CheckFix.OpenIntents(homeIntents(context)),
             ),
-        ) + com.shivam.glasslauncher.widgets.WidgetChecks.all(context) + OverlayChecks.all(context)
+        ) + com.shivam.glasslauncher.widgets.WidgetChecks.all(context) + OverlayChecks.all(context) + phase4Checks(context, home)
+    }
+
+    /** Phase 4 rows (docs/CONSTRAINTS.md, "Icons, wallpapers, polish"). */
+    private fun phase4Checks(context: Context, home: Boolean): List<CheckResult> {
+        val fonts = com.shivam.glasslauncher.polish.Fonts.downloadsAvailable(context)
+        return listOf(
+            CheckResult(
+                "fonts", "Downloadable fonts", "Google Fonts in the font picker come through Google Play services. Without it the bundled fonts are used.",
+                if (fonts) CheckStatus.Ok else CheckStatus.Warning, if (fonts) "Available" else "Bundled fonts only",
+                null, CheckFix.InApp("fonts"),
+            ),
+            CheckResult(
+                "pinned", "Pinned shortcuts", "Other apps' “Add to Home screen” requests reach Glass only while it is the default Home app.",
+                if (home) CheckStatus.Ok else CheckStatus.Warning, if (home) "Accepted" else "Unavailable",
+                if (home) null else "Set as default", CheckFix.OpenIntents(homeIntents(context)),
+            ),
+        )
     }
 }
