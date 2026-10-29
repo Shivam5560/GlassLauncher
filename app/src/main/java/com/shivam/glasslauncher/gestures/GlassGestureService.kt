@@ -135,6 +135,7 @@ class GlassGestureService : AccessibilityService() {
     }
 
     fun lockScreen(): Boolean = performGlobalAction(GLOBAL_ACTION_LOCK_SCREEN)
+    fun globalAction(action: Int): Boolean = performGlobalAction(action)
 
     private fun dp(v: Float) = v * resources.displayMetrics.density
 

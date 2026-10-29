@@ -5,8 +5,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,8 +36,6 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -65,6 +61,7 @@ import com.shivam.glasslauncher.ui.glass.LocalBackdrop
 import com.shivam.glasslauncher.ui.glass.WallpaperBackdropLayer
 import com.shivam.glasslauncher.ui.glass.recordBackdrop
 import com.shivam.glasslauncher.ui.glass.rememberCrossWindowBlur
+import com.shivam.glasslauncher.ui.glass.rememberDeviceTilt
 import com.shivam.glasslauncher.ui.glass.rememberGlassLight
 import com.shivam.glasslauncher.ui.library.AppLibrary
 import com.shivam.glasslauncher.ui.spotlight.SpotlightOverlay
@@ -133,10 +130,26 @@ fun LauncherScreen(
     val dragging = ui.drag.info != null
     val extraPage = dragging && layout.pages.last().any { it != null }
     val homePageCount = layout.pages.size + if (extraPage) 1 else 0
-    // Pager: [Today] + home pages + [App Library]. Home page p is pager page p + TODAY_PAGES.
-    val pagerState = rememberPagerState(initialPage = layout.defaultPage + TODAY_PAGES) { homePageCount + TODAY_PAGES + 1 }
+    // Ring: [Today] + home pages + [App Library]. Home page p is ring page p + TODAY_PAGES. With
+    // infinite scroll the pager is a long run of copies of the ring, started in the middle.
+    val ring = PagerRing(homePageCount + TODAY_PAGES + 1, settings.infiniteScroll)
+    val ringState = rememberUpdatedState(ring)
+    val pagerState = rememberPagerState(initialPage = ring.start + layout.defaultPage + TODAY_PAGES) { ringState.value.pagerCount }
     val layoutState = rememberUpdatedState(layout)
     val homeCountState = rememberUpdatedState(homePageCount)
+    // Ring position (0 = Today) of the settled page, kept across ring size changes.
+    val ringPage = ring.of(pagerState.currentPage)
+    val lastRing = remember { androidx.compose.runtime.mutableIntStateOf(ringPage) }
+    LaunchedEffect(ring) {
+        // Pages were added or removed, or the loop toggled: stay on the same ring page.
+        val target = ring.start + lastRing.intValue.coerceIn(0, ring.size - 1)
+        if (ring.of(pagerState.currentPage) != lastRing.intValue || pagerState.currentPage >= ring.pagerCount) pagerState.scrollToPage(target)
+    }
+    LaunchedEffect(Unit) {
+        // Keyed on the page only, so a ring resize doesn't overwrite the position before the effect above reads it.
+        androidx.compose.runtime.snapshotFlow { pagerState.currentPage }.collect { lastRing.intValue = ringState.value.of(it) }
+    }
+    suspend fun goTo(ringTarget: Int) = pagerState.animateScrollToPage(ringState.value.nearest(pagerState.currentPage, ringTarget))
 
     val glass = settings.glass
     val light = rememberGlassLight(glass.tiltLighting)
@@ -173,12 +186,12 @@ fun LauncherScreen(
         val hadOverlay = ui.overlayOpen || ui.editMode || widgetUi.open
         ui.closeAll()
         widgetUi.closeAll()
-        if (!hadOverlay) pagerState.animateScrollToPage(layoutState.value.defaultPage + TODAY_PAGES)
+        if (!hadOverlay) goTo(layoutState.value.defaultPage + TODAY_PAGES)
     }
 
     BackHandler(enabled = true) {
         if (!widgetUi.closeTop() && !ui.closeTop()) {
-            scope.launch { pagerState.animateScrollToPage(layoutState.value.defaultPage + TODAY_PAGES) }
+            scope.launch { goTo(layoutState.value.defaultPage + TODAY_PAGES) }
         }
     }
 
@@ -208,7 +221,7 @@ fun LauncherScreen(
     // static wallpaper the offset stays centred so Glass's wallpaper copy lines up for refraction.
     LaunchedEffect(snapshot.isLive, homePageCount) {
         if (!snapshot.isLive) return@LaunchedEffect
-        androidx.compose.runtime.snapshotFlow { pagerState.currentPage + pagerState.currentPageOffsetFraction }.collect { pos ->
+        androidx.compose.runtime.snapshotFlow { ringState.value.of(pagerState.currentPage) + pagerState.currentPageOffsetFraction }.collect { pos ->
             WallpaperOffsets.scroll(activity, pos, homePageCount + TODAY_PAGES + 1)
         }
     }
@@ -227,7 +240,7 @@ fun LauncherScreen(
     fun computeHover(at: Offset): DropTarget? {
         val info = ui.drag.info ?: return null
         val lay = layoutState.value
-        val page = pagerState.currentPage - TODAY_PAGES
+        val page = ringState.value.of(pagerState.currentPage) - TODAY_PAGES
         var best: DropTarget? = null
         var bestDist = Float.MAX_VALUE
         var bestRect: Rect? = null
@@ -303,6 +316,36 @@ fun LauncherScreen(
 
     launchHolder[0] = { e, b -> callbacks.launch(e, b) }
 
+    // Settings → Home gestures.
+    fun needsGestures() = ui.toast.show("This gesture needs Glass Gestures.", "Set up") { openSettings("check") }
+    fun runAction(b: GestureBinding, at: Offset) {
+        val service = com.shivam.glasslauncher.gestures.GlassGestureService.instance
+        when (b.action) {
+            HomeAction.None -> Unit
+            HomeAction.AppDrawer -> ui.drawer.open = true
+            HomeAction.Spotlight -> ui.openSpotlight(originRect(at))
+            HomeAction.NotificationCenter, HomeAction.ControlCenter -> {
+                val kind = if (b.action == HomeAction.ControlCenter) com.shivam.glasslauncher.overlay.PanelKind.ControlCenter else com.shivam.glasslauncher.overlay.PanelKind.NotificationCenter
+                if (!com.shivam.glasslauncher.overlay.OverlayRuntime.openPanel(kind)) needsGestures()
+            }
+            HomeAction.Notifications -> if (service?.globalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_NOTIFICATIONS) != true) StatusBarPanels.expand(activity, quickSettings = false)
+            HomeAction.QuickSettings -> if (service?.globalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_QUICK_SETTINGS) != true) StatusBarPanels.expand(activity, quickSettings = true)
+            HomeAction.Recents -> if (service?.globalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_RECENTS) != true) needsGestures()
+            HomeAction.LockScreen -> callbacks.lockScreen()
+            HomeAction.EditHome -> ui.editMode = true
+            HomeAction.Today -> scope.launch { goTo(0) }
+            HomeAction.AppLibrary -> scope.launch { goTo(ringState.value.size - 1) }
+            HomeAction.Settings -> openSettings(null)
+            HomeAction.LaunchApp -> b.appKey?.let { appsByKey[it] }?.let { callbacks.launch(it, null) } ?: ui.toast.show("That app isn't installed any more")
+        }
+    }
+    val gestureMap = settings.homeGestures
+    val gestureMapState = rememberUpdatedState(gestureMap)
+    val runActionState = rememberUpdatedState(::runAction)
+    val doubleTap = remember { { runActionState.value(HomeGestureMap.of(gestureMapState.value, HomeGesture.DoubleTap), Offset.Zero) } }
+    val doubleTapBound = HomeGestureMap.of(gestureMap, HomeGesture.DoubleTap).action != HomeAction.None
+    val tilt = rememberDeviceTilt(settings.wallpaperParallax && hasWallpaper && !reduced)
+
     // While dragging, dwell near a screen edge to flip pages.
     LaunchedEffect(dragging) {
         var dwell = 0
@@ -319,9 +362,10 @@ fun LauncherScreen(
             dwell = if (dir != 0) dwell + 1 else 0
             if (dwell >= 10) {
                 dwell = 0
-                val target = (pagerState.currentPage + dir).coerceIn(TODAY_PAGES, homeCountState.value - 1 + TODAY_PAGES)
-                if (target != pagerState.currentPage) {
-                    pagerState.animateScrollToPage(target)
+                val cur = ringState.value.of(pagerState.currentPage)
+                val target = (cur + dir).coerceIn(TODAY_PAGES, homeCountState.value - 1 + TODAY_PAGES)
+                if (target != cur) {
+                    goTo(target)
                     callbacks.drag(ui.drag.pointer)
                 }
             }
@@ -332,7 +376,7 @@ fun LauncherScreen(
         CompositionLocalProvider(LocalIconRenderer provides vm.icons, LocalIconGeneration provides generation, LocalWidgetEnv provides widgetEnv) {
             WidgetHostLifecycle()
             Box(Modifier.fillMaxSize()) {
-                WallpaperBackdropLayer(snapshot, wallpaperLayer, hasWallpaper)
+                WallpaperBackdropLayer(snapshot, wallpaperLayer, hasWallpaper, parallax = if (settings.wallpaperParallax && hasWallpaper && !reduced) ({ tilt.value }) else null)
 
                 // Fallback base layer when the compositor cannot blur behind the window
                 // (battery saver, some HyperOS builds): pre-blurred wallpaper, else solid tinted glass.
@@ -367,26 +411,25 @@ fun LauncherScreen(
                                 .weight(1f)
                                 .fillMaxWidth()
                                 .recordBackdrop(pagesLayer)
-                                .verticalSwipes(
-                                    enabled = !dragging && !ui.editMode && pagerState.currentPage in TODAY_PAGES until homePageCount + TODAY_PAGES,
-                                    downEnabled = settings.swipeDownForSpotlight,
-                                    onDown = { origin -> ui.openSpotlight(origin) },
-                                    onUp = { ui.drawer.open = true },
+                                .homeGestures(
+                                    enabled = !dragging && !ui.editMode && ringPage in TODAY_PAGES until homePageCount + TODAY_PAGES,
+                                    isBound = { g -> HomeGestureMap.of(gestureMapState.value, g).action != HomeAction.None },
+                                    onGesture = { g, at -> runActionState.value(HomeGestureMap.of(gestureMapState.value, g), at) },
                                 ),
                         ) {
                             HorizontalPager(
                                 state = pagerState,
                                 modifier = Modifier.fillMaxSize(),
-                                beyondViewportPageCount = homePageCount + TODAY_PAGES + 1,
+                                beyondViewportPageCount = ring.beyondViewport,
                                 userScrollEnabled = !dragging,
                                 key = { it },
                             ) { pagerPage ->
-                                val page = pagerPage - TODAY_PAGES
+                                val page = ring.of(pagerPage) - TODAY_PAGES
                                 val homeAnim = settings.appearance.homeAnimation
                                 val isHome = page in 0 until homePageCount
                                 Box(Modifier.fillMaxSize().graphicsLayer { if (isHome) homePageTransition(homeAnim, pagerState.currentPage + pagerState.currentPageOffsetFraction - pagerPage) }) {
                                 CompositionLocalProvider(LocalBackdrop provides wallpaperOnly) {
-                                    if (pagerPage < TODAY_PAGES) {
+                                    if (page < 0) {
                                         TodayView(widgetUi, ui.editMode, { ui.editMode = it }, lightWallpaper)
                                     } else if (page < homePageCount) {
                                         val pageWidgets = layout.widgetsOn(page)
@@ -396,7 +439,7 @@ fun LauncherScreen(
                                             ctx = ctx,
                                             drag = ui.drag,
                                             callbacks = callbacks,
-                                            doubleTapToLock = settings.doubleTapToLock,
+                                            onDoubleTap = if (doubleTapBound) doubleTap else null,
                                             blocked = remember(layout, page) { layout.blockedCells(page) },
                                             widgetLayer = { cellW, cellH -> HomeWidgetsLayer(page, pageWidgets, cellW, cellH, widgetUi, ui.editMode) },
                                         )
@@ -417,7 +460,7 @@ fun LauncherScreen(
                         }
                         // 0 on home pages, 1 on the App Library or the Today view: the dock and dots fade out.
                         val libraryFraction = {
-                            val pos = pagerState.currentPage + pagerState.currentPageOffsetFraction
+                            val pos = ringState.value.of(pagerState.currentPage) + pagerState.currentPageOffsetFraction
                             maxOf((pos - (homePageCount - 1 + TODAY_PAGES)).coerceIn(0f, 1f), (TODAY_PAGES - pos).coerceIn(0f, 1f))
                         }
                         Box(
@@ -426,7 +469,7 @@ fun LauncherScreen(
                         ) {
                             PageDots(
                                 homePages = homePageCount,
-                                current = pagerState.currentPage - TODAY_PAGES,
+                                current = ringPage - TODAY_PAGES,
                                 onClick = { origin -> ui.openSpotlight(origin) },
                             )
                         }
@@ -448,7 +491,7 @@ fun LauncherScreen(
                 }
 
                 // Edit-mode toolbar ("jiggle mode"); the Today view has its own buttons.
-                if (ui.editMode && pagerState.currentPage >= TODAY_PAGES) {
+                if (ui.editMode && ringPage >= TODAY_PAGES) {
                     Row(
                         Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -467,7 +510,7 @@ fun LauncherScreen(
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             GlassIconButton(GlassIcons.Plus, onClick = {
-                                val home = (pagerState.currentPage - TODAY_PAGES).coerceIn(0, layout.pages.size - 1)
+                                val home = (ringPage - TODAY_PAGES).coerceIn(0, layout.pages.size - 1)
                                 widgetUi.picker = PickerTarget.Home(home)
                             })
                             GlassButton("Done", onClick = { ui.editMode = false }, prominent = true)
@@ -517,35 +560,25 @@ fun LauncherScreen(
 private const val TODAY_PAGES = 1
 
 /**
- * Vertical swipes on the home pages: down opens Spotlight, up opens the app drawer (only
- * unconsumed, mostly vertical drags, so icons, widgets and the pager keep their gestures).
+ * Maps pager pages to ring pages (0 = Today, then home pages, last = App Library). Without
+ * [infinite] they are the same; with it the pager holds [LOOPS] copies of the ring.
  */
-private fun Modifier.verticalSwipes(enabled: Boolean, downEnabled: Boolean, onDown: (Rect) -> Unit, onUp: () -> Unit): Modifier =
-    if (!enabled) this else pointerInput(downEnabled) {
-        val threshold = 56.dp.toPx()
-        awaitEachGesture {
-            val down = awaitFirstDown(requireUnconsumed = false)
-            var total = Offset.Zero
-            while (true) {
-                val ev = awaitPointerEvent()
-                val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
-                if (!ch.pressed || ch.isConsumed) break
-                total += ch.positionChange()
-                if (abs(total.x) > threshold) break
-                if (downEnabled && total.y > threshold && total.y > abs(total.x) * 1.4f) {
-                    ch.consume()
-                    val c = down.position
-                    onDown(Rect(c.x - 40f, c.y - 20f, c.x + 40f, c.y + 20f))
-                    break
-                }
-                if (total.y < -threshold && -total.y > abs(total.x) * 1.4f) {
-                    ch.consume()
-                    onUp()
-                    break
-                }
-            }
-        }
+@androidx.compose.runtime.Immutable
+internal data class PagerRing(val size: Int, val infinite: Boolean) {
+    val pagerCount = if (infinite) size * LOOPS else size
+    val start = if (infinite) size * (LOOPS / 2) else 0
+    /** Pages kept composed on each side; in a loop, never so many that one page shows up twice. */
+    val beyondViewport = if (infinite) (size - 1) / 2 else size
+    fun of(pager: Int) = if (infinite) Math.floorMod(pager - start, size) else pager
+    /** The pager page showing [ringTarget] closest to [from]. */
+    fun nearest(from: Int, ringTarget: Int): Int {
+        if (!infinite) return ringTarget
+        var d = Math.floorMod(ringTarget - of(from), size)
+        if (d > size / 2) d -= size
+        return (from + d).coerceIn(0, pagerCount - 1)
     }
+    companion object { const val LOOPS = 2000 }
+}
 
 /** Home page transition (Settings → Appearance → Home animation); [o] is the page's offset from the centre. */
 private fun androidx.compose.ui.graphics.GraphicsLayerScope.homePageTransition(anim: com.shivam.glasslauncher.data.HomeAnimation, o: Float) {

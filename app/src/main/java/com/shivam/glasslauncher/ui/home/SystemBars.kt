@@ -44,3 +44,18 @@ object WallpaperOffsets {
         } catch (_: Exception) { }
     }
 }
+
+/**
+ * Pulls down the system shade without Glass Gestures, through the hidden StatusBarManager methods
+ * (EXPAND_STATUS_BAR is a normal permission). Some OEM builds block it; then nothing happens.
+ */
+object StatusBarPanels {
+    @android.annotation.SuppressLint("WrongConstant")
+    fun expand(activity: Activity, quickSettings: Boolean) {
+        try {
+            val sbm = activity.getSystemService("statusbar") ?: return
+            val name = if (quickSettings) "expandSettingsPanel" else "expandNotificationsPanel"
+            sbm.javaClass.getMethod(name).invoke(sbm)
+        } catch (_: Exception) { }
+    }
+}

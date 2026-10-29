@@ -60,19 +60,41 @@ fun Modifier.recordBackdrop(layer: GraphicsLayer, drawToScreen: Boolean = true):
     if (drawToScreen) drawLayer(layer)
 }
 
-/** Full-screen, invisible wallpaper copy recorded into [layer] for use in a [Backdrop]. */
+/**
+ * Full-screen wallpaper copy recorded into [layer] for use in a [Backdrop]. Normally invisible (the
+ * system draws the wallpaper behind the window). With [parallax] non-null, the copy is drawn on
+ * screen, slightly enlarged and shifted by the tilt, covering the system wallpaper; glass refracts
+ * the same shifted copy, so refraction stays aligned.
+ */
 @Composable
-fun WallpaperBackdropLayer(snapshot: WallpaperSource.Snapshot, layer: GraphicsLayer, enabled: Boolean) {
+fun WallpaperBackdropLayer(snapshot: WallpaperSource.Snapshot, layer: GraphicsLayer, enabled: Boolean, parallax: (() -> Offset)? = null) {
     val image = snapshot.image
-    Canvas(Modifier.fillMaxSize().recordBackdrop(layer, drawToScreen = false)) {
+    Canvas(Modifier.fillMaxSize().recordBackdrop(layer, drawToScreen = parallax != null)) {
         if (enabled && image != null) {
-            drawImage(
-                image = image,
-                srcOffset = IntOffset.Zero,
-                srcSize = IntSize(image.width, image.height),
-                dstOffset = IntOffset.Zero,
-                dstSize = IntSize(size.width.toInt(), size.height.toInt()),
-            )
+            if (parallax == null) {
+                drawImage(
+                    image = image,
+                    srcOffset = IntOffset.Zero,
+                    srcSize = IntSize(image.width, image.height),
+                    dstOffset = IntOffset.Zero,
+                    dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+                )
+            } else {
+                val t = parallax()
+                val over = size.width * PARALLAX_OVERSCAN
+                val w = size.width + over * 2
+                val h = size.height + over * 2
+                drawImage(
+                    image = image,
+                    srcOffset = IntOffset.Zero,
+                    srcSize = IntSize(image.width, image.height),
+                    dstOffset = IntOffset((-over - t.x * over).toInt(), (-over - t.y * over).toInt()),
+                    dstSize = IntSize(w.toInt(), h.toInt()),
+                )
+            }
         }
     }
 }
+
+/** Extra wallpaper on each side for parallax travel, as a fraction of the screen width. */
+private const val PARALLAX_OVERSCAN = 0.05f

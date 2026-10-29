@@ -84,7 +84,7 @@ data class HomeContext(
 }
 
 /**
- * One 4x6 page. Double-tapping empty space locks the screen. Cells in [blocked] belong to widgets
+ * One 4x6 page. Double-tapping empty space runs [onDoubleTap] (Settings → Home gestures). Cells in [blocked] belong to widgets
  * (phase 2 free placement): they hold no icon and are not drop targets; [widgetLayer] draws the
  * widgets on top, given the cell size.
  */
@@ -95,7 +95,7 @@ fun HomeGridPage(
     ctx: HomeContext,
     drag: DragController,
     callbacks: HomeCallbacks,
-    doubleTapToLock: Boolean,
+    onDoubleTap: (() -> Unit)?,
     blocked: BooleanArray? = null,
     widgetLayer: (@Composable BoxScope.(cellW: Dp, cellH: Dp) -> Unit)? = null,
 ) {
@@ -103,9 +103,10 @@ fun HomeGridPage(
         Modifier
             .fillMaxSize()
             .padding(horizontal = 10.dp)
-            .pointerInput(doubleTapToLock) {
-                detectTapGestures(onDoubleTap = { if (doubleTapToLock) callbacks.lockScreen() })
-            },
+            .then(
+                if (onDoubleTap == null) Modifier
+                else Modifier.pointerInput(onDoubleTap) { detectTapGestures(onDoubleTap = { onDoubleTap() }) },
+            ),
     ) {
         val cellW = maxWidth / GRID_COLUMNS
         val cellH = maxHeight / GRID_ROWS

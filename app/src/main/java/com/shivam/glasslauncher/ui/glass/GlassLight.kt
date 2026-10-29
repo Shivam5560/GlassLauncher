@@ -37,7 +37,7 @@ fun rememberGlassLight(enabled: Boolean): State<Offset> {
             state.value = DefaultLight
             return@DisposableEffect onDispose { }
         }
-        val tracker = TiltTracker(context) { state.value = it }
+        val tracker = TiltTracker(context, onLight = { state.value = it })
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_RESUME -> tracker.start()
@@ -55,7 +55,43 @@ fun rememberGlassLight(enabled: Boolean): State<Offset> {
     return state
 }
 
-private class TiltTracker(context: Context, private val onLight: (Offset) -> Unit) : SensorEventListener {
+/**
+ * Filtered device tilt for wallpaper parallax: about (-1..1, -1..1), (0, 0) when the phone is held
+ * upright at a normal reading angle. Same sensors and lifecycle rules as [rememberGlassLight].
+ */
+@Composable
+fun rememberDeviceTilt(enabled: Boolean): State<Offset> {
+    val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val state = remember { mutableStateOf(Offset.Zero) }
+    DisposableEffect(enabled, lifecycle) {
+        if (!enabled) {
+            state.value = Offset.Zero
+            return@DisposableEffect onDispose { }
+        }
+        val tracker = TiltTracker(context, onLight = { }, onTilt = { state.value = it })
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> tracker.start()
+                Lifecycle.Event.ON_PAUSE -> tracker.stop()
+                else -> Unit
+            }
+        }
+        lifecycle.addObserver(observer)
+        if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) tracker.start()
+        onDispose {
+            lifecycle.removeObserver(observer)
+            tracker.stop()
+        }
+    }
+    return state
+}
+
+private class TiltTracker(
+    context: Context,
+    private val onLight: (Offset) -> Unit,
+    private val onTilt: ((Offset) -> Unit)? = null,
+) : SensorEventListener {
     private val sm = context.getSystemService(SensorManager::class.java)
     private val sensor: Sensor? = sm?.getDefaultSensor(Sensor.TYPE_GAME_ROTATION_VECTOR)
         ?: sm?.getDefaultSensor(Sensor.TYPE_GRAVITY)
@@ -64,6 +100,7 @@ private class TiltTracker(context: Context, private val onLight: (Offset) -> Uni
     private var fx = 0f
     private var fy = 0f
     private var last = DefaultLight
+    private var lastTilt = Offset.Zero
     private var running = false
 
     fun start() {
@@ -92,6 +129,12 @@ private class TiltTracker(context: Context, private val onLight: (Offset) -> Uni
         // low-pass filter
         fx += (ux - fx) * 0.12f
         fy += (uy - fy) * 0.12f
+        onTilt?.let { cb ->
+            val t = Offset(fx.coerceIn(-1f, 1f), (fy - 0.7f).coerceIn(-1f, 1f))
+            // ~0.3% of the travel: below what parallax can show, so skip the frame.
+            if (abs(t.x - lastTilt.x) + abs(t.y - lastTilt.y) > 0.003f) { lastTilt = t; cb(t) }
+            return
+        }
         // Tilting the right edge down moves the light to the right; tilting the top towards
         // the user moves it down. Screen y grows downwards, device y grows upwards.
         val lx = DefaultLight.x - fx * 1.1f

@@ -19,6 +19,10 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import com.shivam.glasslauncher.icons.IconShape
+import com.shivam.glasslauncher.ui.home.GestureBinding
+import com.shivam.glasslauncher.ui.home.HomeAction
+import com.shivam.glasslauncher.ui.home.HomeGesture
+import com.shivam.glasslauncher.ui.home.HomeGestureMap
 import com.shivam.glasslauncher.ui.glass.GlassStyle
 import com.shivam.glasslauncher.ui.glass.RoleStyle
 import com.shivam.glasslauncher.ui.glass.ThemePreset
@@ -82,8 +86,6 @@ data class LauncherSettings(
     val iconPack: String = "",
     val hidden: Set<String> = emptySet(),
     val locked: Set<String> = emptySet(),
-    val doubleTapToLock: Boolean = true,
-    val swipeDownForSpotlight: Boolean = true,
     /** Labels under home-screen icons. Phase 5 default: off (clean home); the drawer keeps labels. */
     val showLabels: Boolean = false,
     val showBadges: Boolean = true,
@@ -101,6 +103,12 @@ data class LauncherSettings(
     val drawerLastCategory: String? = null,
     /** Ultra-immersive: hide the status bar (and nav bar with Glass gestures) on home and drawer. */
     val immersive: Boolean = false,
+    /** Phase 6: what each home gesture does (Settings → Home gestures). */
+    val homeGestures: Map<HomeGesture, GestureBinding> = HomeGestureMap.defaults,
+    /** Pages loop: after the App Library comes the Today view again. */
+    val infiniteScroll: Boolean = false,
+    /** The wallpaper copy shifts with device tilt (needs the wallpaper set through Glass). */
+    val wallpaperParallax: Boolean = false,
 )
 
 class SettingsRepository(private val context: Context, private val scope: CoroutineScope) {
@@ -159,6 +167,10 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         val drawerSwipe = stringPreferencesKey("drawer_swipe")
         val drawerLast = stringPreferencesKey("drawer_last_category")
         val immersive = booleanPreferencesKey("immersive")
+        // Phase 6
+        val homeGestures = stringPreferencesKey("home_gestures")
+        val infinite = booleanPreferencesKey("infinite_scroll")
+        val parallax = booleanPreferencesKey("wallpaper_parallax")
     }
 
     init {
@@ -214,8 +226,6 @@ class SettingsRepository(private val context: Context, private val scope: Corout
             iconPack = p[K.iconPack] ?: d.iconPack,
             hidden = p[K.hidden] ?: d.hidden,
             locked = p[K.locked] ?: d.locked,
-            doubleTapToLock = p[K.doubleTap] ?: d.doubleTapToLock,
-            swipeDownForSpotlight = p[K.swipeDown] ?: d.swipeDownForSpotlight,
             showLabels = p[K.labels] ?: d.showLabels,
             showBadges = p[K.badges] ?: d.showBadges,
             onboardingDone = p[K.onboarding] ?: d.onboardingDone,
@@ -237,7 +247,18 @@ class SettingsRepository(private val context: Context, private val scope: Corout
             drawerTransition = p[K.drawerTransition]?.let { v -> DrawerTransition.entries.firstOrNull { it.name == v } } ?: d.drawerTransition,
             drawerLastCategory = p[K.drawerLast],
             immersive = p[K.immersive] ?: d.immersive,
+            homeGestures = HomeGestureMap.decode(p[K.homeGestures]) ?: legacyGestures(p),
+            infiniteScroll = p[K.infinite] ?: d.infiniteScroll,
+            wallpaperParallax = p[K.parallax] ?: d.wallpaperParallax,
         )
+    }
+
+    /** Before Phase 6 only swipe down and double tap could be switched off. */
+    private fun legacyGestures(p: Preferences): Map<HomeGesture, GestureBinding> {
+        val m = HomeGestureMap.defaults.toMutableMap()
+        if (p[K.swipeDown] == false) m[HomeGesture.SwipeDown] = GestureBinding(HomeAction.None)
+        if (p[K.doubleTap] == false) m[HomeGesture.DoubleTap] = GestureBinding(HomeAction.None)
+        return m
     }
 
     val state: StateFlow<LauncherSettings?> = flow.stateIn(scope, SharingStarted.Eagerly, null)
@@ -313,9 +334,11 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         val cur = it[K.locked] ?: emptySet()
         it[K.locked] = if (locked) cur + key else cur - key
     }
-    fun setDoubleTapToLock(v: Boolean) = edit { it[K.doubleTap] = v }
-    fun setSwipeDownForSpotlight(v: Boolean) = edit { it[K.swipeDown] = v }
     fun setShowLabels(v: Boolean) = edit { it[K.labels] = v }
     fun setShowBadges(v: Boolean) = edit { it[K.badges] = v }
+    fun setHomeGestures(map: Map<HomeGesture, GestureBinding>) = edit { it[K.homeGestures] = HomeGestureMap.encode(map) }
+    fun setHomeGesture(map: Map<HomeGesture, GestureBinding>, g: HomeGesture, b: GestureBinding) = setHomeGestures(map + (g to b))
+    fun setInfiniteScroll(v: Boolean) = edit { it[K.infinite] = v }
+    fun setWallpaperParallax(v: Boolean) = edit { it[K.parallax] = v }
     fun setOnboardingDone(v: Boolean) = edit { it[K.onboarding] = v }
 }

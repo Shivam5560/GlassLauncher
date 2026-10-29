@@ -97,6 +97,10 @@ fun SettingsScreen(
         AppearanceScreen(nav, settings)
         return
     }
+    if (isHomeGestureScreen(nav.current)) {
+        HomeGestureScreen(nav, settings, resumeTick)
+        return
+    }
     when (nav.current) {
         "glass" -> GlassTuningScreen(nav, settings)
         "wallpaper" -> WallpaperScreen(nav, wallpaper, toast)
@@ -158,14 +162,10 @@ private fun MainScreen(nav: SettingsNav, settings: LauncherSettings, wallpaper: 
             GlassListGroup(title = "Home & Search", footer = "Badges count notifications, not each app's own unread number, and need notification access.") {
                 GlassSwitchRow("Show app labels", settings.showLabels, { app.settings.setShowLabels(it) })
                 GlassSwitchRow("Notification badges", settings.showBadges, { app.settings.setShowBadges(it) })
-                GlassSwitchRow("Swipe down for Spotlight", settings.swipeDownForSpotlight, { app.settings.setSwipeDownForSpotlight(it) })
+                GlassRow("Home gestures", subtitle = "Swipes, double tap, two fingers, pinch, rotate", icon = GlassIcons.Hand, iconTint = GlassColors.Accent, onClick = { nav.push("homegestures") })
+                GlassSwitchRow("Infinite scroll", settings.infiniteScroll, { app.settings.setInfiniteScroll(it) }, subtitle = "Pages loop: after the App Library comes the Today view")
+                GlassSwitchRow("Wallpaper 3D effect", settings.wallpaperParallax, { app.settings.setWallpaperParallax(it) }, subtitle = if (wallpaper.image != null) "The wallpaper moves as you tilt the phone" else "Needs the wallpaper set through Glass (Wallpaper)")
                 GlassSwitchRow("Ultra-immersive", settings.immersive, { app.settings.setImmersive(it) }, subtitle = if (gesturesOn) "Hide status and navigation bars on Home and in the drawer" else "Hide the status bar on Home and in the drawer")
-                if (gesturesOn) {
-                    GlassSwitchRow("Double-tap to lock", settings.doubleTapToLock, { app.settings.setDoubleTapToLock(it) })
-                } else {
-                    // docs/CONSTRAINTS.md: hidden until the accessibility service is on.
-                    GlassRow("Double-tap to lock", subtitle = "Needs Glass Gestures — tap to set up", icon = GlassIcons.Lock, iconTint = Color(0xFF8E8E93), onClick = { nav.push("check") })
-                }
             }
         }
         item {
