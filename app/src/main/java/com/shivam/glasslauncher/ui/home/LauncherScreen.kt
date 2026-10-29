@@ -25,6 +25,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -58,6 +59,7 @@ import com.shivam.glasslauncher.ui.glass.GlassSurface
 import com.shivam.glasslauncher.ui.glass.GlassTheme
 import com.shivam.glasslauncher.ui.glass.GlassToastHost
 import com.shivam.glasslauncher.ui.glass.LocalBackdrop
+import com.shivam.glasslauncher.ui.glass.SnapshotBackdropLayer
 import com.shivam.glasslauncher.ui.glass.WallpaperBackdropLayer
 import com.shivam.glasslauncher.ui.glass.recordBackdrop
 import com.shivam.glasslauncher.ui.glass.rememberCrossWindowBlur
@@ -112,6 +114,9 @@ fun LauncherScreen(
     val ui = remember { LauncherUiState() }
     val widgetUi = remember(activity) { WidgetUiState(activity, scope, ui.toast) }
     val reduced = remember { reducedMotion(activity) }
+    // 0 = home at rest, 1 = pushed back behind an opening app (scaled down and blurred).
+    val appDepth = remember { androidx.compose.animation.core.Animatable(0f) }
+    var appLaunched by remember { androidx.compose.runtime.mutableStateOf(false) }
     // Widgets (icon group) launch apps through the same path as icons, lock check included.
     val launchHolder = remember { arrayOfNulls<(com.shivam.glasslauncher.data.AppEntry, android.graphics.Rect?) -> Unit>(1) }
     val widgetEnv = remember(ui.editMode, reduced) {
@@ -155,7 +160,8 @@ fun LauncherScreen(
     val light = rememberGlassLight(glass.tiltLighting)
     val overlayOpen = ui.overlayOpen || widgetUi.open
     val crossWindowBlur = rememberCrossWindowBlur(if (overlayOpen) glass.blurRadius else 0f)
-    val overlayAnim by animateFloatAsState(if (overlayOpen) 1f else 0f, spring(dampingRatio = 1f, stiffness = 300f), label = "overlay")
+    val overlayAnimState = animateFloatAsState(if (overlayOpen) 1f else 0f, spring(dampingRatio = 1f, stiffness = 300f), label = "overlay")
+    val overlayAnim by overlayAnimState
     val lightWallpaper = snapshot.globalLuminance > 0.7f
 
     val wallpaperLayer = rememberGraphicsLayer()
@@ -165,7 +171,18 @@ fun LauncherScreen(
     val base = if (hasWallpaper) listOf(wallpaperLayer) else emptyList()
     val wallpaperOnly = remember(hasWallpaper, snapshot) { Backdrop(base, snapshot) }
     val homeBackdrop = remember(hasWallpaper, snapshot) { Backdrop(base + pagesLayer, snapshot) }
-    val overlayBackdrop = remember(hasWallpaper, snapshot) { Backdrop(base + homeLayer, snapshot) }
+    // While an overlay is open the home under it is still, so overlays refract one snapshot of it,
+    // kept until the close animation ends. Before the snapshot exists (a frame or two, overlay
+    // still nearly transparent) they refract the wallpaper alone, never the live home layer.
+    val frozenHomeLayer = rememberGraphicsLayer()
+    var frozenHome by remember { androidx.compose.runtime.mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
+    val overlayGone = !overlayOpen && overlayAnim < 0.01f
+    LaunchedEffect(overlayOpen) {
+        if (overlayOpen) frozenHome = runCatching { homeLayer.toImageBitmap() }.getOrNull()
+    }
+    LaunchedEffect(overlayGone) { if (overlayGone) frozenHome = null }
+    val frozen = frozenHome != null
+    val overlayBackdrop = remember(hasWallpaper, snapshot, frozen) { Backdrop(if (frozen) base + frozenHomeLayer else base, snapshot) }
 
     // Status bar icons follow the wallpaper brightness.
     LaunchedEffect(lightWallpaper) {
@@ -211,7 +228,18 @@ fun LauncherScreen(
     // Ultra-immersive: hide the status bar (and the nav bar when Glass gestures replace it) on
     // home and in the drawer; a swipe from the edge reveals them transiently.
     val lifecycleTick = remember { androidx.compose.runtime.mutableIntStateOf(0) }
-    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) { lifecycleTick.intValue++ }
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+        lifecycleTick.intValue++
+        // Back from an app: the home springs forward out of depth and comes into focus.
+        // HyperOS cross-fades our window in for ~150 ms after resume; hold the pushed-back pose
+        // through the start of it so the motion is seen, then ease forward (measured on a Turbo 5).
+        if (appDepth.value > 0f) scope.launch {
+            appDepth.snapTo(1f)
+            delay(70)
+            appDepth.animateTo(0f, HomeReturn)
+        }
+    }
+    androidx.lifecycle.compose.LifecycleEventEffect(androidx.lifecycle.Lifecycle.Event.ON_PAUSE) { appLaunched = false }
     LaunchedEffect(settings.immersive, lifecycleTick.intValue) {
         val gesturesOn = com.shivam.glasslauncher.gestures.GlassGestureService.isEnabled(activity)
         ImmersiveMode.apply(activity.window, settings.immersive, hideNavigation = gesturesOn)
@@ -281,6 +309,15 @@ fun LauncherScreen(
                 if (vm.isLocked(entry)) {
                     ui.lockPrompt = LockPrompt(entry, bounds)
                 } else {
+                    if (!reduced) {
+                        appLaunched = true
+                        scope.launch {
+                            appDepth.animateTo(1f, androidx.compose.animation.core.tween(240, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                            // The launch failed or was blocked (we were never paused): come back.
+                            delay(600)
+                            if (appLaunched) { appLaunched = false; appDepth.animateTo(0f, HomeReturn) }
+                        }
+                    }
                     vm.launchNow(activity, entry, bounds)
                     ui.folder = null
                 }
@@ -376,6 +413,7 @@ fun LauncherScreen(
         CompositionLocalProvider(LocalIconRenderer provides vm.icons, LocalIconGeneration provides generation, LocalWidgetEnv provides widgetEnv) {
             WidgetHostLifecycle()
             Box(Modifier.fillMaxSize()) {
+                SnapshotBackdropLayer(frozenHome, frozenHomeLayer)
                 WallpaperBackdropLayer(snapshot, wallpaperLayer, hasWallpaper, parallax = if (settings.wallpaperParallax && hasWallpaper && !reduced) ({ tilt.value }) else null)
 
                 // Fallback base layer when the compositor cannot blur behind the window
@@ -402,7 +440,16 @@ fun LauncherScreen(
                 Box(
                     Modifier
                         .fillMaxSize()
-                        .blur((overlayAnim * 16f).dp)
+                        // Read in the layer block, not in composition: animating it redraws, never recomposes.
+                        .graphicsLayer {
+                            val depth = appDepth.value
+                            val r = (overlayAnimState.value * 16f + depth * 14f).dp.toPx()
+                            renderEffect = if (r >= 0.5f) androidx.compose.ui.graphics.BlurEffect(r, r, androidx.compose.ui.graphics.TileMode.Clamp) else null
+                            clip = r >= 0.5f
+                            val sc = 1f - 0.1f * depth
+                            scaleX = sc
+                            scaleY = sc
+                        }
                         .recordBackdrop(homeLayer),
                 ) {
                     Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
@@ -555,6 +602,9 @@ fun LauncherScreen(
         }
     }
 }
+
+/** Home coming back from an app (about 320 ms, decelerating). */
+private val HomeReturn = androidx.compose.animation.core.tween<Float>(320, easing = androidx.compose.animation.core.CubicBezierEasing(0.2f, 0f, 0f, 1f))
 
 /** Pages before the first home page in the pager (the Today view). */
 private const val TODAY_PAGES = 1

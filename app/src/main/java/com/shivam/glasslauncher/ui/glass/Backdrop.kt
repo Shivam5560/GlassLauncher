@@ -98,3 +98,16 @@ fun WallpaperBackdropLayer(snapshot: WallpaperSource.Snapshot, layer: GraphicsLa
 
 /** Extra wallpaper on each side for parallax travel, as a fraction of the screen width. */
 private const val PARALLAX_OVERSCAN = 0.05f
+
+/**
+ * Invisible full-screen layer that replays a still [image] (a snapshot of another layer). Overlays
+ * refract this instead of the live home layer: replaying the home re-runs every home glass panel's
+ * blur and lens for every overlay panel, every frame (measured on a Redmi Turbo 5: drawer frames
+ * 28 ms → 13 ms).
+ */
+@Composable
+fun SnapshotBackdropLayer(image: androidx.compose.ui.graphics.ImageBitmap?, layer: GraphicsLayer) {
+    Canvas(Modifier.fillMaxSize().recordBackdrop(layer, drawToScreen = false)) {
+        if (image != null) drawImage(image, dstSize = IntSize(size.width.toInt(), size.height.toInt()))
+    }
+}

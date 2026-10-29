@@ -970,8 +970,10 @@ def frame_vectors():
         return (head + f'    <path android:pathData="{TILE}">{gradient_xml("fillColor", colors)}</path>\n'
                 f'    <path android:pathData="{TILE_RIM}" android:strokeColor="#FFFFFF" android:strokeAlpha="{rim}" '
                 f'android:strokeWidth="1.2"/>\n</vector>\n')
-    mask = head + '    <path android:pathData="M0,0H100V100H0Z" android:fillColor="#000000"/>\n' + \
-        f'    <path android:pathData="{superellipse(r=44)}" android:fillColor="#FFFFFF"/>\n</vector>\n'
+    # ADW masks are alpha masks: launchers cut the icon away wherever the mask is opaque
+    # (Nova/Lawnchair/Glass use DST_OUT). So: opaque outside the squircle, clear inside.
+    mask = head + f'    <path android:pathData="M0,0H100V100H0Z {superellipse(r=44)}" android:fillType="evenOdd" ' \
+        'android:fillColor="#000000"/>\n</vector>\n'
     upon = (head + f'    <group><clip-path android:pathData="{TILE}"/><path android:pathData="{ellipse(50, 8, 74, 36)}">'
             f'{gradient_xml("fillColor", ("#55FFFFFF", "#00FFFFFF"), 50, -28, 50, 44)}</path></group>\n'
             f'    <path android:pathData="{TILE_RIM}" android:strokeColor="#FFFFFF" android:strokeAlpha="0.4" '
