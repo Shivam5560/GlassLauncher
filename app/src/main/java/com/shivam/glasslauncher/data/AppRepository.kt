@@ -74,6 +74,7 @@ class AppRepository(private val context: Context, private val scope: CoroutineSc
             }
             for (info in activities) {
                 if (info.componentName.packageName == context.packageName && info.componentName.className.endsWith("MainActivity")) continue
+                if (info.componentName.packageName in BLOATWARE) continue
                 list += AppEntry(
                     key = AppEntry.keyOf(info.componentName, if (isWork) serial else 0L),
                     label = info.label?.toString()?.trim().orEmpty().ifEmpty { info.componentName.packageName },
@@ -95,5 +96,27 @@ class AppRepository(private val context: Context, private val scope: CoroutineSc
 
     fun stop() {
         launcherApps.unregisterCallback(callback)
+    }
+
+    companion object {
+        /**
+         * Preinstalled OEM/carrier extras Glass never shows (home, drawer, App Library, search).
+         * ponytail: fixed list for the owner's HyperOS phone; make it a setting if other devices need one.
+         */
+        val BLOATWARE = setOf(
+            "com.mi.globalminusscreen",          // App vault
+            "com.mi.global.shop",                // Xiaomi Store
+            "com.miui.miservice",                // Services & feedback
+            "com.xiaomi.glgm",                   // Games
+            "com.miui.player",                   // Mi Music
+            "com.android.stk",                   // SIM toolkit ("Airtel Services")
+            "com.indus.appstore",                // Indus Appstore
+            "com.android.thememanager",          // Themes
+            "com.android.providers.downloads.ui",// Downloads
+            "com.google.android.apps.subscriptions.red", // Google One
+            "com.google.android.videos",         // Google TV
+            "com.google.android.apps.safetyhub", // Personal Safety
+            "com.google.android.apps.tachyon",   // Meet
+        )
     }
 }

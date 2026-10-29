@@ -135,28 +135,46 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
             combine(apps.filter { it.isNotEmpty() }, hidden) { list, h -> list to h }.collect { (list, h) ->
                 val keys = list.map { it.key }
                 g.layout.update { current ->
-                    if (current.known.isEmpty() && current.placedKeys().isEmpty()) {
+                    val synced = if (current.known.isEmpty() && current.placedKeys().isEmpty()) {
                         LayoutOps.initial(keys, defaultDockKeys(list), h)
                     } else {
-                        LayoutOps.reconcile(current, keys, h)
+                        LayoutOps.reconcile(current, keys, h, autoAdd = false)
                     }
+                    // Once (fresh or old layouts): home keeps only SL6's apps, the rest live in the drawer.
+                    if (synced.version < 2) LayoutOps.arrange(synced, defaultDockKeys(list), homePicks(list, h)) else synced
                 }
             }
         }
     }
 
+    /** SL6's dock: Phone, Browser, Gallery, Camera. */
     private fun defaultDockKeys(list: List<AppEntry>): List<String> {
         val pm = getApplication<Application>().packageManager
-        val intents = listOf(
-            Intent(Intent.ACTION_DIAL),
-            Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:")),
-            Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")).addCategory(Intent.CATEGORY_BROWSABLE),
-            Intent(MediaStore.ACTION_IMAGE_CAPTURE),
+        fun keyOf(pkg: String?) = list.firstOrNull { it.packageName == pkg && !it.isWorkProfile }?.key
+        fun resolve(intent: Intent) = pm.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+            ?.takeIf { it != "android" }?.let(::keyOf)
+        return listOfNotNull(
+            resolve(Intent(Intent.ACTION_DIAL)),
+            resolve(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")).addCategory(Intent.CATEGORY_BROWSABLE)),
+            GALLERIES.firstNotNullOfOrNull(::keyOf),
+            resolve(Intent(MediaStore.ACTION_IMAGE_CAPTURE)),
         )
-        return intents.mapNotNull { intent ->
-            val pkg = pm.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
-            if (pkg == null || pkg == "android") null else list.firstOrNull { it.packageName == pkg && !it.isWorkProfile }?.key
-        }
+    }
+
+    private fun homePicks(list: List<AppEntry>, hidden: Set<String>): List<List<String>> = SL6_PAGES.map { page ->
+        page.mapNotNull { pkg -> list.firstOrNull { it.packageName == pkg && !it.isWorkProfile && it.key !in hidden }?.key }
+    }
+
+    private companion object {
+        val GALLERIES = listOf("com.miui.gallery", "com.google.android.apps.photos")
+        /** SL6's home pages on the owner's phone (observed 29 Oct 2026); missing apps are skipped. */
+        val SL6_PAGES = listOf(
+            listOf("com.instagram.android", "com.whatsapp", "com.google.android.gm", "com.google.android.youtube"),
+            listOf(
+                "com.application.zomato", "com.anthropic.claude", "com.flipkart.android", "com.linkedin.android",
+                "in.gokiwi.kiwitpap", "net.one97.paytm", "com.netflix.mediaclient", "com.phonepe.app",
+            ),
+        )
     }
 
     // --- Actions ---------------------------------------------------------------------------

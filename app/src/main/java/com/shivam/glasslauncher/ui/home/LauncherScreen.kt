@@ -18,6 +18,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
@@ -93,6 +96,7 @@ import kotlin.math.roundToInt
  *  - dock, page dots, edit toolbar refract: wallpaper copy + pages
  *  - overlays refract: wallpaper copy + whole home (pages + dock)
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class) // statusBarsIgnoringVisibility
 @Composable
 fun LauncherScreen(
     vm: LauncherViewModel,
@@ -460,7 +464,8 @@ fun LauncherScreen(
                         }
                         .recordBackdrop(homeLayer),
                 ) {
-                    Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+                    // Status bar space is kept even while immersive hides it (as on iOS); the dock keeps its own bottom margin.
+                    Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)) {
                         Box(
                             Modifier
                                 .weight(1f)
@@ -536,7 +541,6 @@ fun LauncherScreen(
                             callbacks = callbacks,
                             onBounds = { },
                             modifier = Modifier
-                                .padding(bottom = 8.dp)
                                 .graphicsLayer {
                                     val f = libraryFraction()
                                     alpha = 1f - f

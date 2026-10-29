@@ -68,6 +68,9 @@ class OverlayController(
     private var landscape = false
     private var gameInFront = false
     private var excludedInFront = false
+    /** Glass home hides the status bar by choice (immersive), not for video: keep island and corners. */
+    private var homeInFront = false
+    private val fullscreen get() = statusBarHidden && !homeInFront
     private val gameCache = HashMap<String, Boolean>()
 
     private val configCallbacks = object : ComponentCallbacks {
@@ -123,7 +126,9 @@ class OverlayController(
         val rect = cutout?.boundingRects
             ?.filter { it.top <= bounds.top + dp(4f) && it.height() > 0 }
             ?.minByOrNull { abs(it.centerX() - bounds.width() / 2) }
-        val info = rect?.let { CutoutInfo(it.exactCenterX(), it.exactCenterY(), it.width().toFloat(), it.height().toFloat()) }
+        // HyperOS declares the punch hole as a strip down to the status bar's bottom (80 x 156 px on
+        // the Turbo 5); the hole is round, so its width is the real size.
+        val info = rect?.let { CutoutInfo(it.exactCenterX(), it.exactCenterY(), it.width().toFloat(), minOf(it.width(), it.height()).toFloat()) }
         island?.setScreen(bounds.width(), info)
         updateHidden()
     }
@@ -133,12 +138,8 @@ class OverlayController(
     private fun addProbe() {
         val v = View(service)
         v.setOnApplyWindowInsetsListener { _, insets ->
-            val hidden = !insets.isVisible(WindowInsets.Type.statusBars())
-            if (hidden != statusBarHidden) {
-                statusBarHidden = hidden
-                updateHidden()
-                rebuildCorners()
-            }
+            // Accessibility overlays get stale insets on HyperOS; that host uses [onStatusBar].
+            if (accessibility == null) setStatusBarHidden(!insets.isVisible(WindowInsets.Type.statusBars()))
             insets
         }
         val p = WindowManager.LayoutParams(
@@ -148,6 +149,9 @@ class OverlayController(
             PixelFormat.TRANSPARENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
+            // Must overlap the status bar: insets only report a bar's visibility to windows it covers.
+            fitInsetsTypes = 0
+            layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
             title = "GlassInsetsProbe"
         }
         try {
@@ -156,12 +160,37 @@ class OverlayController(
         } catch (_: Exception) { }
     }
 
+    /** Last corner touched and when, to tell a corner pull from a plain status bar pull. */
+    private var cornerDown: Pair<PanelKind, Long>? = null
+
+    /**
+     * From the accessibility service when the system shade appears. In apps SystemUI steals
+     * top-edge drags from our corner zones, so if a corner was just touched we swap its shade for our panel.
+     */
+    fun onSystemShade() {
+        val (kind, at) = cornerDown ?: return
+        cornerDown = null
+        if (android.os.SystemClock.uptimeMillis() - at > 800 || panelKind != null) return
+        accessibility?.performGlobalAction(AccessibilityService.GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE)
+        openPanel(kind)
+    }
+
+    /** From the accessibility service: whether the status bar window is on screen. */
+    fun onStatusBar(visible: Boolean) = setStatusBarHidden(!visible)
+
+    private fun setStatusBarHidden(hidden: Boolean) {
+        if (hidden == statusBarHidden) return
+        statusBarHidden = hidden
+        updateHidden()
+        rebuildCorners()
+    }
+
     private fun updateHidden() {
         val reason = when {
             locked -> "lock screen"
             panelKind != null -> "panel"
             landscape -> "landscape"
-            statusBarHidden -> "fullscreen"
+            fullscreen -> "fullscreen"
             gameInFront -> "game"
             else -> null
         }
@@ -178,7 +207,9 @@ class OverlayController(
                 info.category == ApplicationInfo.CATEGORY_GAME
             } catch (_: Exception) { false }
         }
-        val changed = game != gameInFront || excluded != excludedInFront
+        val home = pkg == service.packageName
+        val changed = game != gameInFront || excluded != excludedInFront || home != homeInFront
+        homeInFront = home
         gameInFront = game
         excludedInFront = excluded
         if (changed) {
@@ -200,7 +231,7 @@ class OverlayController(
         if (accessibility == null) return
         val s = settingsFlow.value
         // Keep the corners out of fullscreen games and video and the user's excluded apps.
-        if (statusBarHidden || gameInFront || excludedInFront) return
+        if (fullscreen || gameInFront || excludedInFront) return
         val width = (wm.currentWindowMetrics.bounds.width() * s.cornerWidth.coerceIn(0.1f, 0.45f)).toInt()
         val height = dp(s.cornerHeight.coerceIn(12f, 60f))
         if (s.notificationCenter) leftCorner = addCorner(Gravity.TOP or Gravity.START, width, height, PanelKind.NotificationCenter)
@@ -215,11 +246,15 @@ class OverlayController(
         var fired = false
         v.setOnTouchListener { view, e ->
             when (e.actionMasked) {
-                MotionEvent.ACTION_DOWN -> { downX = e.rawX; downY = e.rawY; fired = false }
+                MotionEvent.ACTION_DOWN -> {
+                    downX = e.rawX; downY = e.rawY; fired = false
+                    cornerDown = kind to android.os.SystemClock.uptimeMillis()
+                }
                 MotionEvent.ACTION_MOVE -> {
                     val dy = e.rawY - downY
                     if (!fired && dy > dp(22f) && dy > abs(e.rawX - downX)) {
                         fired = true
+                        cornerDown = null
                         view.performHapticFeedback(HapticFeedbackConstants.GESTURE_START)
                         openPanel(kind)
                     }

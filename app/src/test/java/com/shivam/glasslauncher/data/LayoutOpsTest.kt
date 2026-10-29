@@ -56,4 +56,14 @@ class LayoutOpsTest {
         assertEquals(AppItem("a5"), moved.dock[1])
         assertEquals(AppItem("a2"), moved.pages[0][0])
     }
+
+    @Test fun arrangeKeepsOnlyPicksPerPage() {
+        val l = LayoutOps.initial(apps, emptyList(), emptySet())
+        val r = LayoutOps.arrange(l, listOf("a9"), listOf(listOf("a1", "a2"), listOf("a3")))
+        assertEquals(setOf("a1", "a2", "a3", "a9"), r.placedKeys())
+        assertEquals(AppItem("a3"), r.pages[1][0])
+        assertEquals(AppItem("a9"), r.dock[0])
+        assertEquals(2, HomeLayout.fromJson(r.toJson()).version)
+        assertTrue("b1" !in LayoutOps.reconcile(r, apps + "b1", emptySet(), autoAdd = false).placedKeys())
+    }
 }

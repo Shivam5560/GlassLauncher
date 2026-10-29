@@ -1,5 +1,9 @@
 package com.shivam.glasslauncher.ui.home
 
+import androidx.compose.runtime.remember
+import android.view.RoundedCorner
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -40,12 +44,19 @@ fun Dock(
     onBounds: (Rect) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // iOS 26: the dock is concentric with the screen's rounded corners (same margin on the sides and
+    // bottom, radius = screen radius - margin), so its corners are never clipped by the display.
+    val view = LocalView.current
+    val density = LocalDensity.current
+    val screenRadius = remember(view) {
+        view.rootWindowInsets?.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_LEFT)?.radius?.let { with(density) { it.toDp() } } ?: 0.dp
+    }
     GlassSurface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp)
+            .padding(start = DockMargin, end = DockMargin, bottom = DockMargin)
             .onGloballyPositioned { onBounds(it.boundsInWindow()) },
-        shape = GlassShape.rounded(34.dp),
+        shape = GlassShape.rounded(maxOf(34.dp, screenRadius - DockMargin)),
         role = null,
     ) {
         Row(
@@ -134,3 +145,4 @@ private fun PageDotRow(homePages: Int, current: Int, c: Color) {
 
 private fun Modifier.dot(color: Color): Modifier = this.drawBehind { drawCircle(color) }
 
+private val DockMargin = 14.dp

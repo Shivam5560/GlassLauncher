@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -78,7 +80,11 @@ fun AppLibrary(
     var listMode by remember { mutableStateOf(false) }
     val keyboard = LocalSoftwareKeyboardController.current
 
-    Column(Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp)) {
+    // Capped so tile icons match Home's 64 dp on wide screens (else they grow to ~90 dp).
+    Column(
+        Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp)
+            .wrapContentWidth(Alignment.CenterHorizontally).widthIn(max = TileWidth * 2 + TileSpacing),
+    ) {
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             GlassTextField(
@@ -100,7 +106,7 @@ fun AppLibrary(
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),
                 modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalArrangement = Arrangement.spacedBy(TileSpacing),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 contentPadding = PaddingValues(bottom = 40.dp),
             ) {
@@ -178,6 +184,8 @@ private fun MiniGrid(apps: List<AppEntry>, size: Dp, onClick: () -> Unit) {
 
 private val TilePad = 12.dp
 private val TileGap = 10.dp
+private val TileSpacing = 22.dp
+private val TileWidth = 64.dp * 2 + TileGap + TilePad * 2
 
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable

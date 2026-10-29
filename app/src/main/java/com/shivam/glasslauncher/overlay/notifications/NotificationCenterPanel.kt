@@ -88,7 +88,10 @@ import kotlin.math.roundToInt
 @Composable
 fun NotificationCenterPanel(host: PanelHost, progress: Float) {
     val context = host.context
-    val entries by NotificationHub.entries.collectAsState()
+    val all by NotificationHub.entries.collectAsState()
+    val hidden by NotificationHub.hidden.collectAsState()
+    // Cleared ongoing cards stay hidden until reposted (Clear works on HyperOS's sticky cards too).
+    val entries = remember(all, hidden) { all.filter { (hidden[it.key] ?: -1L) < it.postTime } }
     val connected by NotificationHub.connected.collectAsState()
     val media by MediaHub.state.collectAsState()
     var expanded by remember { mutableStateOf(emptySet<String>()) }
@@ -134,7 +137,7 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                 item("header") {
                     Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                         GlassText("Notification Center", Modifier.weight(1f).padding(start = 4.dp), style = GlassType.Title, color = Color.White)
-                        val clear = NotificationGrouping.clearAllKeys(entries)
+                        val clear = NotificationGrouping.visible(entries).map { it.key }
                         if (clear.isNotEmpty()) GlassChip("Clear All", selected = false, onClick = { NotificationHub.dismissAll(clear) })
                     }
                 }
@@ -146,17 +149,17 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                             GlassText(stack.appLabel, Modifier.weight(1f).padding(start = 4.dp), style = GlassType.Headline, color = Color.White, maxLines = 1)
                             GlassChip("Show less", selected = false, onClick = { expanded = expanded - stack.packageName })
                             Spacer(Modifier.width(8.dp))
-                            GlassIconButton(GlassIcons.Close, onClick = { NotificationHub.dismissAll(stack.clearableKeys) }, size = 30.dp)
+                            GlassIconButton(GlassIcons.Close, onClick = { NotificationHub.dismissAll(stack.items.map { it.key }) }, size = 30.dp)
                         }
                     }
                     items(stack.items, key = { it.key }) { e ->
-                        SwipeToDismiss(onDismiss = { NotificationHub.dismiss(e.key) }, enabled = e.isClearable) {
+                        SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(listOf(e.key)) }, enabled = true) {
                             NotificationCard(e, host, showActions = true, onClick = { if (NotificationHub.open(context, e.key)) host.close() })
                         }
                     }
                 } else {
                     item("s:" + stack.packageName) {
-                        SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(stack.clearableKeys) }, enabled = stack.clearableKeys.isNotEmpty()) {
+                        SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(stack.items.map { it.key }) }, enabled = true) {
                             CollapsedStack(stack, host, onExpand = { expanded = expanded + stack.packageName })
                         }
                     }

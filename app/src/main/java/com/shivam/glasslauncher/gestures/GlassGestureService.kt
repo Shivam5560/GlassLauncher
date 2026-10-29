@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.ComponentName
 import android.content.Context
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -16,6 +17,7 @@ import android.view.VelocityTracker
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityWindowInfo
 import com.shivam.glasslauncher.data.GestureSettings
 import com.shivam.glasslauncher.data.SettingsRepository
 import com.shivam.glasslauncher.overlay.OverlayController
@@ -67,9 +69,22 @@ class GlassGestureService : AccessibilityService() {
         scope.launch {
             repo.flow.map { it.gestures }.distinctUntilChanged().collect {
                 config = it
+                hideSystemNavButtons()
                 rebuild()
             }
         }
+    }
+
+    /**
+     * HyperOS falls back to the 3-button bar while a third-party home is default. Its full-screen
+     * gesture flag brings back gesture mode (no buttons); our pill replaces the system gesture line.
+     * Needs `adb shell pm grant <pkg> android.permission.WRITE_SECURE_SETTINGS` once; no-op without it.
+     */
+    private fun hideSystemNavButtons() {
+        try {
+            Settings.Global.putInt(contentResolver, "force_fsg_nav_bar", 1)
+            Settings.Global.putInt(contentResolver, "hide_gesture_line", if (config.showPill) 1 else 0)
+        } catch (_: SecurityException) { }
     }
 
     private var foregroundPackage: String? = null
@@ -93,9 +108,18 @@ class GlassGestureService : AccessibilityService() {
                 }
             }
             AccessibilityEvent.TYPE_WINDOWS_CHANGED -> {
-                keyboardUp = try {
-                    windows.any { it.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD }
-                } catch (e: Exception) { false }
+                val ws = try { windows } catch (e: Exception) { emptyList() }
+                keyboardUp = ws.any { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD }
+                // The status bar is a short TYPE_SYSTEM window at the top (the shade is full height).
+                val bounds = Rect()
+                overlays?.onStatusBar(ws.any {
+                    it.type == AccessibilityWindowInfo.TYPE_SYSTEM &&
+                        bounds.also(it::getBoundsInScreen).top <= 0 && bounds.height() in 1..dp(80f).toInt()
+                })
+                val screenH = resources.displayMetrics.heightPixels
+                if (ws.any { it.type == AccessibilityWindowInfo.TYPE_SYSTEM && bounds.also(it::getBoundsInScreen).top <= 0 && bounds.height() > screenH / 2 }) {
+                    overlays?.onSystemShade()
+                }
             }
         }
         updatePause()

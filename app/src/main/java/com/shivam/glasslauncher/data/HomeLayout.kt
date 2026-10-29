@@ -51,6 +51,8 @@ data class HomeLayout(
     val defaultPage: Int = 0,
     /** Phase 5: app drawer categories, manual moves, folders, shortcuts and sorting. */
     val drawer: DrawerConfig = DrawerConfig(),
+    /** 2 = home holds only picked apps ([LayoutOps.arrange]); 1 = old "every app on home" layouts. */
+    val version: Int = 1,
 ) {
     fun widgetsOn(page: Int): List<HomeWidget> = widgets.filter { it.page == page }
 
@@ -85,7 +87,7 @@ data class HomeLayout(
                 .put("apps", JSONArray(item.apps))
         }
         val root = JSONObject()
-        root.put("version", 1)
+        root.put("version", version)
         root.put("pages", JSONArray(pages.map { page -> JSONArray(page.map { itemJson(it) }) }))
         root.put("dock", JSONArray(dock.map { itemJson(it) }))
         root.put("labels", JSONObject(labels))
@@ -143,7 +145,7 @@ data class HomeLayout(
             val kept = List(keptArr.length()) { keptArr.getInt(it) }.filter { it in pages.indices }.toSet()
             val defaultPage = root.optInt("defaultPage", 0).coerceIn(0, pages.size - 1)
             val drawer = root.optJSONObject("drawer")?.let { DrawerConfig.fromJson(it) } ?: DrawerConfig()
-            return HomeLayout(pages, dock, labels, known, widgets, kept, defaultPage, drawer)
+            return HomeLayout(pages, dock, labels, known, widgets, kept, defaultPage, drawer, root.optInt("version", 1))
         }
     }
 }
@@ -167,6 +169,7 @@ object LayoutOps {
         val kept: MutableSet<Int> = layout.keptPages.toMutableSet()
         var defaultPage = layout.defaultPage
         val drawer = layout.drawer
+        var version = layout.version
 
         fun blocked(page: Int, index: Int): Boolean =
             widgets.any { it.page == page && it.rect.contains(index % GRID_COLUMNS, index / GRID_COLUMNS) }
@@ -193,6 +196,7 @@ object LayoutOps {
                 keptPages = kept.mapNotNull { remap[it] }.toSet(),
                 defaultPage = remap[defaultPage] ?: 0,
                 drawer = drawer,
+                version = version,
             )
         }
 
@@ -283,7 +287,7 @@ object LayoutOps {
      * Brings the layout in sync with [installed] app keys. Uninstalled apps are removed,
      * newly seen apps are appended to the first free cell, and [hidden] apps are removed.
      */
-    fun reconcile(layout: HomeLayout, installed: List<String>, hidden: Set<String>): HomeLayout {
+    fun reconcile(layout: HomeLayout, installed: List<String>, hidden: Set<String>, autoAdd: Boolean = true): HomeLayout {
         val installedSet = installed.toSet()
         val w = Working(layout)
         fun keep(key: String) = key in installedSet && key !in hidden
@@ -291,7 +295,7 @@ object LayoutOps {
         for (i in w.dock.indices) w.dock[i] = filterItem(w.dock[i], ::keep)
         val placed = w.build().placedKeys()
         val newKeys = installed.filter { it !in layout.known && it !in placed && it !in hidden }
-        newKeys.forEach { w.placeInFirstFree(AppItem(it)) }
+        if (autoAdd) newKeys.forEach { w.placeInFirstFree(AppItem(it)) }
         w.known = installedSet
         w.labels = layout.labels.filterKeys { it in installedSet }
         return w.build()
@@ -311,6 +315,22 @@ object LayoutOps {
         val w = Working(HomeLayout(listOf(HomeLayout.emptyPage()), dock, emptyMap(), emptySet()))
         installed.filter { it !in inDock && it !in hidden }.forEach { w.placeInFirstFree(AppItem(it)) }
         w.known = installed.toSet()
+        return w.build()
+    }
+
+    /**
+     * Home shows only [pageKeys] (one list per page, in order) and [dockKeys]; every other app
+     * lives in the drawer. Widgets, folders and labels stay.
+     */
+    fun arrange(layout: HomeLayout, dockKeys: List<String>, pageKeys: List<List<String>>): HomeLayout {
+        val w = Working(layout)
+        for (page in w.pages) for (i in page.indices) if (page[i] is AppItem) page[i] = null
+        if (dockKeys.isNotEmpty()) for (i in w.dock.indices) w.dock[i] = dockKeys.getOrNull(i)?.let { AppItem(it) }
+        pageKeys.forEachIndexed { p, keys ->
+            while (w.pages.size <= p) w.newPage()
+            keys.forEach { w.placeInFirstFree(AppItem(it), p) }
+        }
+        w.version = 2
         return w.build()
     }
 

@@ -152,9 +152,20 @@ object NotificationHub {
         try { listener?.cancelNotification(key) } catch (e: Exception) { Log.w(TAG, "dismiss failed", e) }
     }
 
+    /**
+     * Ongoing notifications the user cleared (key -> postTime then). Android won't cancel them, so
+     * Glass hides them until the app posts them again.
+     */
+    private val _hidden = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Long>>(emptyMap())
+    val hidden: kotlinx.coroutines.flow.StateFlow<Map<String, Long>> = _hidden
+
     fun dismissAll(keys: List<String>) {
         if (keys.isEmpty()) return
-        try { listener?.cancelNotifications(keys.toTypedArray()) } catch (e: Exception) { Log.w(TAG, "clear failed", e) }
+        val (clearable, sticky) = keys.partition { raw[it]?.isClearable != false }
+        if (clearable.isNotEmpty()) {
+            try { listener?.cancelNotifications(clearable.toTypedArray()) } catch (e: Exception) { Log.w(TAG, "clear failed", e) }
+        }
+        if (sticky.isNotEmpty()) _hidden.value = _hidden.value + sticky.associateWith { raw[it]?.postTime ?: Long.MAX_VALUE }
     }
 
     /** Asks the system for a Do Not Disturb filter through the listener (fallback without DND access). */
