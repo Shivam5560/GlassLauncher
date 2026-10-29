@@ -17,16 +17,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -43,10 +43,8 @@ import com.shivam.glasslauncher.data.LauncherSettings
 import com.shivam.glasslauncher.gestures.GlassGestureService
 import com.shivam.glasslauncher.icons.IconPack
 import com.shivam.glasslauncher.icons.IconPackInfo
-import com.shivam.glasslauncher.overlay.OverlayIcons
 import com.shivam.glasslauncher.overlay.OverlayScreens
 import com.shivam.glasslauncher.overlay.OverlaySettingsScreen
-import com.shivam.glasslauncher.overlay.overlaySummary
 import com.shivam.glasslauncher.ui.glass.Backdrop
 import com.shivam.glasslauncher.ui.glass.GlassButton
 import com.shivam.glasslauncher.ui.glass.GlassColors
@@ -123,77 +121,8 @@ fun SettingsScreen(
         "about" -> AboutScreen(nav)
         "widgets" -> com.shivam.glasslauncher.widgets.WidgetsSettingsScreen(nav, resumeTick, toast)
         in OverlayScreens.ALL -> OverlaySettingsScreen(nav, nav.current, resumeTick, toast)
-        else -> MainScreen(nav, settings, wallpaper, resumeTick)
-    }
-}
-
-@Composable
-private fun MainScreen(nav: SettingsNav, settings: LauncherSettings, wallpaper: WallpaperSource.Snapshot, resumeTick: Int) {
-    val context = LocalContext.current
-    val app = GlassApp.from(context)
-    val issues = remember(resumeTick, settings, wallpaper) {
-        SystemChecks.all(context, settings, wallpaper).count { it.status == CheckStatus.Off }
-    }
-    val gesturesOn = remember(resumeTick) { GlassGestureService.isEnabled(context) }
-    ScreenScaffold("Glass", nav) {
-        item {
-            GlassListGroup(title = "Setup") {
-                GlassRow(
-                    "System check",
-                    subtitle = if (issues == 0) "Everything Phase 1 needs is set up" else "$issues setting${if (issues > 1) "s" else ""} need attention",
-                    icon = GlassIcons.Check,
-                    iconTint = if (issues == 0) GlassColors.Green else GlassColors.Red,
-                    onClick = { nav.push("check") },
-                )
-                GlassRow("HyperOS setup guide", icon = GlassIcons.Sparkle, iconTint = GlassColors.Orange, onClick = { nav.push("setup") })
-            }
-        }
-        item {
-            GlassListGroup(title = "Appearance") {
-                GlassRow("Appearance", subtitle = "Theme, colours per surface, icons, labels, widgets, folders, animation", icon = GlassIcons.Sparkle, iconTint = Color(0xFFBF5AF2), onClick = { nav.push("appearance") })
-                GlassRow("App drawer", subtitle = "Categories, launch view, transition, sorting", icon = GlassIcons.Grid, iconTint = Color(0xFF30B0C7), onClick = { nav.push("drawer") })
-                GlassRow("Glass tuning", subtitle = "Variant, blur, tint, refraction, rim, lighting", icon = GlassIcons.Palette, iconTint = Color(0xFF5E5CE6), onClick = { nav.push("glass") })
-                GlassRow("Wallpaper", subtitle = wallpaper.path.title, icon = GlassIcons.Home, iconTint = Color(0xFF64D2FF), onClick = { nav.push("wallpaper") })
-                GlassRow("Icon pack", subtitle = settings.iconPack.ifEmpty { "System icons" }, icon = GlassIcons.Grid, iconTint = GlassColors.Orange, onClick = { nav.push("iconpack") })
-                GlassRow("Customise", subtitle = "Glass wallpapers, theme, font, icon style, backup", icon = GlassIcons.Sparkle, iconTint = Color(0xFFFF375F), onClick = { nav.push("polish") })
-            }
-        }
-        item {
-            GlassListGroup(title = "Home & Search", footer = "Badges count notifications, not each app's own unread number, and need notification access.") {
-                GlassSwitchRow("Show app labels", settings.showLabels, { app.settings.setShowLabels(it) })
-                GlassSwitchRow("Notification badges", settings.showBadges, { app.settings.setShowBadges(it) })
-                GlassRow("Home gestures", subtitle = "Swipes, double tap, two fingers, pinch, rotate", icon = GlassIcons.Hand, iconTint = GlassColors.Accent, onClick = { nav.push("homegestures") })
-                GlassSwitchRow("Infinite scroll", settings.infiniteScroll, { app.settings.setInfiniteScroll(it) }, subtitle = "Pages loop: after the App Library comes the Today view")
-                GlassSwitchRow("Blur wallpaper on Home", settings.homeBlur, { app.settings.setHomeBlur(it) }, subtitle = if (wallpaper.image != null) "A soft blur behind the home pages" else "Needs the wallpaper set through Glass (Wallpaper)")
-                GlassSwitchRow("Balanced dim on all pages", settings.darkerPages, { app.settings.setDarkerPages(it) }, subtitle = "Every home page gets the same premium dim; Today always has it")
-                GlassSwitchRow("True Tone", settings.trueTone, { app.settings.setTrueTone(it) }, subtitle = "Warms Glass's screens in indoor light, using the light sensor. Daylight: no change.")
-                if (settings.trueTone) GlassSliderRow("True Tone strength", settings.trueToneStrength, 0.2f..1f, { "${(it * 100).toInt()}%" }) { app.settings.setTrueToneStrength(it) }
-                GlassSwitchRow("Wallpaper 3D effect", settings.wallpaperParallax, { app.settings.setWallpaperParallax(it) }, subtitle = if (wallpaper.image != null) "The wallpaper moves as you tilt the phone" else "Needs the wallpaper set through Glass (Wallpaper)")
-                GlassSwitchRow("Ultra-immersive", settings.immersive, { app.settings.setImmersive(it) }, subtitle = if (gesturesOn) "Hide the navigation bar on Home and in the drawer" else "Needs Glass Gestures to hide the navigation bar")
-            }
-        }
-        item {
-            GlassListGroup(title = "Widgets") {
-                GlassRow("Widgets & Today view", subtitle = "Weather location, units and widget access", icon = com.shivam.glasslauncher.widgets.WidgetGlyphs.Widgets, iconTint = Color(0xFF30B0C7), onClick = { nav.push("widgets") })
-            }
-        }
-        item {
-            GlassListGroup(title = "Navigation") {
-                GlassRow("Gestures", subtitle = if (gesturesOn) "On" else "Off", icon = GlassIcons.Hand, iconTint = GlassColors.Accent, onClick = { nav.push("gestures") })
-                GlassRow("Island & Centers", subtitle = overlaySummary(context), icon = OverlayIcons.Island, iconTint = Color(0xFF1C1C1E), onClick = { nav.push(OverlayScreens.ROOT) })
-            }
-        }
-        item {
-            GlassListGroup(title = "Privacy") {
-                GlassRow("Hidden apps", subtitle = "${settings.hidden.size} hidden", icon = GlassIcons.EyeOff, iconTint = Color(0xFF8E8E93), onClick = { nav.push("hidden") })
-                GlassRow("Locked apps", subtitle = "${settings.locked.size} locked", icon = GlassIcons.Lock, iconTint = GlassColors.Red, onClick = { nav.push("locked") })
-            }
-        }
-        item {
-            GlassListGroup {
-                GlassRow("About", icon = GlassIcons.Info, iconTint = Color(0xFF8E8E93), onClick = { nav.push("about") })
-            }
-        }
+        "home" -> HomePreferencesScreen(nav, settings, wallpaper, resumeTick)
+        else -> SettingsDashboard(nav, settings, wallpaper, resumeTick)
     }
 }
 

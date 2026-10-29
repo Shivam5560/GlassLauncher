@@ -14,10 +14,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInWindow
@@ -105,7 +112,7 @@ fun PageDots(
 ) {
     val bounds = androidx.compose.runtime.remember { arrayOfNulls<Rect>(1) }
     GlassSurface(
-        modifier = modifier.onGloballyPositioned { bounds[0] = it.boundsInWindow() },
+        modifier = modifier.heightIn(min = 44.dp).semantics { contentDescription = "Search apps, contacts and settings" }.onGloballyPositioned { bounds[0] = it.boundsInWindow() },
         shape = GlassShape.Capsule,
         variant = GlassVariant.Clear,
         onClick = { onClick(bounds[0]) },
@@ -138,10 +145,14 @@ fun PageDots(
 @Composable
 private fun PageDotRow(homePages: Int, current: Int, c: Color) {
             for (p in 0 until homePages) {
+                val width by androidx.compose.animation.core.animateDpAsState(
+                    if (p == current) 16.dp else 6.dp,
+                    spring(dampingRatio = 0.9f, stiffness = 500f), label = "pageIndicator",
+                )
                 Box(
                     Modifier
                         .padding(horizontal = 3.dp)
-                        .size(7.dp)
+                        .size(width = width, height = 6.dp)
                         .dot(if (p == current) c else c.copy(alpha = 0.35f)),
                 )
             }
@@ -150,7 +161,7 @@ private fun PageDotRow(homePages: Int, current: Int, c: Color) {
             }
 }
 
-private fun Modifier.dot(color: Color): Modifier = this.drawBehind { drawCircle(color) }
+private fun Modifier.dot(color: Color): Modifier = this.drawBehind { drawRoundRect(color, cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2)) }
 
 private val DockMargin = 14.dp
 /** Extra room under the dock so the gesture pill sits clear of it. */

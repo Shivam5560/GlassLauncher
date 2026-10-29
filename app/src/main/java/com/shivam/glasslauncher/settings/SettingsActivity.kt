@@ -27,18 +27,24 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -100,7 +106,8 @@ class SettingsNav(start: String, private val finish: () -> Unit) {
     var stack by mutableStateOf(listOf(start))
         private set
     val current get() = stack.last()
-    fun push(screen: String) { stack = stack + screen }
+    fun push(screen: String) { if (screen != current) stack = stack + screen }
+    fun restore(screens: List<String>) { if (screens.isNotEmpty()) stack = screens }
     fun pop() { if (stack.size > 1) stack = stack.dropLast(1) else finish() }
     val canPop get() = stack.size > 1
 }
@@ -112,7 +119,10 @@ private fun SettingsRoot(start: String, resumeTick: Int, onFinish: () -> Unit) {
     val settings = app.settings.state.collectAsState().value ?: return
     val snapshot by app.wallpaper.snapshot.collectAsState()
     val generation by app.icons.generation.collectAsState()
-    val nav = remember { SettingsNav(start, onFinish) }
+    val nav = rememberSaveable(saver = listSaver<SettingsNav, String>(
+        save = { it.stack }, restore = { SettingsNav(start, onFinish).apply { restore(it) } },
+    )) { SettingsNav(start, onFinish) }
+    val screenStates = rememberSaveableStateHolder()
     val toast = remember { GlassToastState() }
     val light = rememberGlassLight(settings.glass.tiltLighting)
     val bgRole = settings.glass.role(SurfaceKind.Background)
@@ -144,7 +154,7 @@ private fun SettingsRoot(start: String, resumeTick: Int, onFinish: () -> Unit) {
                 val screenText = bgRole.contentColor?.let { androidx.compose.ui.graphics.Color(it) }
                     ?: androidx.compose.ui.graphics.Color(Contrast.pickText(Contrast.glassLuminance(Contrast.gammaToLinear(snapshot.globalLuminance), dim.toArgb(), dimAlpha)))
                 androidx.compose.runtime.CompositionLocalProvider(LocalScreenContentColor provides screenText) {
-                    key(nav.current) {
+                    screenStates.SaveableStateProvider(nav.current) {
                         SettingsScreen(nav, settings, snapshot, resumeTick, toast, onFinish)
                     }
                 }
@@ -154,28 +164,35 @@ private fun SettingsRoot(start: String, resumeTick: Int, onFinish: () -> Unit) {
     }
 }
 
-/** Common screen chrome: glass back button, large title, scrolling content. */
+/** Consistent navigation and a persistent scroll position on every settings page. */
 @Composable
-fun ScreenScaffold(title: String, nav: SettingsNav, content: LazyListScope.() -> Unit) {
+fun ScreenScaffold(title: String, nav: SettingsNav, subtitle: String? = null, content: LazyListScope.() -> Unit) {
+    val scroll = rememberLazyListState()
+    val collapsed by remember { derivedStateOf { scroll.firstVisibleItemIndex > 0 } }
+    val ink = LocalScreenContentColor.current
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (nav.canPop) {
-                GlassIconButton(GlassIcons.ChevronLeft, onClick = { nav.pop() }, size = 40.dp)
-                Spacer(Modifier.width(10.dp))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            GlassIconButton(if (nav.canPop) GlassIcons.ChevronLeft else GlassIcons.Close,
+                onClick = { nav.pop() }, size = 44.dp, contentDescription = if (nav.canPop) "Back" else "Close settings")
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                GlassText(if (collapsed) title else "GLASS", style = if (collapsed) GlassType.Headline else GlassType.Caption.copy(letterSpacing = 3.sp),
+                    color = ink.copy(alpha = if (collapsed) 1f else 0.65f), maxLines = 1)
             }
+            Spacer(Modifier.width(44.dp))
         }
         LazyColumn(
-            Modifier.fillMaxSize().imePadding(),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 40.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+            Modifier.fillMaxSize().imePadding(), state = scroll,
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {
             item("title") {
-                val c = LocalScreenContentColor.current
-                GlassText(title, Modifier.padding(start = 4.dp, bottom = 2.dp), style = GlassType.LargeTitle.copy(shadow = screenTextShadow(c)), color = c)
+                Column(Modifier.padding(top = 8.dp, bottom = 2.dp)) {
+                    GlassText(title, Modifier.semantics { heading() }, style = GlassType.LargeTitle.copy(fontSize = 34.sp, shadow = screenTextShadow(ink)), color = ink)
+                    if (subtitle != null) GlassText(subtitle, Modifier.padding(top = 8.dp), style = GlassType.Callout, color = ink.copy(alpha = 0.7f))
+                }
             }
             content()
             item("navpad") { Spacer(Modifier.navigationBarsPadding().height(8.dp)) }
         }
     }
 }
-

@@ -29,13 +29,13 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -64,7 +64,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.paneTitle
@@ -72,6 +71,16 @@ import androidx.compose.ui.semantics.isTraversalGroup
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.setProgress
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.semantics.Role
 import kotlin.math.roundToInt
 
@@ -148,9 +157,10 @@ fun GlassIconButton(
     size: Dp = 44.dp,
     tint: Color? = null,
     tintGlyph: Color? = null,
+    contentDescription: String = icon.name,
 ) {
     GlassSurface(
-        modifier = modifier.size(size),
+        modifier = modifier.size(size).semantics { this.contentDescription = contentDescription },
         shape = GlassShape.Circle,
         variant = GlassVariant.Clear,
         onClick = onClick,
@@ -187,22 +197,14 @@ fun GlassChip(text: String, selected: Boolean, onClick: () -> Unit, modifier: Mo
 fun GlassSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
     val haptics = LocalHapticFeedback.current
     val pos by animateFloatAsState(if (checked) 1f else 0f, spring(dampingRatio = 0.62f, stiffness = 520f), label = "switch")
-    var touching by remember { mutableStateOf(false) }
+    val interactions = remember { MutableInteractionSource() }
+    val touching by interactions.collectIsPressedAsState()
     Box(
         modifier
-            .size(width = 56.dp, height = 32.dp)
-            .pointerInput(checked) {
-                detectTapGestures(
-                    onPress = {
-                        touching = true
-                        tryAwaitRelease()
-                        touching = false
-                    },
-                    onTap = {
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onCheckedChange(!checked)
-                    },
-                )
+            .size(width = 56.dp, height = 48.dp)
+            .toggleable(value = checked, role = Role.Switch, interactionSource = interactions, indication = null) {
+                haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                onCheckedChange(it)
             },
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -240,7 +242,7 @@ fun GlassSlider(
     val onChange by rememberUpdatedState(onValueChange)
     var dragging by remember { mutableStateOf(false) }
     var widthPx by remember { mutableFloatStateOf(1f) }
-    val span = valueRange.endInclusive - valueRange.start
+    val span = (valueRange.endInclusive - valueRange.start).coerceAtLeast(0.0001f)
     val fraction = ((value - valueRange.start) / span).coerceIn(0f, 1f)
     val thumbPx = with(density) { thumb.toPx() }
 
@@ -252,7 +254,15 @@ fun GlassSlider(
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
-            .height(36.dp)
+            .height(48.dp)
+            .semantics {
+                progressBarRangeInfo = ProgressBarRangeInfo(value.coerceIn(valueRange), valueRange)
+                setProgress { target ->
+                    onChange(target.coerceIn(valueRange))
+                    onValueChangeFinished()
+                    true
+                }
+            }
             .pointerInput(valueRange) {
                 detectTapGestures { onChange(valueAt(it.x)); onValueChangeFinished() }
             }
@@ -292,32 +302,26 @@ fun GlassSlider(
 /** Segmented control: a Regular glass capsule with a Clear glass lens sliding under the selection. */
 @Composable
 fun GlassSegmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
-    val pos by animateFloatAsState(selected.toFloat(), spring(dampingRatio = 0.7f, stiffness = 400f), label = "segment")
-    GlassSurface(modifier = modifier.fillMaxWidth().height(40.dp), shape = GlassShape.Capsule, variant = GlassVariant.Regular, role = null) {
-        BoxWithConstraints(Modifier.fillMaxWidth().fillMaxHeight().padding(3.dp)) {
+    if (options.isEmpty()) return
+    val safeSelection = selected.takeIf { it in options.indices }
+    val density = LocalDensity.current
+    var segmentHeight by remember { mutableStateOf(40.dp) }
+    val pos by animateFloatAsState((safeSelection ?: 0).toFloat(), spring(dampingRatio = 0.85f, stiffness = 400f), label = "segment")
+    GlassSurface(modifier = modifier.fillMaxWidth().heightIn(min = 48.dp), shape = GlassShape.rounded(16.dp), variant = GlassVariant.Regular, role = null) {
+        BoxWithConstraints(Modifier.fillMaxWidth().padding(4.dp)) {
             val w = maxWidth / options.size
-            GlassSurface(
-                modifier = Modifier.offset(x = w * pos).width(w).fillMaxHeight(),
-                shape = GlassShape.Capsule,
-                variant = GlassVariant.Clear,
-                tintOverride = Color.White.copy(alpha = 1f),
-                role = null,
+            if (safeSelection != null) GlassSurface(
+                modifier = Modifier.offset(x = w * pos).width(w).height(segmentHeight),
+                shape = GlassShape.rounded(12.dp), variant = GlassVariant.Clear,
+                tintOverride = currentAccent(), role = null,
             )
-            Row(Modifier.fillMaxWidth().fillMaxHeight()) {
+            Row(Modifier.fillMaxWidth().selectableGroup().onSizeChanged { segmentHeight = with(density) { it.height.toDp() } }.height(androidx.compose.foundation.layout.IntrinsicSize.Min)) {
                 options.forEachIndexed { i, label ->
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .pointerInput(i) { detectTapGestures { onSelect(i) } },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        GlassText(
-                            label,
-                            style = GlassType.Subhead,
-                            color = if (i == selected) Color(0xFF111114) else LocalGlassContentColor.current,
-                            maxLines = 1,
-                        )
+                    Box(Modifier.weight(1f).fillMaxHeight().heightIn(min = 40.dp)
+                        .clip(GlassShape.rounded(12.dp))
+                        .selectable(selected = i == selected, role = Role.Tab, onClick = { onSelect(i) })
+                        .padding(horizontal = 4.dp, vertical = 10.dp), contentAlignment = Alignment.Center) {
+                        GlassText(label, style = GlassType.Subhead.copy(textAlign = androidx.compose.ui.text.style.TextAlign.Center), maxLines = 2)
                     }
                 }
             }
@@ -356,12 +360,12 @@ fun GlassTextField(
                     cursorBrush = SolidColor(currentAccent()),
                     keyboardOptions = keyboardOptions,
                     keyboardActions = keyboardActions,
-                    modifier = Modifier.fillMaxWidth().let { if (focusRequester != null) it.focusRequester(focusRequester) else it },
+                    modifier = Modifier.fillMaxWidth().semantics { contentDescription = placeholder }.let { if (focusRequester != null) it.focusRequester(focusRequester) else it },
                 )
             }
             if (value.isNotEmpty()) {
                 Spacer(Modifier.width(6.dp))
-                GlassIconButton(GlassIcons.Close, onClick = { onValueChange("") }, size = 26.dp)
+                GlassIconButton(GlassIcons.Close, onClick = { onValueChange("") }, size = 40.dp, contentDescription = "Clear search")
             }
         }
     }
@@ -384,15 +388,15 @@ fun GlassListGroup(
         if (title != null) {
             GlassText(
                 title.uppercase(),
-                Modifier.padding(start = 20.dp, bottom = 6.dp),
-                style = GlassType.Caption.copy(shadow = screenTextShadow(screenColor)),
+                Modifier.padding(start = 6.dp, bottom = 10.dp).semantics { heading() },
+                style = GlassType.Caption.copy(letterSpacing = 1.4.sp, shadow = screenTextShadow(screenColor)),
                 color = screenColor.copy(alpha = 0.8f),
             )
         }
         GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.Card, role = null, kind = SurfaceKind.Cards, variant = GlassVariant.Regular) {
             Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                 val scope = this
-                DividedColumn(LocalGlassContentColor.current.copy(alpha = 0.14f), inset = 16.dp) { scope.content() }
+                DividedColumn(LocalGlassContentColor.current.copy(alpha = 0.09f), inset = 18.dp) { scope.content() }
             }
         }
         if (footer != null) {
@@ -471,23 +475,24 @@ fun GlassRow(
                 else Modifier,
             )
             .background(if (pressed && onClick != null) content.copy(alpha = 0.10f) else Color.Transparent)
-            .heightIn(min = 52.dp)
-            .padding(horizontal = 16.dp, vertical = 9.dp),
+            .heightIn(min = 64.dp)
+            .padding(horizontal = 18.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         if (icon != null) {
             Box(
-                Modifier.size(30.dp).clip(GlassShape.rounded(8.dp)).background(iconTint),
+                Modifier.size(34.dp).clip(GlassShape.rounded(11.dp)).background(iconTint.copy(alpha = 0.16f)),
                 contentAlignment = Alignment.Center,
             ) {
-                GlassIcon(icon, size = 18.dp, tint = Color(Contrast.pickText(Contrast.relativeLuminance(iconTint.toArgb()))))
+                GlassIcon(icon, size = 19.dp, tint = content)
             }
             Spacer(Modifier.width(12.dp))
         }
         Column(Modifier.weight(1f)) {
-            GlassText(title, style = GlassType.Body, maxLines = 2)
-            if (subtitle != null) GlassText(subtitle, style = GlassType.Footnote, color = content.copy(alpha = 0.72f), maxLines = 3)
+            GlassText(title, style = GlassType.Body.copy(fontSize = 16.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Medium), maxLines = 2)
+            if (subtitle != null) GlassText(subtitle, Modifier.padding(top = 4.dp), style = GlassType.Footnote.copy(lineHeight = 18.sp), color = content.copy(alpha = 0.65f), maxLines = 3)
         }
+        Spacer(Modifier.width(8.dp))
         trailing()
         if (showChevron) {
             Spacer(Modifier.width(6.dp))
@@ -517,8 +522,9 @@ fun GlassSliderRow(
 /** A row with a [GlassSwitch]. */
 @Composable
 fun GlassSwitchRow(title: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit, subtitle: String? = null, icon: ImageVector? = null, iconTint: Color = currentAccent()) {
-    GlassRow(title = title, subtitle = subtitle, icon = icon, iconTint = iconTint, onClick = { onCheckedChange(!checked) }, showChevron = false) {
-        GlassSwitch(checked, onCheckedChange)
+    GlassRow(title = title, subtitle = subtitle, icon = icon, iconTint = iconTint,
+        modifier = Modifier.toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange), showChevron = false) {
+        GlassSwitch(checked, onCheckedChange, Modifier.clearAndSetSemantics {})
     }
 }
 

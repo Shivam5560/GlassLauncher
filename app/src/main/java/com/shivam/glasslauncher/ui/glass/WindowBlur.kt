@@ -22,7 +22,7 @@ import java.util.function.Consumer
  */
 @Composable
 fun rememberCrossWindowBlur(targetRadiusDp: Float): Boolean {
-    val activity = LocalContext.current as? Activity ?: return false
+    val activity = androidx.activity.compose.LocalActivity.current ?: return false
     val wm = activity.getSystemService(WindowManager::class.java)
     val enabled = remember { mutableStateOf(wm.isCrossWindowBlurEnabled) }
     DisposableEffect(wm) {

@@ -211,7 +211,7 @@ fun AppDrawerOverlay(
     val cats = layout.drawer.categories.filter { it.inBar }
     if (cats.isEmpty()) return
     val pages by vm.drawerPages.collectAsState()
-    val activity = LocalContext.current as Activity
+    val activity = androidx.activity.compose.LocalActivity.current ?: return
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
 
@@ -397,7 +397,7 @@ private fun CategoryPage(
     val top = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
     val bottomReserve = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 92.dp
     val header: @Composable () -> Unit = {
-        CategoryHeader(category.title, textColor, onSearch, onStore, onMore)
+        CategoryHeader(category.title, items.size, textColor, onSearch, onStore, onMore)
     }
     val cell: @Composable (DrawerItem) -> Unit = { item ->
         DrawerCell(item, ctx, iconSize, ap.drawerLabels, ap.labelSize, ap.twoLineLabels, textColor, onApp, onAppLong, onFolder, onShortcut, onShortcutLong)
@@ -414,7 +414,7 @@ private fun CategoryPage(
                 if (items.isEmpty()) {
                     GlassText(
                         "Nothing here yet. Long-press an app and choose Move to category.",
-                        Modifier.padding(horizontal = 12.dp, vertical = 12.dp).height(48.dp),
+                        Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
                         style = GlassType.Callout.copy(shadow = screenTextShadow(textColor)),
                         color = textColor.copy(alpha = 0.8f),
                     )
@@ -443,22 +443,20 @@ private fun CategoryPage(
 }
 
 @Composable
-private fun CategoryHeader(title: String, textColor: Color, onSearch: () -> Unit, onStore: () -> Unit, onMore: (Rect) -> Unit) {
+private fun CategoryHeader(title: String, count: Int, textColor: Color, onSearch: () -> Unit, onStore: () -> Unit, onMore: (Rect) -> Unit) {
     var moreBounds by remember { mutableStateOf<Rect?>(null) }
     Row(Modifier.fillMaxWidth().height(76.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        GlassText(
-            title,
-            Modifier.weight(1f),
-            style = GlassType.LargeTitle.copy(fontSize = 34.sp, shadow = screenTextShadow(textColor)),
-            color = textColor,
-            maxLines = 1,
-        )
-        GlassIconButton(GlassIcons.Search, onClick = onSearch, size = 40.dp)
+        Column(Modifier.weight(1f)) {
+            GlassText(title, style = GlassType.LargeTitle.copy(fontSize = 30.sp, shadow = screenTextShadow(textColor)), color = textColor, maxLines = 1)
+            GlassText(if (count == 1) "1 item" else "$count items", Modifier.padding(top = 3.dp),
+                style = GlassType.Footnote, color = textColor.copy(alpha = 0.65f))
+        }
+        GlassIconButton(GlassIcons.Search, onClick = onSearch, size = 44.dp, contentDescription = "Search apps")
         Spacer(Modifier.width(8.dp))
-        GlassIconButton(DrawerGlyphs.Store, onClick = onStore, size = 40.dp)
+        GlassIconButton(DrawerGlyphs.Store, onClick = onStore, size = 44.dp, contentDescription = "Find apps in Play Store")
         Spacer(Modifier.width(8.dp))
         Box(Modifier.onGloballyPositioned { moreBounds = it.boundsInWindow() }) {
-            GlassIconButton(DrawerGlyphs.More, onClick = { moreBounds?.let(onMore) }, size = 40.dp)
+            GlassIconButton(DrawerGlyphs.More, onClick = { moreBounds?.let(onMore) }, size = 44.dp, contentDescription = "Category options")
         }
     }
 }
