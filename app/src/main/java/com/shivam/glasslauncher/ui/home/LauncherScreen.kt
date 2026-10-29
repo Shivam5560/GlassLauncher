@@ -56,6 +56,7 @@ import com.shivam.glasslauncher.data.FolderItem
 import com.shivam.glasslauncher.data.HomeLayout
 import com.shivam.glasslauncher.data.Slot
 import com.shivam.glasslauncher.ui.LauncherViewModel
+import com.shivam.glasslauncher.ui.glass.rememberBlurredCopy
 import com.shivam.glasslauncher.ui.glass.Backdrop
 import com.shivam.glasslauncher.ui.glass.GlassButton
 import com.shivam.glasslauncher.ui.glass.GlassIconButton
@@ -197,6 +198,12 @@ fun LauncherScreen(
     }
     LaunchedEffect(overlayGone) { if (overlayGone) frozenHome = null }
     val frozen = frozenHome != null
+    // Once the overlay has finished opening, the blurred home is one still texture: the live full-screen
+    // blur would otherwise re-run on every drawer/Spotlight frame (~4 ms GPU on a Redmi Turbo 5).
+    val frozenBlurred = rememberBlurredCopy(frozenHome, OverlayHomeBlur.value)
+    val showFrozenBlur by remember(frozenBlurred) {
+        androidx.compose.runtime.derivedStateOf { frozenBlurred != null && overlayOpen && overlayAnimState.value > 0.97f && appDepth.value < 0.01f }
+    }
     val overlayBackdrop = remember(hasWallpaper, snapshot, frozen) { Backdrop(if (frozen) base + frozenHomeLayer else base, snapshot) }
 
     // Status bar icons follow the wallpaper brightness.
@@ -434,6 +441,8 @@ fun LauncherScreen(
                 // As on iOS the wallpaper blurs behind the App Library and Today view (HyperOS's window blur
                 // skips the system wallpaper, so this is our own blurred copy, faded in with the swipe).
                 val img = snapshot.image
+                val homeBlurImg = rememberBlurredCopy(img, HomeBlur.value)
+                val sideBlurImg = rememberBlurredCopy(img, glass.blurRadius.toFloat())
                 if (img != null) {
                     val sideFraction = {
                         val pos = ringState.value.of(pagerState.currentPage) + pagerState.currentPageOffsetFraction
@@ -442,30 +451,29 @@ fun LauncherScreen(
                     val homeBlur = settings.homeBlur
                     val showSideBlur by remember { androidx.compose.runtime.derivedStateOf { sideFraction() > 0.01f } }
                     // "Blur wallpaper on Home": a softer blur under the home pages, full blur on the side pages.
-                    if (homeBlur) Image(
-                        img,
+                    if (homeBlur && homeBlurImg != null) Image(
+                        homeBlurImg,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().blur(HomeBlur),
+                        modifier = Modifier.fillMaxSize(),
                     )
-                    if (showSideBlur) Image(
-                        img,
+                    if (showSideBlur && sideBlurImg != null) Image(
+                        sideBlurImg,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = sideFraction() }.blur(glass.blurRadius.dp),
+                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = sideFraction() },
                     )
                 }
 
                 // Fallback base layer when the compositor cannot blur behind the window
                 // (battery saver, some HyperOS builds): pre-blurred wallpaper, else solid tinted glass.
                 if (!crossWindowBlur && overlayAnim > 0.01f) {
-                    val img = snapshot.image
-                    if (img != null) {
+                    if (sideBlurImg != null) {
                         Image(
-                            img,
+                            sideBlurImg,
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = overlayAnim }.blur(glass.blurRadius.dp),
+                            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = overlayAnim },
                         )
                     } else {
                         GlassSurface(
@@ -477,11 +485,18 @@ fun LauncherScreen(
                     }
                 }
 
+                if (showFrozenBlur) Image(
+                    frozenBlurred!!,
+                    contentDescription = null,
+                    contentScale = ContentScale.FillBounds,
+                    modifier = Modifier.fillMaxSize(),
+                )
                 Box(
                     Modifier
                         .fillMaxSize()
                         // Read in the layer block, not in composition: animating it redraws, never recomposes.
                         .graphicsLayer {
+                            alpha = if (showFrozenBlur) 0f else 1f
                             val depth = appDepth.value
                             val r = (overlayAnimState.value * 16f + depth * 14f).dp.toPx()
                             renderEffect = if (r >= 0.5f) androidx.compose.ui.graphics.BlurEffect(r, r, androidx.compose.ui.graphics.TileMode.Clamp) else null
@@ -712,3 +727,4 @@ private fun androidx.compose.ui.graphics.GraphicsLayerScope.homePageTransition(a
 
 /** Wallpaper blur under the home pages ("Blur wallpaper on Home"). */
 private val HomeBlur = 14.dp
+private val OverlayHomeBlur = 16.dp

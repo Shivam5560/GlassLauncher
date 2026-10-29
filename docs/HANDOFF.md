@@ -61,10 +61,12 @@ the phone's **default Home** (SL6 is still installed).
 1. **Incoming call while on Glass home** (should open HyperOS call screen) — needs a real call.
 2. **Recents "clear all" → island stays** (fix in `bbcf0e1`; not pressed, it closes the owner's apps).
 3. Gesture nav after the next reboot (observer fix `fe074d8` only simulated).
-4. **Optimisation (owner's next priority)**: drawer 13 ms / Spotlight 14 ms median vs 8.3 ms budget;
-   paging 10 ms with Home blur. Lead from Phase 6: a full-screen layer drawn offscreen per drawer frame,
-   ~3 Vulkan allocations/frame — label glass layers in a Perfetto trace. Home blur and side-page blur
-   are `Modifier.blur` on a full-screen `Image` (`LauncherScreen.kt`, `HomeBlur = 14.dp`) — measure.
+4. **Optimisation (Phase 7b, measured on the Turbo 5, gfxinfo medians)**: wallpaper blur is now a bitmap blurred
+   once (`ui/glass/BlurredCopy.kt`), and while an overlay is fully open the blurred home is a still
+   (`LauncherScreen.kt` `showFrozenBlur`) instead of a live full-screen blur. Drawer GPU 12 -> 8 ms, Spotlight
+   13 -> 9 ms (CPU 19 -> 16 / 23 -> 18). Idle home renders 0 frames. Remaining budget: `GlassSurface` lens+blur
+   costs ~6 ms in drawer/Spotlight (drawer 8 -> 2 ms with it off); next lead is a smaller blur radius or
+   downscaled backdrop for large panels, and a cheaper open animation (home blur still live while opening).
 5. Earlier backlog (SL6 parity): popup widgets, widget stack, grid presets, Private Space, Nova import…
 
 ## Device workflow
