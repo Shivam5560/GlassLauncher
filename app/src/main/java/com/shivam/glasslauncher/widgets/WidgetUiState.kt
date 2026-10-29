@@ -43,7 +43,7 @@ class WidgetUiState(
     var editing by mutableStateOf<String?>(null)
     var pageManager by mutableStateOf(false)
     /** A third-party widget is being bound/configured. */
-    var binding by mutableStateOf(false)
+    private var bindJob: kotlinx.coroutines.Job? = null
 
     /** Home grid cell size in dp, reported by the grid (used for third-party default spans). */
     var cellWidthDp = 84f
@@ -109,10 +109,10 @@ class WidgetUiState(
      * configure activity if needed, then place it. Cancelling anywhere frees the id.
      */
     fun addAppWidget(entry: ProviderEntry, target: PickerTarget) {
-        if (binding) return
-        binding = true
+        // A previous add that was interrupted (Home, clear-all, process death) never reported back; drop it.
+        bindJob?.cancel()
         picker = null
-        scope.launch {
+        bindJob = scope.launch {
             val id = host.allocateId()
             val result = WidgetBinding.register(WidgetBinding.Request(id, WidgetBinding.Mode.BIND_AND_CONFIGURE))
             try {
@@ -120,8 +120,13 @@ class WidgetUiState(
             } catch (e: Exception) {
                 WidgetBinding.finish(id, false)
             }
-            val ok = result.await()
-            binding = false
+            val ok = try {
+                result.await()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                WidgetBinding.finish(id, false)
+                host.deleteId(id)
+                throw e
+            }
             if (!ok) {
                 host.deleteId(id)
                 toast.show("Widget not added")

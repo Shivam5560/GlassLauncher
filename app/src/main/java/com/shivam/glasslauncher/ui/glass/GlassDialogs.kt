@@ -35,6 +35,9 @@ import kotlinx.coroutines.delay
 /** Dims what is behind a modal glass element; tapping it dismisses. Not a surface itself. */
 @Composable
 fun GlassScrim(alpha: Float, onDismiss: (() -> Unit)?) {
+    // Fully faded out: draw nothing and stop catching taps. Overlays that keep their last target
+    // (rememberLast) stay composed after they close; a lingering invisible scrim froze every home touch.
+    if (alpha <= 0.001f) return
     Box(
         Modifier
             .fillMaxSize()
