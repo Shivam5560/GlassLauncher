@@ -359,8 +359,9 @@ private fun androidx.compose.ui.graphics.GraphicsLayerScope.pageTransition(t: Dr
     val a = abs(o).coerceIn(0f, 1f)
     when (t) {
         DrawerTransition.Fade, DrawerTransition.None -> {
-            // Pages stay in place and cross-fade (None: tabs jump without animating).
-            translationX = o * size.width
+            // Only visible pages cross-fade in place. Fully faded neighbours must stay
+            // off-screen: alpha alone does not remove their app icons from hit testing.
+            if (a < 1f) translationX = o * size.width
             alpha = 1f - a
         }
         DrawerTransition.Depth -> {

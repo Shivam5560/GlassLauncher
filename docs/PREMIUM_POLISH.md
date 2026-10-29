@@ -43,4 +43,10 @@ No settings migrations, network services or new dependencies are introduced. Dev
 - Debug APK assembled successfully.
 - All 163 JVM tests passed, including six settings-search tests.
 - Android lint completed successfully (existing warnings remain).
-- Visual and interaction verification remains incomplete: both the existing emulator and an isolated Android 15 test device failed to finish reliable startup under host memory pressure. No build was installed on the connected physical phone.
+- Physical-device smoke testing completed on 2026-10-29: Android 16, model 2606FRT34I, 1268 × 2756 display at the user's 416 dpi setting. The debug APK was installed as an update, preserving the existing launcher data.
+- Verified the overview, nested settings search, clear and empty states, row/switch toggling, restored search and scroll position, wallpaper gallery, icon packs and advanced appearance controls.
+- Verified appearance at 150% font scale and navigation after activity recreation. Restored font scale to 100% and app labels to their original off state.
+- Verified Home → Spotlight, Calculator launch, clear/close actions, drawer category swipes, menu dismissal and drawer → Spotlight → Home. Returned the phone to Home and the drawer to its original Internet category.
+- Device testing exposed a Fade-transition hit-testing bug: fully transparent neighbouring category pages were translated over the visible page, so tapping More could launch an unrelated app. Fully faded pages now remain off-screen. Repeated More/Search tests on Media and Internet confirmed the fix.
+- No launcher fatal exceptions or ANRs were found in the captured app logs. Build, 163 JVM tests and lint passed again after the fix.
+- This is a focused smoke test with the existing wallpaper, theme, icon pack and widgets. Android 12 fallback rendering and every permission/gesture combination were not re-tested.
