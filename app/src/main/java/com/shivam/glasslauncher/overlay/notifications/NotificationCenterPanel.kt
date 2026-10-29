@@ -1,5 +1,7 @@
 package com.shivam.glasslauncher.overlay.notifications
 
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import android.content.Intent
 import android.provider.Settings
 import android.text.format.DateFormat
@@ -116,7 +118,7 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                     translationY = -(1f - progress) * 120.dp.toPx()
                     transformOrigin = TransformOrigin(0f, 0f)
                 },
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 56.dp, bottom = 48.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 56.dp, bottom = 120.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             item("clock") { BigClock(onSwitch = { host.switchPanel() }) }
@@ -136,7 +138,7 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                 }
             }
             val m = media
-            if (m != null) item("media") { MediaCard(m, host) }
+            if (m != null) item("media") { MediaCard(m, host, SurfaceKind.Widget) }
             if (stacks.isNotEmpty()) {
                 item("header") {
                     Row(Modifier.fillMaxWidth().padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -144,7 +146,8 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                         // Every non-media key, group summaries included: apps that keep their summary after
                         // its children go would otherwise need a second Clear All.
                         val clear = entries.filter { !it.isMedia }.map { it.key }
-                        if (clear.isNotEmpty()) GlassChip("Clear All", selected = false, onClick = { NotificationHub.dismissAll(clear) })
+                        // iOS 27: a round ⓧ clears everything (one tap).
+                        if (clear.isNotEmpty()) GlassIconButton(GlassIcons.Close, onClick = { NotificationHub.dismissAll(clear) }, size = 34.dp)
                     }
                 }
             }
@@ -160,13 +163,15 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                     }
                     items(stack.items, key = { it.key }) { e ->
                         SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(listOf(e.key)) }, enabled = true) {
-                            NotificationCard(e, host, showActions = true, onClick = { if (NotificationHub.open(context, e.key)) host.close() })
+                            NotificationCard(e, host, showActions = true, onClick = { if (NotificationHub.open(context, e.key)) host.close() }, kind = SurfaceKind.Widget)
                         }
                     }
                 } else {
                     item("s:" + stack.packageName) {
-                        SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(appKeys(entries, stack.packageName)) }, enabled = true) {
-                            CollapsedStack(stack, host, onExpand = { expanded = expanded + stack.packageName })
+                        Box(Modifier.cascade(progress, stacks.indexOf(stack))) {
+                            SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(appKeys(entries, stack.packageName)) }, enabled = true) {
+                                CollapsedStack(stack, host, onExpand = { expanded = expanded + stack.packageName }, kind = SurfaceKind.Widget)
+                            }
                         }
                     }
                 }
@@ -175,11 +180,49 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                 item("empty") {
                     GlassText(
                         "No Older Notifications", Modifier.fillMaxWidth().padding(top = 24.dp),
-                        style = GlassType.Headline, color = Color.White.copy(alpha = 0.6f),
+                        style = GlassType.Headline.copy(textAlign = TextAlign.Center), color = Color.White.copy(alpha = 0.6f),
                     )
                 }
             }
         }
+        // iOS lock-screen quick buttons: flashlight and camera.
+        QuickButtons(host, Modifier.align(Alignment.BottomCenter).padding(start = 44.dp, end = 44.dp, bottom = 40.dp).graphicsLayer { alpha = progress.coerceIn(0f, 1f) })
+    }
+}
+
+@Composable
+private fun QuickButtons(host: PanelHost, modifier: Modifier) {
+    val context = host.context
+    val camera = remember { context.getSystemService(android.hardware.camera2.CameraManager::class.java) }
+    val torchId = remember {
+        try {
+            camera?.cameraIdList?.firstOrNull { id ->
+                camera.getCameraCharacteristics(id).get(android.hardware.camera2.CameraCharacteristics.FLASH_INFO_AVAILABLE) == true
+            }
+        } catch (_: Exception) { null }
+    }
+    var torchOn by remember { mutableStateOf(false) }
+    androidx.compose.runtime.DisposableEffect(camera) {
+        val cb = object : android.hardware.camera2.CameraManager.TorchCallback() {
+            override fun onTorchModeChanged(cameraId: String, enabled: Boolean) { if (cameraId == torchId) torchOn = enabled }
+        }
+        camera?.registerTorchCallback(cb, null)
+        onDispose { camera?.unregisterTorchCallback(cb) }
+    }
+    Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        GlassIconButton(
+            OverlayIcons.Flashlight,
+            onClick = { torchId?.let { try { camera?.setTorchMode(it, !torchOn) } catch (_: Exception) { } } },
+            size = 52.dp,
+            // On: white button with a dark glyph, as on iOS.
+            tint = if (torchOn) Color.White else null,
+            tintGlyph = if (torchOn) Color.Black else null,
+        )
+        GlassIconButton(
+            OverlayIcons.Camera,
+            onClick = { host.launch(Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)) },
+            size = 52.dp,
+        )
     }
 }
 
@@ -241,8 +284,9 @@ private fun BigClock(onSwitch: () -> Unit) {
         GlassText(date, style = GlassType.Headline.copy(fontSize = 19.sp), color = Color.White.copy(alpha = 0.85f), maxLines = 1)
         GlassText(
             time,
-            style = GlassType.LargeTitle.copy(fontSize = 92.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-3).sp, lineHeight = 96.sp, textAlign = TextAlign.Center),
-            color = Color.White,
+            style = GlassType.LargeTitle.copy(fontSize = 96.sp, fontWeight = FontWeight.Bold, letterSpacing = (-3).sp, lineHeight = 100.sp, textAlign = TextAlign.Center),
+            // iOS 26/27 clock: big, bold and see-through.
+            color = Color.White.copy(alpha = 0.78f),
             maxLines = 1,
         )
     }
@@ -291,7 +335,7 @@ private fun CollapsedStack(stack: NotifStack, host: PanelHost, onExpand: () -> U
     val lift by animateFloatAsState(1f, spring(dampingRatio = 0.7f), label = "stack")
     Box(Modifier.fillMaxWidth().padding(bottom = (8 * (layers - 1)).dp)) {
         for (i in (layers - 1) downTo 1) {
-            GlassSurface(
+            NotifSurface(
                 Modifier
                     .matchParentSize()
                     .graphicsLayer {
@@ -300,11 +344,9 @@ private fun CollapsedStack(stack: NotifStack, host: PanelHost, onExpand: () -> U
                         translationY = (9 * i).dp.toPx() * lift
                         alpha = 1f - 0.25f * i
                     },
-                shape = GlassShape.Card,
-                variant = GlassVariant.Regular,
-                role = null,
+                onClick = null,
                 kind = kind,
-            )
+            ) {}
         }
         NotificationCard(
             stack.latest,
@@ -323,10 +365,10 @@ private fun NotificationCard(e: NotifEntry, host: PanelHost, showActions: Boolea
     var replyIndex by remember(e.key) { mutableStateOf<Int?>(null) }
     var reply by remember(e.key) { mutableStateOf("") }
     val focus = remember { FocusRequester() }
-    GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.Card, variant = GlassVariant.Regular, onClick = onClick, kind = kind) {
-        Column(Modifier.fillMaxWidth().padding(14.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                OverlayAppIcon(e.packageName, 38.dp)
+    NotifSurface(Modifier.fillMaxWidth(), onClick = onClick, kind = kind) {
+        Column(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                OverlayAppIcon(e.packageName, 40.dp)
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -438,3 +480,39 @@ private fun relativeTime(t: Long): String {
 
 /** Every non-media notification of [pkg], group summaries included (see Clear All). */
 private fun appKeys(entries: List<NotifEntry>, pkg: String) = entries.filter { it.packageName == pkg && !it.isMedia }.map { it.key }
+
+/** iOS 27 notification platter: rounder than other cards. */
+private val NotifShape = GlassShape.rounded(24.dp)
+
+/**
+ * iOS-style entrance: each card rises and fades in a little after the one above it as the panel
+ * opens ([progress] 0→1), so the list flows in instead of appearing at once.
+ */
+private fun Modifier.cascade(progress: Float, index: Int): Modifier = graphicsLayer {
+    val delay = (index.coerceAtMost(6) * 0.08f)
+    val t = ((progress - delay) / (1f - delay)).coerceIn(0f, 1f)
+    val eased = 1f - (1f - t) * (1f - t) * (1f - t)
+    alpha = eased
+    translationY = (1f - eased) * 28.dp.toPx()
+}
+
+/**
+ * A notification platter. Over a wallpaper backdrop (lock screen) it is real glass; in the panel the
+ * window already blurs everything behind it, so it is iOS's plain frosted layer (soft fill, hairline
+ * edge) instead of a second glass effect, which looked clear with hard rims.
+ */
+@Composable
+private fun NotifSurface(modifier: Modifier, onClick: (() -> Unit)?, kind: SurfaceKind?, content: @Composable () -> Unit) {
+    if (com.shivam.glasslauncher.ui.glass.LocalBackdrop.current != null) {
+        GlassSurface(modifier, shape = NotifShape, variant = GlassVariant.Regular, onClick = onClick, kind = kind) { content() }
+        return
+    }
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
+    Box(
+        modifier
+            .clip(shape)
+            .background(Color.White.copy(alpha = 0.14f), shape)
+            .border(0.6.dp, Color.White.copy(alpha = 0.14f), shape)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+    ) { content() }
+}
