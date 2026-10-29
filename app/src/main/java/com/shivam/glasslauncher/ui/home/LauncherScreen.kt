@@ -439,7 +439,15 @@ fun LauncherScreen(
                         val pos = ringState.value.of(pagerState.currentPage) + pagerState.currentPageOffsetFraction
                         maxOf((pos - (homePageCount - 1 + TODAY_PAGES)).coerceIn(0f, 1f), (TODAY_PAGES - pos).coerceIn(0f, 1f))
                     }
+                    val homeBlur = settings.homeBlur
                     val showSideBlur by remember { androidx.compose.runtime.derivedStateOf { sideFraction() > 0.01f } }
+                    // "Blur wallpaper on Home": a softer blur under the home pages, full blur on the side pages.
+                    if (homeBlur) Image(
+                        img,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().blur(HomeBlur),
+                    )
                     if (showSideBlur) Image(
                         img,
                         contentDescription = null,
@@ -701,3 +709,6 @@ private fun androidx.compose.ui.graphics.GraphicsLayerScope.homePageTransition(a
         }
     }
 }
+
+/** Wallpaper blur under the home pages ("Blur wallpaper on Home"). */
+private val HomeBlur = 14.dp

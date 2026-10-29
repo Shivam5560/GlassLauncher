@@ -164,6 +164,7 @@ private fun MainScreen(nav: SettingsNav, settings: LauncherSettings, wallpaper: 
                 GlassSwitchRow("Notification badges", settings.showBadges, { app.settings.setShowBadges(it) })
                 GlassRow("Home gestures", subtitle = "Swipes, double tap, two fingers, pinch, rotate", icon = GlassIcons.Hand, iconTint = GlassColors.Accent, onClick = { nav.push("homegestures") })
                 GlassSwitchRow("Infinite scroll", settings.infiniteScroll, { app.settings.setInfiniteScroll(it) }, subtitle = "Pages loop: after the App Library comes the Today view")
+                GlassSwitchRow("Blur wallpaper on Home", settings.homeBlur, { app.settings.setHomeBlur(it) }, subtitle = if (wallpaper.image != null) "A soft blur behind the home pages" else "Needs the wallpaper set through Glass (Wallpaper)")
                 GlassSwitchRow("Wallpaper 3D effect", settings.wallpaperParallax, { app.settings.setWallpaperParallax(it) }, subtitle = if (wallpaper.image != null) "The wallpaper moves as you tilt the phone" else "Needs the wallpaper set through Glass (Wallpaper)")
                 GlassSwitchRow("Ultra-immersive", settings.immersive, { app.settings.setImmersive(it) }, subtitle = if (gesturesOn) "Hide status and navigation bars on Home and in the drawer" else "Hide the status bar on Home and in the drawer")
             }

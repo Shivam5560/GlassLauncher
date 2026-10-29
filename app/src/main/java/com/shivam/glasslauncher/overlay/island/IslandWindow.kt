@@ -50,12 +50,18 @@ class IslandWindow(
             windowType, 1, 1,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL or
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             "GlassIsland",
         ).apply { gravity = Gravity.TOP or Gravity.START },
     ) {
         OverlayTheme { IslandSurface(frame, origin, this) }
+    }
+
+    init {
+        // Tapping anywhere outside an expanded island closes it, as on iOS.
+        window.root.onOutsideTouch = { if (presentation() == IslandPresentation.Expanded) collapse() }
     }
 
     private var ui = IslandUi()
@@ -259,6 +265,11 @@ class IslandWindow(
     override fun onSwipeAway() {
         val a = slots().primary ?: return
         haptic()
+        // iOS 27: swiping an expanded activity collapses it; on the compact pill it dismisses.
+        if (presentation() == IslandPresentation.Expanded) {
+            collapse()
+            return
+        }
         engine.dismiss(a.id)
     }
 

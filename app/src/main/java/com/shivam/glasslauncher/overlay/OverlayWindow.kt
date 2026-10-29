@@ -50,6 +50,17 @@ class OverlayLifecycleOwner : SavedStateRegistryOwner {
 /** Root for overlay windows: forwards Back to [onBack] (panels are focusable, so they get keys). */
 @SuppressLint("ViewConstructor")
 class OverlayRoot(context: Context, private val onBack: () -> Unit) : FrameLayout(context) {
+    /** A touch outside this window (needs FLAG_WATCH_OUTSIDE_TOUCH). */
+    var onOutsideTouch: (() -> Unit)? = null
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        if (ev.actionMasked == android.view.MotionEvent.ACTION_OUTSIDE) {
+            onOutsideTouch?.invoke()
+            return true
+        }
+        return super.dispatchTouchEvent(ev)
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == KeyEvent.KEYCODE_BACK) {
             if (event.action == KeyEvent.ACTION_UP) onBack()

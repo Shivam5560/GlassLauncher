@@ -34,6 +34,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.core.graphics.drawable.toBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -46,8 +48,8 @@ import com.shivam.glasslauncher.widgets.PhoneBattery
 import kotlinx.coroutines.delay
 
 /**
- * iOS-style status bar drawn by Glass while immersive mode hides the system one on home: the time
- * centred in the space left of the island, signal, Wi-Fi and battery centred in the space right of it.
+ * iOS-style status bar drawn by Glass while immersive mode hides the system one on home: the time and
+ * notification icons left of the island; speed, 5G/4G, signal, Wi-Fi and battery (with %) right of it.
  */
 @Composable
 fun IosStatusBar(color: Color, islandWidth: androidx.compose.ui.unit.Dp, modifier: Modifier = Modifier) {
@@ -56,6 +58,34 @@ fun IosStatusBar(color: Color, islandWidth: androidx.compose.ui.unit.Dp, modifie
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     var signal by remember { mutableIntStateOf(0) }
     var wifi by remember { mutableStateOf(false) }
+    var netType by remember { mutableStateOf<String?>(null) }
+    var speed by remember { mutableLongStateOf(0L) }
+    // 5G / 4G from the display info (READ_PHONE_STATE; label hidden without it).
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        val tm = context.getSystemService(TelephonyManager::class.java)
+        val granted = context.checkSelfPermission(android.Manifest.permission.READ_PHONE_STATE) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (tm == null || !granted) return@DisposableEffect onDispose { }
+        val cb = object : android.telephony.TelephonyCallback(), android.telephony.TelephonyCallback.DisplayInfoListener {
+            override fun onDisplayInfoChanged(info: android.telephony.TelephonyDisplayInfo) { netType = networkLabel(info) }
+        }
+        try { tm.registerTelephonyCallback(context.mainExecutor, cb) } catch (_: SecurityException) { }
+        onDispose { tm.unregisterTelephonyCallback(cb) }
+    }
+    // Network speed (all traffic, bytes/s), refreshed every 2 s like HyperOS's indicator.
+    LaunchedEffect(Unit) {
+        var last = android.net.TrafficStats.getTotalRxBytes() + android.net.TrafficStats.getTotalTxBytes()
+        while (true) {
+            delay(2_000)
+            val total = android.net.TrafficStats.getTotalRxBytes() + android.net.TrafficStats.getTotalTxBytes()
+            speed = ((total - last) / 2).coerceAtLeast(0)
+            last = total
+        }
+    }
+    val notifications by com.shivam.glasslauncher.overlay.notifications.NotificationHub.entries.collectAsState()
+    val notifKeys = remember(notifications) {
+        notifications.filter { !it.isOngoing && !it.isMedia && !it.isGroupSummary }
+            .sortedByDescending { it.postTime }.distinctBy { it.packageName }.map { it.key }
+    }
     LaunchedEffect(Unit) {
         val tm = context.getSystemService(TelephonyManager::class.java)
         val cm = context.getSystemService(ConnectivityManager::class.java)
@@ -71,11 +101,25 @@ fun IosStatusBar(color: Color, islandWidth: androidx.compose.ui.unit.Dp, modifie
     val time = remember(now) { DateFormat.format(if (DateFormat.is24HourFormat(context)) "H:mm" else "h:mm", now).toString() }
 
     Row(modifier.fillMaxWidth().height(height), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
             GlassText(time, style = GlassType.Headline.copy(fontSize = 17.sp, fontWeight = FontWeight.SemiBold), color = color, maxLines = 1)
+            notifKeys.take(3).forEach { key ->
+                Spacer(Modifier.width(5.dp))
+                NotificationGlyph(key, color)
+            }
+            if (notifKeys.size > 3) {
+                Spacer(Modifier.width(4.dp))
+                Canvas(Modifier.size(4.dp)) { drawCircle(color) }
+            }
         }
         Spacer(Modifier.width(islandWidth))
         Row(Modifier.weight(1f), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            SpeedText(speed, color)
+            Spacer(Modifier.width(5.dp))
+            if (!wifi && netType != null) {
+                GlassText(netType!!, style = GlassType.Caption.copy(fontSize = 12.sp, fontWeight = FontWeight.Bold), color = color, maxLines = 1)
+                Spacer(Modifier.width(3.dp))
+            }
             SignalBars(signal, color)
             Spacer(Modifier.width(6.dp))
             if (wifi) {
@@ -84,6 +128,58 @@ fun IosStatusBar(color: Color, islandWidth: androidx.compose.ui.unit.Dp, modifie
             }
             BatteryGlyph(battery, color)
         }
+    }
+}
+
+private fun networkLabel(info: android.telephony.TelephonyDisplayInfo): String? {
+    val o = info.overrideNetworkType
+    if (o == android.telephony.TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_NR_NSA ||
+        o == android.telephony.TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_NR_ADVANCED
+    ) return "5G"
+    return when (info.networkType) {
+        TelephonyManager.NETWORK_TYPE_NR -> "5G"
+        TelephonyManager.NETWORK_TYPE_LTE -> if (o == android.telephony.TelephonyDisplayInfo.OVERRIDE_NETWORK_TYPE_LTE_CA) "4G+" else "4G"
+        TelephonyManager.NETWORK_TYPE_HSPAP, TelephonyManager.NETWORK_TYPE_HSPA, TelephonyManager.NETWORK_TYPE_UMTS -> "3G"
+        TelephonyManager.NETWORK_TYPE_EDGE, TelephonyManager.NETWORK_TYPE_GPRS -> "E"
+        else -> null
+    }
+}
+
+/** HyperOS-style two-line speed: value over unit. */
+@Composable
+private fun SpeedText(bytesPerSecond: Long, color: Color) {
+    val (value, unit) = when {
+        bytesPerSecond >= 1_048_576 -> "%.1f".format(bytesPerSecond / 1_048_576f) to "MB/s"
+        else -> (if (bytesPerSecond >= 102_400) "%.0f" else "%.2f").format(bytesPerSecond / 1024f) to "KB/s"
+    }
+    val style = GlassType.Caption.copy(fontSize = 8.sp, lineHeight = 9.sp, fontWeight = FontWeight.Bold)
+    androidx.compose.foundation.layout.Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        GlassText(value, style = style, color = color, maxLines = 1)
+        GlassText(unit, style = style, color = color, maxLines = 1)
+    }
+}
+
+/** The app's own small notification icon, tinted like the rest of the bar. */
+@Composable
+private fun NotificationGlyph(key: String, color: Color) {
+    val context = LocalContext.current
+    val bmp = remember(key) {
+        try {
+            com.shivam.glasslauncher.overlay.notifications.NotificationHub.notification(key)?.notification?.smallIcon
+                ?.loadDrawable(context)?.toBitmap(48, 48)
+                // Silhouettes only: a mostly opaque icon (full-colour or a filled tile) tints to a solid square.
+                ?.takeIf { bmp ->
+                    val px = IntArray(48 * 48).also { bmp.getPixels(it, 0, 48, 0, 0, 48, 48) }
+                    px.count { android.graphics.Color.alpha(it) > 128 } < px.size * 0.7f
+                }
+                ?.asImageBitmap()
+        } catch (_: Exception) { null }
+    }
+    if (bmp != null) {
+        androidx.compose.foundation.Image(
+            bmp, null, Modifier.size(14.dp),
+            colorFilter = androidx.compose.ui.graphics.ColorFilter.tint(color),
+        )
     }
 }
 
@@ -128,6 +224,8 @@ private fun BatteryGlyph(b: PhoneBattery?, color: Color) {
         percent <= 20 -> Color(0xFFFF3B30)
         else -> color
     }
+    // iOS 26: the percentage sits inside the battery.
+    Box(contentAlignment = Alignment.CenterStart) {
     Canvas(Modifier.size(width = 27.dp, height = 13.dp)) {
         val nub = 2.dp.toPx()
         val body = Size(size.width - nub - 1.dp.toPx(), size.height)
@@ -140,5 +238,11 @@ private fun BatteryGlyph(b: PhoneBattery?, color: Color) {
             color.copy(alpha = 0.4f), Offset(body.width + 1.dp.toPx(), body.height * 0.32f),
             Size(nub, body.height * 0.36f), CornerRadius(nub / 2f),
         )
+    }
+    Box(Modifier.size(width = 24.dp, height = 13.dp), contentAlignment = Alignment.Center) {
+        // Dark digits over a mostly full light fill (and vice versa), like iOS's cut-out number.
+        val digits = if (percent > 45) (if (color == Color.White) Color.Black else Color.White) else color
+        GlassText("$percent", style = GlassType.Caption.copy(fontSize = 9.sp, lineHeight = 10.sp, fontWeight = FontWeight.Bold), color = digits, maxLines = 1)
+    }
     }
 }

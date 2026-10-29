@@ -109,6 +109,8 @@ data class LauncherSettings(
     val infiniteScroll: Boolean = false,
     /** The wallpaper copy shifts with device tilt (needs the wallpaper set through Glass). */
     val wallpaperParallax: Boolean = false,
+    /** Home shows a softly blurred wallpaper (needs the wallpaper readable by Glass). */
+    val homeBlur: Boolean = true,
     /** With "System icons": core system apps (Phone, Camera, Settings…) use Glass Icons' iOS-style art. */
     val systemAppIcons: Boolean = true,
 )
@@ -173,6 +175,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         val homeGestures = stringPreferencesKey("home_gestures")
         val infinite = booleanPreferencesKey("infinite_scroll")
         val parallax = booleanPreferencesKey("wallpaper_parallax")
+        val homeBlur = booleanPreferencesKey("home_blur")
         val systemAppIcons = booleanPreferencesKey("system_app_icons")
     }
 
@@ -253,6 +256,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
             homeGestures = HomeGestureMap.decode(p[K.homeGestures]) ?: legacyGestures(p),
             infiniteScroll = p[K.infinite] ?: d.infiniteScroll,
             wallpaperParallax = p[K.parallax] ?: d.wallpaperParallax,
+            homeBlur = p[K.homeBlur] ?: d.homeBlur,
             systemAppIcons = p[K.systemAppIcons] ?: d.systemAppIcons,
         )
     }
@@ -344,6 +348,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
     fun setHomeGesture(map: Map<HomeGesture, GestureBinding>, g: HomeGesture, b: GestureBinding) = setHomeGestures(map + (g to b))
     fun setInfiniteScroll(v: Boolean) = edit { it[K.infinite] = v }
     fun setWallpaperParallax(v: Boolean) = edit { it[K.parallax] = v }
+    fun setHomeBlur(v: Boolean) = edit { it[K.homeBlur] = v }
     fun setSystemAppIcons(v: Boolean) = edit { it[K.systemAppIcons] = v }
     fun setOnboardingDone(v: Boolean) = edit { it[K.onboarding] = v }
 }

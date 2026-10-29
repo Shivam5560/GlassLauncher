@@ -226,7 +226,7 @@ private fun Leading(a: IslandActivity, ui: IslandUi, size: Dp) {
 private fun Trailing(a: IslandActivity, ui: IslandUi, h: Dp) {
     val small = GlassType.Subhead.copy(fontWeight = FontWeight.SemiBold)
     when (val c = a.content) {
-        is IslandContent.Music -> AudioBars(c.playing, Modifier.size(width = h * 0.62f, height = h * 0.5f), ui.media?.art)
+        is IslandContent.Music -> AudioBars(c.playing, Modifier.size(width = h * 0.5f, height = h * 0.36f), ui.media?.art)
         is IslandContent.Charging -> GlassText("${c.level}%", style = small, color = Green, maxLines = 1)
         is IslandContent.Call -> if (c.incoming) GlassText("Incoming", style = small, color = Green, maxLines = 1) else LiveClock(c.since, false, small, Green)
         is IslandContent.Clock -> if (c.hasChronometer) LiveClock(c.base, c.countDown, small, Orange) else GlassText(c.text, style = small, color = Orange, maxLines = 1)
@@ -246,7 +246,7 @@ private fun ExpandedContent(a: IslandActivity, ui: IslandUi) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 AlbumArt(ui.media, 48.dp)
                 Spacer(Modifier.weight(1f))
-                AudioBars(c.playing, Modifier.size(width = 26.dp, height = 20.dp), ui.media?.art)
+                AudioBars(c.playing, Modifier.size(width = 22.dp, height = 16.dp), ui.media?.art)
             }
             Column(Modifier.fillMaxWidth()) {
                 GlassText(c.title.ifBlank { ui.media?.appLabel ?: "Now playing" }, style = GlassType.Headline, color = white, maxLines = 1)
@@ -371,18 +371,17 @@ private fun AlbumArt(media: MediaInfo?, size: Dp) {
 fun AudioBars(playing: Boolean, modifier: Modifier, art: android.graphics.Bitmap? = null) {
     // HyperOS-style waves: each bar a gradient of the album art's two main vivid colours.
     val colors = remember(art) { runCatching { waveColors(art) }.getOrElse { listOf(Color.White, Color.White) } }
+    // One continuous phase drives every bar (two mixed sines each), so the motion is fluid, not stepped.
     val transition = rememberInfiniteTransition(label = "bars")
-    val periods = listOf(420, 560, 380, 500)
-    val heights = periods.mapIndexed { i, p ->
-        transition.animateFloat(0.25f, 1f, infiniteRepeatable(tween(p, delayMillis = i * 60), RepeatMode.Reverse), label = "bar$i")
-    }
+    val phase by transition.animateFloat(0f, (2 * Math.PI).toFloat(), infiniteRepeatable(tween(1600, easing = androidx.compose.animation.core.LinearEasing)), label = "wave")
     val calm by animateFloatAsState(if (playing) 1f else 0f, spring(stiffness = 200f), label = "barsCalm")
     Canvas(modifier) {
-        val n = heights.size
-        val gap = size.width * 0.12f
+        val n = 5
+        val gap = size.width * 0.1f
         val w = (size.width - gap * (n - 1)) / n
-        heights.forEachIndexed { i, h ->
-            val v = 0.22f + (h.value - 0.22f) * calm
+        for (i in 0 until n) {
+            val wave = 0.5f + 0.3f * kotlin.math.sin(phase * 2 + i * 1.3f) + 0.2f * kotlin.math.sin(phase * 3 - i * 0.9f)
+            val v = 0.24f + (wave.coerceIn(0f, 1f) * 0.76f) * calm
             val bh = size.height * v
             val top = (size.height - bh) / 2f
             drawRoundRect(
@@ -406,7 +405,19 @@ private fun MusicProgress(media: MediaInfo?) {
             now = android.os.SystemClock.elapsedRealtime()
         }
     }
-    LinearBar(media.livePosition(now).toFloat() / media.durationMs, Color.White)
+    val pos = media.livePosition(now)
+    // iOS: elapsed and remaining time either side of the bar.
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        val time = GlassType.Caption.copy(fontWeight = FontWeight.Medium)
+        GlassText(mmss(pos), style = time, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
+        Box(Modifier.weight(1f).padding(horizontal = 10.dp)) { LinearBar(pos.toFloat() / media.durationMs, Color.White) }
+        GlassText("-" + mmss(media.durationMs - pos), style = time, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
+    }
+}
+
+private fun mmss(ms: Long): String {
+    val s = (ms.coerceAtLeast(0) / 1000)
+    return "%d:%02d".format(s / 60, s % 60)
 }
 
 /** Thin progress bar; null = indeterminate (a sliding segment). */
