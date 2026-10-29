@@ -237,7 +237,12 @@ class OverlayController(
      * Glass draws the lock screen's notifications (widget glass) while Notification Center is on, and
      * HyperOS's own lock-screen list is switched off so they don't show twice (WRITE_SECURE_SETTINGS).
      */
+    private var wasLocked = false
+
     private fun updateLockScreen() {
+        // A panel left open when the phone locks would sit behind the lock cards (two backgrounds).
+        if (locked && !wasLocked) closePanel(immediate = true)
+        wasLocked = locked
         val ours = accessibility != null && settingsFlow.value.notificationCenter
         setSystemLockNotifications(!ours)
         val show = ours && locked

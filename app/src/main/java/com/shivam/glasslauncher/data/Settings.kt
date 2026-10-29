@@ -111,6 +111,8 @@ data class LauncherSettings(
     val wallpaperParallax: Boolean = false,
     /** Home shows a softly blurred wallpaper (needs the wallpaper readable by Glass). */
     val homeBlur: Boolean = true,
+    /** Home pages after the first get a darker wallpaper (SL6 "Make extra pages darker"). */
+    val darkerPages: Boolean = false,
     /** With "System icons": core system apps (Phone, Camera, Settings…) use Glass Icons' iOS-style art. */
     val systemAppIcons: Boolean = true,
 )
@@ -176,6 +178,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         val infinite = booleanPreferencesKey("infinite_scroll")
         val parallax = booleanPreferencesKey("wallpaper_parallax")
         val homeBlur = booleanPreferencesKey("home_blur")
+        val darkerPages = booleanPreferencesKey("darker_pages")
         val systemAppIcons = booleanPreferencesKey("system_app_icons")
     }
 
@@ -257,6 +260,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
             infiniteScroll = p[K.infinite] ?: d.infiniteScroll,
             wallpaperParallax = p[K.parallax] ?: d.wallpaperParallax,
             homeBlur = p[K.homeBlur] ?: d.homeBlur,
+            darkerPages = p[K.darkerPages] ?: d.darkerPages,
             systemAppIcons = p[K.systemAppIcons] ?: d.systemAppIcons,
         )
     }
@@ -349,6 +353,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
     fun setInfiniteScroll(v: Boolean) = edit { it[K.infinite] = v }
     fun setWallpaperParallax(v: Boolean) = edit { it[K.parallax] = v }
     fun setHomeBlur(v: Boolean) = edit { it[K.homeBlur] = v }
+    fun setDarkerPages(v: Boolean) = edit { it[K.darkerPages] = v }
     fun setSystemAppIcons(v: Boolean) = edit { it[K.systemAppIcons] = v }
     fun setOnboardingDone(v: Boolean) = edit { it[K.onboarding] = v }
 }

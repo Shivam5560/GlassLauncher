@@ -37,6 +37,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -475,6 +476,13 @@ fun LauncherScreen(
                         modifier = Modifier.fillMaxSize().graphicsLayer { alpha = sideFraction() },
                     )
                 }
+
+                if (settings.darkerPages) Box(
+                    Modifier.fillMaxSize().graphicsLayer {
+                        val pos = ringState.value.of(pagerState.currentPage) + pagerState.currentPageOffsetFraction - TODAY_PAGES
+                        alpha = pos.coerceIn(0f, 1f)
+                    }.drawBehind { drawRect(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.3f)) },
+                )
 
                 // Fallback base layer when the compositor cannot blur behind the window
                 // (battery saver, some HyperOS builds): pre-blurred wallpaper, else solid tinted glass.

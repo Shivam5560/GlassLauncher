@@ -46,6 +46,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asComposeRenderEffect
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
@@ -435,7 +439,7 @@ private fun NotificationCard(e: NotifEntry, host: PanelHost, showActions: Boolea
 @Composable
 private fun MediaCard(m: MediaInfo, host: PanelHost, kind: SurfaceKind? = null) {
     val open: () -> Unit = { if (MediaHub.openPlayer(host.context)) host.close() }
-    GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.Card, variant = GlassVariant.Regular, onClick = open, kind = kind) {
+    NotifSurface(Modifier.fillMaxWidth(), onClick = open, kind = kind) {
         Column(Modifier.fillMaxWidth().padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 val bmp = remember(m.art) { m.art?.asImageBitmap() }
@@ -481,8 +485,6 @@ private fun relativeTime(t: Long): String {
 /** Every non-media notification of [pkg], group summaries included (see Clear All). */
 private fun appKeys(entries: List<NotifEntry>, pkg: String) = entries.filter { it.packageName == pkg && !it.isMedia }.map { it.key }
 
-/** iOS 27 notification platter: rounder than other cards. */
-private val NotifShape = GlassShape.rounded(24.dp)
 
 /**
  * iOS-style entrance: each card rises and fades in a little after the one above it as the panel
@@ -497,22 +499,70 @@ private fun Modifier.cascade(progress: Float, index: Int): Modifier = graphicsLa
 }
 
 /**
- * A notification platter. Over a wallpaper backdrop (lock screen) it is real glass; in the panel the
- * window already blurs everything behind it, so it is iOS's plain frosted layer (soft fill, hairline
- * edge) instead of a second glass effect, which looked clear with hard rims.
+ * The notification platter, one finish for the Notification Center and the lock screen so they
+ * look identical: a blurred copy of whatever is behind (the lock screen's wallpaper backdrop; in the
+ * panel the window itself is already blurred), a soft white fill, a top sheen and a hairline edge.
+ * [kind] is ignored on purpose: per-role glass would make the two screens differ again.
  */
 @Composable
+@Suppress("UNUSED_PARAMETER")
 private fun NotifSurface(modifier: Modifier, onClick: (() -> Unit)?, kind: SurfaceKind?, content: @Composable () -> Unit) {
-    if (com.shivam.glasslauncher.ui.glass.LocalBackdrop.current != null) {
-        GlassSurface(modifier, shape = NotifShape, variant = GlassVariant.Regular, onClick = onClick, kind = kind) { content() }
-        return
-    }
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp)
+    val backdrop = com.shivam.glasslauncher.ui.glass.LocalBackdrop.current
+    val blur = com.shivam.glasslauncher.ui.glass.LocalGlassStyle.current.blurRadius
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val blurPx = with(density) { blur.dp.toPx() }
+    val windowPos = remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    val shape = androidx.compose.foundation.shape.RoundedCornerShape(NotifRadius)
     Box(
         modifier
             .clip(shape)
-            .background(Color.White.copy(alpha = 0.14f), shape)
-            .border(0.6.dp, Color.White.copy(alpha = 0.14f), shape)
+            .androidx_onPositioned { windowPos.value = it }
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-    ) { content() }
+    ) {
+        if (backdrop != null) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .graphicsLayer {
+                        // Like iOS's material: blurred and drained of most colour, so cards read the same over any wallpaper.
+                        renderEffect = NotifMaterial.effect(blurPx)
+                        clip = true
+                    }
+                    .drawBehind { with(backdrop) { drawBackdrop(windowPos.value) } },
+            )
+        }
+        Box(
+            Modifier.matchParentSize().drawBehind {
+                val r = androidx.compose.ui.geometry.CornerRadius(NotifRadius.toPx())
+                drawRoundRect(Color.White.copy(alpha = 0.14f), cornerRadius = r)
+                drawRoundRect(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.White.copy(alpha = 0.10f), 0.5f to Color.Transparent),
+                    cornerRadius = r,
+                )
+                val hair = 0.6.dp.toPx()
+                drawRoundRect(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.White.copy(alpha = 0.30f), 1f to Color.White.copy(alpha = 0.10f)),
+                    topLeft = androidx.compose.ui.geometry.Offset(hair / 2, hair / 2),
+                    size = androidx.compose.ui.geometry.Size(size.width - hair, size.height - hair),
+                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(r.x - hair / 2),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(hair),
+                )
+            },
+        )
+        content()
+    }
+}
+
+private val NotifRadius = 24.dp
+
+private fun Modifier.androidx_onPositioned(set: (androidx.compose.ui.geometry.Offset) -> Unit): Modifier =
+    this.onGloballyPositioned { set(it.positionInWindow()) }
+
+private object NotifMaterial {
+    private val drain = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix().apply { setSaturation(0.55f) })
+
+    fun effect(blurPx: Float) = android.graphics.RenderEffect.createColorFilterEffect(
+        drain,
+        android.graphics.RenderEffect.createBlurEffect(blurPx, blurPx, android.graphics.Shader.TileMode.CLAMP),
+    ).asComposeRenderEffect()
 }
