@@ -65,6 +65,7 @@ class GlassGestureService : AccessibilityService() {
         instance = this
         wm = getSystemService(WindowManager::class.java)
         overlays = OverlayRuntime.attachAccessibility(this)
+        contentResolver.registerContentObserver(Settings.Global.getUriFor("force_fsg_nav_bar"), false, navObserver)
         // No window-state event arrives for the app already in front (e.g. Glass home after an update).
         rootInActiveWindow?.packageName?.toString()?.let {
             foregroundPackage = it
@@ -85,6 +86,13 @@ class GlassGestureService : AccessibilityService() {
      * gesture flag brings back gesture mode (no buttons); our pill replaces the system gesture line.
      * Needs `adb shell pm grant <pkg> android.permission.WRITE_SECURE_SETTINGS` once; no-op without it.
      */
+    /** HyperOS turns its gesture flag back off during boot (after we set it): set it again whenever it changes. */
+    private val navObserver = object : android.database.ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            if (Settings.Global.getInt(contentResolver, "force_fsg_nav_bar", 0) != 1) hideSystemNavButtons()
+        }
+    }
+
     private fun hideSystemNavButtons() {
         try {
             Settings.Global.putInt(contentResolver, "force_fsg_nav_bar", 1)
@@ -168,6 +176,7 @@ class GlassGestureService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     override fun onDestroy() {
+        contentResolver.unregisterContentObserver(navObserver)
         OverlayRuntime.detachAccessibility(this)
         overlays = null
         removeAll()
