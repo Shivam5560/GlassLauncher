@@ -165,7 +165,7 @@ private fun MainScreen(nav: SettingsNav, settings: LauncherSettings, wallpaper: 
                 GlassRow("Home gestures", subtitle = "Swipes, double tap, two fingers, pinch, rotate", icon = GlassIcons.Hand, iconTint = GlassColors.Accent, onClick = { nav.push("homegestures") })
                 GlassSwitchRow("Infinite scroll", settings.infiniteScroll, { app.settings.setInfiniteScroll(it) }, subtitle = "Pages loop: after the App Library comes the Today view")
                 GlassSwitchRow("Blur wallpaper on Home", settings.homeBlur, { app.settings.setHomeBlur(it) }, subtitle = if (wallpaper.image != null) "A soft blur behind the home pages" else "Needs the wallpaper set through Glass (Wallpaper)")
-                GlassSwitchRow("Darker extra pages", settings.darkerPages, { app.settings.setDarkerPages(it) }, subtitle = "Home pages after the first get a darker wallpaper")
+                GlassSwitchRow("Balanced dim on all pages", settings.darkerPages, { app.settings.setDarkerPages(it) }, subtitle = "Every home page gets the same premium dim; Today always has it")
                 GlassSwitchRow("True Tone", settings.trueTone, { app.settings.setTrueTone(it) }, subtitle = "Warms Glass's screens in indoor light, using the light sensor. Daylight: no change.")
                 if (settings.trueTone) GlassSliderRow("True Tone strength", settings.trueToneStrength, 0.2f..1f, { "${(it * 100).toInt()}%" }) { app.settings.setTrueToneStrength(it) }
                 GlassSwitchRow("Wallpaper 3D effect", settings.wallpaperParallax, { app.settings.setWallpaperParallax(it) }, subtitle = if (wallpaper.image != null) "The wallpaper moves as you tilt the phone" else "Needs the wallpaper set through Glass (Wallpaper)")

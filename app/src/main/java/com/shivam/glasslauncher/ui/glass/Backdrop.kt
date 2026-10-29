@@ -8,6 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.layer.GraphicsLayer
@@ -69,7 +70,14 @@ fun Modifier.recordBackdrop(layer: GraphicsLayer, drawToScreen: Boolean = true):
  * the same shifted copy, so refraction stays aligned.
  */
 @Composable
-fun WallpaperBackdropLayer(snapshot: WallpaperSource.Snapshot, layer: GraphicsLayer, enabled: Boolean, parallax: (() -> Offset)? = null) {
+fun WallpaperBackdropLayer(
+    snapshot: WallpaperSource.Snapshot,
+    layer: GraphicsLayer,
+    enabled: Boolean,
+    parallax: (() -> Offset)? = null,
+    /** Black dim alpha baked into the recorded copy, so glass refracts the dimmed picture, not a brighter one. */
+    dim: (() -> Float)? = null,
+) {
     val image = snapshot.image
     Canvas(Modifier.fillMaxSize().recordBackdrop(layer, drawToScreen = parallax != null)) {
         if (enabled && image != null) {
@@ -94,6 +102,8 @@ fun WallpaperBackdropLayer(snapshot: WallpaperSource.Snapshot, layer: GraphicsLa
                     dstSize = IntSize(w.toInt(), h.toInt()),
                 )
             }
+            val a = dim?.invoke() ?: 0f
+            if (a > 0.001f) drawRect(Color.Black.copy(alpha = a))
         }
     }
 }

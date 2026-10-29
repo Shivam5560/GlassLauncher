@@ -165,7 +165,6 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
             systemAppIcons && isCoreSystemApp(entry) -> loadPack(SYSTEM_ART_PACK)?.iconFor(entry.component, density, variant)
             else -> null
         }
-        if (entry.packageName.startsWith("com.android.")) android.util.Log.d("GlassDBG", "icon ${entry.component.flattenToShortString()} sys=$systemAppIcons core=${isCoreSystemApp(entry)} pack=${p != null} mapped=${mapped != null} name=${loadPack(SYSTEM_ART_PACK)?.drawableNameFor(entry.component)}")
         if (overridden) {
             // drawn above
         } else if (mapped != null) {

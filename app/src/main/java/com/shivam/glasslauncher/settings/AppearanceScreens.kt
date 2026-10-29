@@ -178,6 +178,8 @@ private fun GlobalAppearanceScreen(nav: SettingsNav, settings: LauncherSettings)
                         GlassSegmented(IconShape.entries.map { it.title.substringBefore(' ') }, look.iconShape.ordinal, { look = look.copy(iconShape = IconShape.entries[it]) })
                     }
                     GlassSliderRow("Icon size", look.iconScale, 0.7f..1.3f, { "${(it * 100).toInt()}%" }) { look = look.copy(iconScale = it) }
+                    GlassSliderRow("Dock icon size", look.dockScale, 0.7f..1.3f, { "${(it * 100).toInt()}%" }) { look = look.copy(dockScale = it) }
+                    GlassSwitchRow("Dock background", look.dockGlass, { look = look.copy(dockGlass = it) })
                     GlassSwitchRow("Labels on Home", settings.showLabels, { app.settings.setShowLabels(it) })
                     GlassSwitchRow("Labels in the drawer", look.drawerLabels, { look = look.copy(drawerLabels = it) })
                     GlassSliderRow("Label size", look.labelSize, 9f..15f, { "%.1f sp".format(it) }) { look = look.copy(labelSize = it) }

@@ -68,6 +68,10 @@ enum class HomeAnimation(val title: String) { Slide("Slide"), Fade("Fade"), Dept
 data class Appearance(
     /** Icon size multiplier on home and in the drawer. */
     val iconScale: Float = 1f,
+    /** Extra multiplier for the dock icons, on top of [iconScale]. */
+    val dockScale: Float = 1f,
+    /** Glass bar behind the dock icons; off leaves the icons floating on the wallpaper. */
+    val dockGlass: Boolean = true,
     val iconShape: IconShape = IconShape.Squircle,
     /** Label text size (sp). */
     val labelSize: Float = 11.5f,
@@ -166,6 +170,8 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         val widgetRadius = floatPreferencesKey("glass_widget_radius")
         val preset = stringPreferencesKey("glass_preset")
         val iconScale = floatPreferencesKey("ap_icon_scale")
+        val dockScale = floatPreferencesKey("ap_dock_scale")
+        val dockGlass = booleanPreferencesKey("ap_dock_glass")
         val iconShape = stringPreferencesKey("ap_icon_shape")
         val labelSize = floatPreferencesKey("ap_label_size")
         val twoLine = booleanPreferencesKey("ap_two_line")
@@ -251,6 +257,8 @@ class SettingsRepository(private val context: Context, private val scope: Corout
             iconPackChosen = p[K.iconPack] != null,
             appearance = Appearance(
                 iconScale = p[K.iconScale] ?: d.appearance.iconScale,
+                dockScale = p[K.dockScale] ?: d.appearance.dockScale,
+                dockGlass = p[K.dockGlass] ?: d.appearance.dockGlass,
                 iconShape = p[K.iconShape]?.let { v -> IconShape.entries.firstOrNull { it.name == v } } ?: d.appearance.iconShape,
                 labelSize = p[K.labelSize] ?: d.appearance.labelSize,
                 twoLineLabels = p[K.twoLine] ?: d.appearance.twoLineLabels,
@@ -336,6 +344,8 @@ class SettingsRepository(private val context: Context, private val scope: Corout
 
     fun setAppearance(a: Appearance) = edit {
         it[K.iconScale] = a.iconScale
+        it[K.dockScale] = a.dockScale
+        it[K.dockGlass] = a.dockGlass
         it[K.iconShape] = a.iconShape.name
         it[K.labelSize] = a.labelSize
         it[K.twoLine] = a.twoLineLabels

@@ -449,7 +449,18 @@ fun LauncherScreen(
                 SnapshotBackdropLayer(frozenHome, frozenHomeLayer)
                 SnapshotBackdropLayer(panelWall, panelWallLayer)
                 SnapshotBackdropLayer(panelHome, panelHomeLayer)
-                WallpaperBackdropLayer(snapshot, wallpaperLayer, hasWallpaper, parallax = if (settings.wallpaperParallax && hasWallpaper && !reduced) ({ tilt.value }) else null)
+                // One balanced dim (see PremiumDim) behind every page; Today always has it, the other pages follow
+                // the "darker pages" switch. It is baked into the wallpaper copy glass refracts, so widgets over it
+                // are not brighter than the dimmed screen around them.
+                val pageDimAlpha = remember(snapshot) {
+                    PremiumDim.alphaFor(snapshot.luminance(0f, 0f, snapshot.screenWidth.toFloat(), snapshot.screenHeight.toFloat()))
+                }
+                val dimFraction = {
+                    val pos = ringState.value.of(pagerState.currentPage) + pagerState.currentPageOffsetFraction
+                    if (settings.darkerPages) 1f else (TODAY_PAGES - pos).coerceIn(0f, 1f)
+                }
+                val parallaxOn = settings.wallpaperParallax && hasWallpaper && !reduced
+                WallpaperBackdropLayer(snapshot, wallpaperLayer, hasWallpaper, parallax = if (parallaxOn) ({ tilt.value }) else null, dim = { dimFraction() * pageDimAlpha })
 
                 // As on iOS the wallpaper blurs behind the App Library and Today view (HyperOS's window blur
                 // skips the system wallpaper, so this is our own blurred copy, faded in with the swipe).
@@ -478,16 +489,9 @@ fun LauncherScreen(
                     )
                 }
 
-                // One balanced dim for every page after the first and for Today (see PremiumDim).
-                val pageDimAlpha = remember(snapshot) {
-                    PremiumDim.alphaFor(snapshot.luminance(0f, 0f, snapshot.screenWidth.toFloat(), snapshot.screenHeight.toFloat()))
-                }
-                if (settings.darkerPages) Box(
-                    Modifier.fillMaxSize().graphicsLayer {
-                        val pos = ringState.value.of(pagerState.currentPage) + pagerState.currentPageOffsetFraction - TODAY_PAGES
-                        alpha = pos.coerceIn(0f, 1f)
-                    }.premiumDim(pageDimAlpha),
-                )
+                // On screen the dim covers the system wallpaper and our blurred copies; with parallax the recorded
+                // copy is drawn on screen already (dimmed), so no second layer.
+                if (!parallaxOn) Box(Modifier.fillMaxSize().graphicsLayer { alpha = dimFraction() }.premiumDim(pageDimAlpha))
 
                 // Fallback base layer when the compositor cannot blur behind the window
                 // (battery saver, some HyperOS builds): pre-blurred wallpaper, else solid tinted glass.
@@ -560,7 +564,6 @@ fun LauncherScreen(
                                 Box(Modifier.fillMaxSize().padding(bottom = if (isHome) chromePad else 0.dp).graphicsLayer { if (isHome) homePageTransition(homeAnim, pagerState.currentPage + pagerState.currentPageOffsetFraction - pagerPage) }) {
                                 CompositionLocalProvider(LocalBackdrop provides wallpaperOnly) {
                                     if (page < 0) {
-                                        Box(Modifier.fillMaxSize().premiumDim(pageDimAlpha))
                                         // The dim keeps white text at AA for any wallpaper, so Today always uses light text.
                                         TodayView(widgetUi, ui.editMode, { ui.editMode = it }, lightWallpaper = false)
                                     } else if (page < homePageCount) {

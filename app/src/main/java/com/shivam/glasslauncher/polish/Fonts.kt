@@ -21,7 +21,7 @@ import com.shivam.glasslauncher.ui.glass.Inter
  */
 object Fonts {
 
-    const val DEFAULT_ID = "inter"
+    const val DEFAULT_ID = "gf:IBM Plex Sans"
     private const val PROVIDER_AUTHORITY = "com.google.android.gms.fonts"
     private const val PROVIDER_PACKAGE = "com.google.android.gms"
 
@@ -38,7 +38,7 @@ object Fonts {
 
     /** Google Fonts families offered for download (all open-licensed, served by Play Services). */
     val downloadable = listOf(
-        "Poppins", "Outfit", "Figtree", "Plus Jakarta Sans", "Sora", "Urbanist", "Lexend", "Rubik",
+        "IBM Plex Sans", "Poppins", "Outfit", "Figtree", "Plus Jakarta Sans", "Sora", "Urbanist", "Lexend", "Rubik",
         "Work Sans", "Quicksand", "DM Sans", "Playfair Display", "JetBrains Mono", "Comfortaa",
     ).map { Entry("gf:$it", it, false, "Google Fonts · downloaded by Play Services") }
 

@@ -51,14 +51,12 @@ fun Dock(
     val screenRadius = remember(view) {
         view.rootWindowInsets?.getRoundedCorner(RoundedCorner.POSITION_BOTTOM_LEFT)?.radius?.let { with(density) { it.toDp() } } ?: 0.dp
     }
-    GlassSurface(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(start = DockMargin, end = DockMargin, bottom = DockBottom)
-            .onGloballyPositioned { onBounds(it.boundsInWindow()) },
-        shape = GlassShape.rounded(maxOf(34.dp, screenRadius - DockMargin)),
-        role = null,
-    ) {
+    val barModifier = modifier
+        .fillMaxWidth()
+        .padding(start = DockMargin, end = DockMargin, bottom = DockBottom)
+        .onGloballyPositioned { onBounds(it.boundsInWindow()) }
+    val iconSize = 60.dp * (ctx.appearance.iconScale * ctx.appearance.dockScale).coerceIn(0.7f, 1.3f)
+    val icons: @Composable () -> Unit = {
         Row(
             Modifier.fillMaxWidth().padding(vertical = 14.dp, horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
@@ -69,7 +67,7 @@ fun Dock(
                     HomeCell(
                         slot = Slot.Dock(i),
                         item = items.getOrNull(i),
-                        iconSize = 60.dp * ctx.appearance.iconScale.coerceIn(0.7f, 1.2f),
+                        iconSize = iconSize,
                         ctx = ctx,
                         drag = drag,
                         callbacks = callbacks,
@@ -80,6 +78,15 @@ fun Dock(
                 }
             }
         }
+    }
+    if (ctx.appearance.dockGlass) {
+        GlassSurface(
+            modifier = barModifier,
+            shape = GlassShape.rounded(maxOf(34.dp, screenRadius - DockMargin)),
+            role = null,
+        ) { icons() }
+    } else {
+        Box(barModifier) { icons() }
     }
 }
 
