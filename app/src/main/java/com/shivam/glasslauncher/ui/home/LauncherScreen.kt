@@ -742,7 +742,9 @@ private fun androidx.compose.ui.graphics.GraphicsLayerScope.homePageTransition(a
     when (anim) {
         com.shivam.glasslauncher.data.HomeAnimation.Slide -> Unit
         com.shivam.glasslauncher.data.HomeAnimation.Fade -> {
-            translationX = o * size.width
+            // Cancel the pager's slide so pages cross-fade in place, but only for the page being shown or
+            // entered: fully faded pages stay off-screen, or they sit invisibly on top and steal every touch.
+            if (a < 1f) translationX = o * size.width
             alpha = 1f - a
         }
         com.shivam.glasslauncher.data.HomeAnimation.Depth -> {

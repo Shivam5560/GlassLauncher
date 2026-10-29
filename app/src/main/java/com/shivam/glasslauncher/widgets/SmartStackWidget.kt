@@ -5,6 +5,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
@@ -24,7 +27,9 @@ import com.shivam.glasslauncher.ui.glass.GlassSurface
 import com.shivam.glasslauncher.ui.glass.GlassVariant
 import com.shivam.glasslauncher.ui.glass.LocalGlassContentColor
 import com.shivam.glasslauncher.ui.glass.ResumedLoop
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import java.util.Calendar
 
 /**
@@ -60,7 +65,16 @@ fun SmartStackWidget(inst: WidgetInstance, size: WidgetSize, modifier: Modifier 
             if (period != appliedPeriod) {
                 appliedPeriod = period
                 StackRotation.pick(children.map { it.kind }, hour)?.let { target ->
-                    if (target != pager.currentPage && !pager.isScrollInProgress) pager.animateScrollToPage(target)
+                    if (target != pager.currentPage && !pager.isScrollInProgress) {
+                        try {
+                            pager.animateScrollToPage(target)
+                        } finally {
+                            // A cancelled animation (recomposed loop, new touch) must not leave two cards half-visible.
+                            if (pager.currentPageOffsetFraction != 0f && !pager.isScrollInProgress) {
+                                withContext(NonCancellable) { pager.scrollToPage(pager.currentPage) }
+                            }
+                        }
+                    }
                 }
             }
             delay(60_000L)
@@ -73,6 +87,7 @@ fun SmartStackWidget(inst: WidgetInstance, size: WidgetSize, modifier: Modifier 
             modifier = Modifier.fillMaxSize(),
             key = { children.getOrNull(it)?.id ?: it },
             beyondViewportPageCount = 1,
+            flingBehavior = PagerDefaults.flingBehavior(state = pager, snapAnimationSpec = spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow)),
         ) { page ->
             val child = children.getOrNull(page)
             if (child != null) WidgetContent(child, Modifier.fillMaxSize(), size = if (size in child.kind.sizes) size else child.kind.sizes.first())
