@@ -263,9 +263,9 @@ class OverlayController(
         ).apply {
             gravity = Gravity.TOP
             // Below HyperOS's lock clock, which grows to ~45% of the screen once its own list is off.
-            y = (bounds.height() * 0.47f).toInt()
+            y = (bounds.height() * 0.495f).toInt()
         }
-        val maxHeight = with(androidx.compose.ui.unit.Density(density)) { (bounds.height() * 0.38f).toDp() }
+        val maxHeight = with(androidx.compose.ui.unit.Density(density)) { (bounds.height() * 0.355f).toDp() }
         val w = ComposeOverlayWindow(service, params) {
             OverlayTheme {
                 val snap by com.shivam.glasslauncher.GlassApp.from(service).wallpaper.snapshot.collectAsState()

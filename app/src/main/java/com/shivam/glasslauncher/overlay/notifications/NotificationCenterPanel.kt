@@ -48,6 +48,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.focus.FocusRequester
@@ -243,8 +244,9 @@ fun LockScreenNotifications(host: PanelHost, maxHeight: androidx.compose.ui.unit
     var expanded by remember { mutableStateOf(emptySet<String>()) }
     val stacks = remember(entries, expanded) { NotificationGrouping.stacks(entries, expanded) }
     // Capped above the unlock area; more cards scroll.
+    val scroll = rememberScrollState()
     Column(
-        Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp),
+        Modifier.fillMaxWidth().heightIn(max = maxHeight).scrollFadeEdges(scroll).verticalScroll(scroll).padding(horizontal = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         media?.let { MediaCard(it, host, SurfaceKind.Widget) }
@@ -566,3 +568,30 @@ private object NotifMaterial {
         android.graphics.RenderEffect.createBlurEffect(blurPx, blurPx, android.graphics.Shader.TileMode.CLAMP),
     ).asComposeRenderEffect()
 }
+
+/**
+ * Soft fade at the top and bottom of a scrolling list, only on the side that has more to scroll to,
+ * so a card is never sliced by a hard edge (as on iOS's lock screen).
+ */
+private fun Modifier.scrollFadeEdges(scroll: androidx.compose.foundation.ScrollState, size: androidx.compose.ui.unit.Dp = 28.dp): Modifier =
+    this
+        .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+        .drawWithContent {
+            drawContent()
+            val h = size.toPx()
+            if (scroll.value > 0) {
+                drawRect(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.Black, 1f to Color.Transparent, endY = h),
+                    size = androidx.compose.ui.geometry.Size(this.size.width, h),
+                    blendMode = androidx.compose.ui.graphics.BlendMode.DstOut,
+                )
+            }
+            if (scroll.value < scroll.maxValue) {
+                drawRect(
+                    androidx.compose.ui.graphics.Brush.verticalGradient(0f to Color.Transparent, 1f to Color.Black, startY = this.size.height - h, endY = this.size.height),
+                    topLeft = androidx.compose.ui.geometry.Offset(0f, this.size.height - h),
+                    size = androidx.compose.ui.geometry.Size(this.size.width, h),
+                    blendMode = androidx.compose.ui.graphics.BlendMode.DstOut,
+                )
+            }
+        }
