@@ -21,7 +21,7 @@ sealed interface PickerTarget {
 }
 
 /** Long-press menu on a widget, anchored at its bounds. */
-data class WidgetMenu(val id: String, val anchor: Rect, val onHome: Boolean)
+data class WidgetMenu(val id: String, val anchor: Rect, val onHome: Boolean, val page: Int = 0)
 
 /**
  * Widget-related launcher state: picker, long-press menu, edit sheet and page manager, plus the

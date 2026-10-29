@@ -134,7 +134,7 @@ private fun HomeWidgetFrame(
             .widgetLongPress(enabled = !editMode) {
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 val b = coords[0]?.boundsInWindow() ?: Rect.Zero
-                ui.menu = WidgetMenu(w.id, b, onHome = true)
+                ui.menu = WidgetMenu(w.id, b, onHome = true, page = page)
             },
     ) {
         if (inst != null) {

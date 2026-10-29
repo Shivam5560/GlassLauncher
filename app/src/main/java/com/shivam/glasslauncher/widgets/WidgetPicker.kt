@@ -58,6 +58,7 @@ fun WidgetPickerSheet(widgets: WidgetUiState) {
     val target = com.shivam.glasslauncher.ui.home.rememberLast(widgets.picker)
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
+    var expanded by remember { mutableStateOf(setOf<String>()) }
     val providers by produceState<List<ProviderEntry>?>(null, widgets.picker != null) {
         if (widgets.picker != null) value = withContext(Dispatchers.IO) { GlassWidgetHost.get(context).providers() }
     }
@@ -104,8 +105,13 @@ fun WidgetPickerSheet(widgets: WidgetUiState) {
             if (providers == null) item("loading") { GlassListGroup { GlassRow("Loading app widgets…") } }
             theirs.forEach { (app, list) ->
                 item("app:$app") {
-                    GlassListGroup(title = app, footer = null) {
-                        list.forEach { p ->
+                    // As in Smart Launcher: one compact row per app with a count badge; tap to see its widgets.
+                    val open = query.isNotBlank() || app in expanded
+                    GlassListGroup(title = null, footer = null) {
+                        GlassRow(app, onClick = { expanded = if (app in expanded) expanded - app else expanded + app }) {
+                            GlassText("${list.size}", Modifier.padding(horizontal = 8.dp), style = GlassType.Footnote, color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.7f))
+                        }
+                        if (open) list.forEach { p ->
                             ProviderRow(p) { target?.let { widgets.addAppWidget(p, it) } }
                         }
                     }
