@@ -113,6 +113,9 @@ data class LauncherSettings(
     val homeBlur: Boolean = true,
     /** Home pages after the first get a darker wallpaper (SL6 "Make extra pages darker"). */
     val darkerPages: Boolean = false,
+    /** Warm veil over Glass's screens that follows the ambient light (see TrueTone). */
+    val trueTone: Boolean = false,
+    val trueToneStrength: Float = 0.6f,
     /** With "System icons": core system apps (Phone, Camera, Settings…) use Glass Icons' iOS-style art. */
     val systemAppIcons: Boolean = true,
 )
@@ -179,6 +182,8 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         val parallax = booleanPreferencesKey("wallpaper_parallax")
         val homeBlur = booleanPreferencesKey("home_blur")
         val darkerPages = booleanPreferencesKey("darker_pages")
+        val trueTone = booleanPreferencesKey("true_tone")
+        val trueToneStrength = floatPreferencesKey("true_tone_strength")
         val systemAppIcons = booleanPreferencesKey("system_app_icons")
     }
 
@@ -261,6 +266,8 @@ class SettingsRepository(private val context: Context, private val scope: Corout
             wallpaperParallax = p[K.parallax] ?: d.wallpaperParallax,
             homeBlur = p[K.homeBlur] ?: d.homeBlur,
             darkerPages = p[K.darkerPages] ?: d.darkerPages,
+            trueTone = p[K.trueTone] ?: d.trueTone,
+            trueToneStrength = p[K.trueToneStrength] ?: d.trueToneStrength,
             systemAppIcons = p[K.systemAppIcons] ?: d.systemAppIcons,
         )
     }
@@ -354,6 +361,8 @@ class SettingsRepository(private val context: Context, private val scope: Corout
     fun setWallpaperParallax(v: Boolean) = edit { it[K.parallax] = v }
     fun setHomeBlur(v: Boolean) = edit { it[K.homeBlur] = v }
     fun setDarkerPages(v: Boolean) = edit { it[K.darkerPages] = v }
+    fun setTrueTone(v: Boolean) = edit { it[K.trueTone] = v }
+    fun setTrueToneStrength(v: Float) = edit { it[K.trueToneStrength] = v }
     fun setSystemAppIcons(v: Boolean) = edit { it[K.systemAppIcons] = v }
     fun setOnboardingDone(v: Boolean) = edit { it[K.onboarding] = v }
 }

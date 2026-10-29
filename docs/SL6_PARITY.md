@@ -11,9 +11,11 @@ Status: [x] done, [~] partly, [ ] to do.
 - [x] Liquid-glass optimisation: pre-blurred stills, frozen blurred home under overlays
 - [ ] Blur vibrancy (backdrop saturation)
 - [ ] Widget shadow blur/opacity, transparent widget background, apply theme/font to all widgets
-- [ ] Make extra pages darker
+- [x] Make extra pages darker
 - [ ] Greyscale mode
 - [ ] Letter spacing / line height / item spacing in Fonts
+
+- [x] True Tone (Glass windows, ambient-light veil; off by default) and one notification finish for lock screen + panel
 
 ## Widgets
 - [x] Picker (our widgets + app widgets), resize handles, edit sheet, widget stack, Today view

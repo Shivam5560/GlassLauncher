@@ -123,7 +123,7 @@ fun GlassTheme(
             LocalBackdrop provides backdrop,
             LocalGlassContentColor provides Color.White,
         ) {
-            content()
+            TrueToneVeil(content)
         }
     }
 }
