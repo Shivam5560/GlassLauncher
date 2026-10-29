@@ -189,6 +189,7 @@ private fun GlobalAppearanceScreen(nav: SettingsNav, settings: LauncherSettings)
             item("widget") {
                 GlassListGroup(title = "Widget") {
                     GlassSliderRow("Corner radius", draft.widgetCornerRadius, 0f..40f, { "${it.toInt()} dp" }) { draft = draft.copy(widgetCornerRadius = it) }
+                    GlassSliderRow("App widget opacity", draft.appWidgetOpacity, 0.3f..1f, { "${(it * 100).toInt()}%" }) { draft = draft.copy(appWidgetOpacity = it) }
                 }
             }
             item("font") {

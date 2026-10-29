@@ -130,6 +130,8 @@ data class GlassStyle(
     val roles: Map<SurfaceKind, RoleStyle> = emptyMap(),
     /** Corner radius of widgets (dp). */
     val widgetCornerRadius: Float = 24f,
+    /** Opacity of third-party widget cards inside their glass frame (1 = the widget's own opaque card). */
+    val appWidgetOpacity: Float = 0.8f,
     val preset: ThemePreset = ThemePreset.Liquid,
 ) {
     fun role(kind: SurfaceKind): RoleStyle = roles[kind] ?: RoleStyle()

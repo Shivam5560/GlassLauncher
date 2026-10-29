@@ -17,8 +17,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.shivam.glasslauncher.ui.glass.GlassShape
 
-private const val APP_WIDGET_ALPHA = 0.8f
-
 /**
  * A third-party Android widget (AppWidgetHostView) wrapped in glass: a Regular glass frame with
  * the widget's own view clipped inside it. The widget is told its size in dp whenever it changes.
@@ -49,7 +47,7 @@ fun AppWidgetContent(inst: WidgetInstance, modifier: Modifier = Modifier) {
                 AndroidView(
                     factory = { ctx -> host.createView(ctx, id, info) },
                     // Third-party widgets paint an opaque card; fading it lets the liquid glass frame show through.
-                    modifier = Modifier.fillMaxSize().alpha(APP_WIDGET_ALPHA),
+                    modifier = Modifier.fillMaxSize().alpha(com.shivam.glasslauncher.ui.glass.LocalGlassStyle.current.appWidgetOpacity),
                     update = { view -> host.updateSize(view, w, h) },
                 )
             }

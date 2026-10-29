@@ -168,6 +168,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         val styleVersion = intPreferencesKey("glass_style_version")
         val roles = stringPreferencesKey("glass_roles")
         val widgetRadius = floatPreferencesKey("glass_widget_radius")
+        val appWidgetOpacity = floatPreferencesKey("glass_app_widget_opacity")
         val preset = stringPreferencesKey("glass_preset")
         val iconScale = floatPreferencesKey("ap_icon_scale")
         val dockScale = floatPreferencesKey("ap_dock_scale")
@@ -229,6 +230,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
                 liquidEffects = p[K.liquid] ?: d.glass.liquidEffects,
                 roles = RoleStyle.decode(p[K.roles]),
                 widgetCornerRadius = p[K.widgetRadius] ?: d.glass.widgetCornerRadius,
+                appWidgetOpacity = p[K.appWidgetOpacity] ?: d.glass.appWidgetOpacity,
                 preset = p[K.preset]?.let { v -> ThemePreset.entries.firstOrNull { it.name == v } } ?: d.glass.preset,
             ),
             gestures = GestureSettings(
@@ -313,6 +315,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         it[K.liquid] = style.liquidEffects
         it[K.roles] = RoleStyle.encode(style.roles)
         it[K.widgetRadius] = style.widgetCornerRadius
+        it[K.appWidgetOpacity] = style.appWidgetOpacity
         it[K.preset] = style.preset.name
     }
 

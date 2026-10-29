@@ -161,7 +161,9 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
         val overridden = overrides[entry.key]?.let { renderOverride(canvas, it, size, density) } ?: false
         val mapped = when {
             overridden -> null
-            p != null -> p.iconFor(entry.component, density, variant)
+            p != null -> (if (p.packageName == ONEPRO) PREFERRED[entry.component.packageName]?.let { p.named(it, density, variant) } else null)
+                ?: p.iconFor(entry.component, density, variant)
+                ?: BEST_MATCH[entry.component.packageName]?.let { p.named(it, density, variant) }
             systemAppIcons && isCoreSystemApp(entry) -> loadPack(SYSTEM_ART_PACK)?.iconFor(entry.component, density, variant)
             else -> null
         }
@@ -435,6 +437,21 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
 
     private companion object {
         const val SYSTEM_ART_PACK = "com.shivam.glassicons"
+        /** Apps the selected pack doesn't map, matched by hand to the closest drawable in OnePro Dark. */
+        const val ONEPRO = "com.eatos.onedarkpro"
+        /**
+         * OnePro Dark ships several recolours per app; these are the ones that read best on liquid glass
+         * (silver gear, true-colour Drive, blue Files, orange Calculator, crisp Amazon smile, blue-hand Clock).
+         */
+        val PREFERRED = mapOf(
+            "com.android.settings" to "settings_alt_07",
+            "com.google.android.apps.docs" to "drive_alt_01",
+            "com.mi.android.globalFileexplorer" to "my_files_alt_01",
+            "com.miui.calculator" to "calculator_alt_04",
+            "in.amazon.mShop.android.shopping" to "amazon_alt_01",
+            "com.android.deskclock" to "clock_alt_01",
+        )
+        val BEST_MATCH = mapOf("in.swiggy.android.toing" to "swiggy")
         val CORE_PREFIXES = listOf("com.android.", "com.miui.", "com.xiaomi.", "com.mi.")
         /** Branded apps that live under a core prefix on some phones (Xiaomi ships Chrome as com.android.chrome). */
         val BRANDED = setOf("com.android.chrome", "com.android.vending")
