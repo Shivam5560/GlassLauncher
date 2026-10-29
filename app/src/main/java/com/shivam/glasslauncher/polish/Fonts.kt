@@ -28,6 +28,7 @@ object Fonts {
     data class Entry(val id: String, val name: String, val bundled: Boolean, val licence: String)
 
     val bundled = listOf(
+        Entry("system", "System font", true, "The font your phone uses (MiSans on HyperOS)"),
         Entry("inter", "Inter", true, "© The Inter Project Authors · OFL 1.1"),
         Entry("manrope", "Manrope", true, "© The Manrope Project Authors · OFL 1.1"),
         Entry("nunito", "Nunito", true, "© The Nunito Project Authors · OFL 1.1"),
@@ -68,6 +69,7 @@ object Fonts {
     /** Resolves [id] to a family; downloadable ones fall back to the bundled fonts. */
     fun family(context: Context, id: String): FontFamily = when (id) {
         "inter" -> Inter
+        "system" -> FontFamily.SansSerif
         "manrope" -> variable(R.font.manrope)
         "nunito" -> variable(R.font.nunito)
         "space_grotesk" -> variable(R.font.space_grotesk)

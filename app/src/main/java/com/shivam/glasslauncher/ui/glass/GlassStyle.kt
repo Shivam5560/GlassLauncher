@@ -30,7 +30,7 @@ enum class SurfaceKind(val title: String) {
 }
 
 /** Launcher theme presets (Settings → Appearance). */
-enum class ThemePreset(val title: String) { Solid("Solid"), Frosted("Frosted"), Liquid("Liquid Glass"), Custom("Custom") }
+enum class ThemePreset(val title: String) { Solid("Solid"), Frosted("Frosted"), Liquid("Liquid Glass"), Amoled("AMOLED"), Custom("Custom") }
 
 /** Per-role overrides; null means "use the global glass value". */
 @Immutable
@@ -163,7 +163,15 @@ data class GlassStyle(
         /** Applies a preset's material values, keeping colours, roles and other choices. */
         fun applyPreset(base: GlassStyle, preset: ThemePreset): GlassStyle {
             val d = GlassStyle()
+            // Leaving AMOLED drops its black overrides so the other looks get their own colours back.
+            val base = if (base.preset == ThemePreset.Amoled && preset != ThemePreset.Amoled) base.copy(roles = emptyMap(), tintColor = d.tintColor) else base
             return when (preset) {
+                // True black for OLED: black panels and dim, no blur or wallpaper behind them, a faint lens for the edges.
+                ThemePreset.Amoled -> base.copy(
+                    preset = preset, blurRadius = 0f, tintColor = 0xFF000000.toInt(), tintOpacity = 1f, refraction = 0.15f,
+                    chromaticAberration = 0f, specular = 0.25f, liquidEffects = true, wallpaperBackdrop = false,
+                    roles = SurfaceKind.entries.associateWith { RoleStyle(color = 0xFF000000.toInt(), opacity = 1f) },
+                )
                 ThemePreset.Solid -> base.copy(
                     preset = preset, blurRadius = 0f, tintOpacity = 0.92f, refraction = 0f, chromaticAberration = 0f,
                     specular = 0.2f, liquidEffects = false, wallpaperBackdrop = false,

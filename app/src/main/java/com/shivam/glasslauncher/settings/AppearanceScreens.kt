@@ -121,9 +121,9 @@ private fun GlobalAppearanceScreen(nav: SettingsNav, settings: LauncherSettings)
         ScreenScaffold("Appearance", nav) {
             item("preview") { AppearancePreview(look, settings.showLabels) }
             item("presets") {
-                GlassListGroup(title = "Launcher theme", footer = "Solid: opaque panels, no blur. Frosted: blur and tint, no lens. Liquid Glass: blur, tint and a gentle lens. Editing anything below switches to Custom.") {
+                GlassListGroup(title = "Launcher theme", footer = "Solid: opaque panels, no blur. Frosted: blur and tint, no lens. Liquid Glass: blur, tint and a gentle lens. AMOLED: pure black panels and background, no blur. Editing anything below switches to Custom.") {
                     Column(Modifier.padding(12.dp)) {
-                        val presets = listOf(ThemePreset.Solid, ThemePreset.Frosted, ThemePreset.Liquid)
+                        val presets = listOf(ThemePreset.Solid, ThemePreset.Frosted, ThemePreset.Liquid, ThemePreset.Amoled)
                         GlassSegmented(presets.map { it.title }, presets.indexOf(draft.preset), { i -> draft = GlassStyle.applyPreset(draft, presets[i]) })
                         if (draft.preset == ThemePreset.Custom) {
                             Spacer(Modifier.height(6.dp))
