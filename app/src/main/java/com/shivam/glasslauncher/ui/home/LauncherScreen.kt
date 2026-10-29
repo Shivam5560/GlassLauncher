@@ -37,7 +37,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -57,6 +56,8 @@ import com.shivam.glasslauncher.data.FolderItem
 import com.shivam.glasslauncher.data.HomeLayout
 import com.shivam.glasslauncher.data.Slot
 import com.shivam.glasslauncher.ui.LauncherViewModel
+import com.shivam.glasslauncher.ui.glass.PremiumDim
+import com.shivam.glasslauncher.ui.glass.premiumDim
 import com.shivam.glasslauncher.ui.glass.rememberBlurredCopy
 import com.shivam.glasslauncher.ui.glass.Backdrop
 import com.shivam.glasslauncher.ui.glass.GlassButton
@@ -477,11 +478,15 @@ fun LauncherScreen(
                     )
                 }
 
+                // One balanced dim for every page after the first and for Today (see PremiumDim).
+                val pageDimAlpha = remember(snapshot) {
+                    PremiumDim.alphaFor(snapshot.luminance(0f, 0f, snapshot.screenWidth.toFloat(), snapshot.screenHeight.toFloat()))
+                }
                 if (settings.darkerPages) Box(
                     Modifier.fillMaxSize().graphicsLayer {
                         val pos = ringState.value.of(pagerState.currentPage) + pagerState.currentPageOffsetFraction - TODAY_PAGES
                         alpha = pos.coerceIn(0f, 1f)
-                    }.drawBehind { drawRect(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.3f)) },
+                    }.premiumDim(pageDimAlpha),
                 )
 
                 // Fallback base layer when the compositor cannot blur behind the window
@@ -555,7 +560,9 @@ fun LauncherScreen(
                                 Box(Modifier.fillMaxSize().padding(bottom = if (isHome) chromePad else 0.dp).graphicsLayer { if (isHome) homePageTransition(homeAnim, pagerState.currentPage + pagerState.currentPageOffsetFraction - pagerPage) }) {
                                 CompositionLocalProvider(LocalBackdrop provides wallpaperOnly) {
                                     if (page < 0) {
-                                        TodayView(widgetUi, ui.editMode, { ui.editMode = it }, lightWallpaper)
+                                        Box(Modifier.fillMaxSize().premiumDim(pageDimAlpha))
+                                        // The dim keeps white text at AA for any wallpaper, so Today always uses light text.
+                                        TodayView(widgetUi, ui.editMode, { ui.editMode = it }, lightWallpaper = false)
                                     } else if (page < homePageCount) {
                                         val pageWidgets = layout.widgetsOn(page)
                                         HomeGridPage(

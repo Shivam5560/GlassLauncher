@@ -10,7 +10,6 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -67,7 +66,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shivam.glasslauncher.overlay.OverlayAppIcon
 import com.shivam.glasslauncher.overlay.OverlayIcons
+import com.shivam.glasslauncher.GlassApp
 import com.shivam.glasslauncher.overlay.PanelHost
+import com.shivam.glasslauncher.ui.glass.PremiumDim
+import com.shivam.glasslauncher.ui.glass.premiumDim
 import com.shivam.glasslauncher.overlay.island.AudioBars
 import com.shivam.glasslauncher.overlay.island.LinearBar
 import com.shivam.glasslauncher.ui.glass.GlassButton
@@ -108,10 +110,14 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
     var expanded by remember { mutableStateOf(emptySet<String>()) }
     val stacks = remember(entries, expanded) { NotificationGrouping.stacks(entries, expanded) }
 
+    val wallpaper by GlassApp.from(context).wallpaper.snapshot.collectAsState()
+    val panelDim = remember(wallpaper) {
+        PremiumDim.alphaFor(wallpaper.luminance(0f, 0f, wallpaper.screenWidth.toFloat(), wallpaper.screenHeight.toFloat()))
+    }
     Box(
         Modifier
             .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.32f * progress))
+            .premiumDim(panelDim * progress)
             .pointerInput(Unit) { detectTapGestures(onTap = { host.close() }) },
     ) {
         LazyColumn(

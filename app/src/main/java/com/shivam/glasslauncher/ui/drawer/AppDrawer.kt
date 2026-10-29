@@ -89,6 +89,7 @@ import com.shivam.glasslauncher.data.FolderItem
 import com.shivam.glasslauncher.data.HomeLayout
 import com.shivam.glasslauncher.data.LauncherSettings
 import com.shivam.glasslauncher.ui.LauncherViewModel
+import com.shivam.glasslauncher.ui.glass.PremiumDim
 import com.shivam.glasslauncher.ui.glass.Contrast
 import com.shivam.glasslauncher.ui.glass.GlassIcon
 import com.shivam.glasslauncher.ui.glass.GlassIconButton
@@ -225,12 +226,11 @@ fun AppDrawerOverlay(
         if (c.id != settings.drawerLastCategory) vm.setDrawerLastCategory(c.id)
     }
 
-    // Background role: a dim over the blurred home. Like iOS's dark appearance, the default is a
-    // firm dark dim with white text: picking black from the wallpaper's average left grey labels on
-    // the dark parts of a mostly light wallpaper. A chosen background colour still picks by contrast.
+    // Background role: a dim over the blurred home. The default is PremiumDim (least black dim that keeps
+    // white text at AA over this wallpaper). A chosen background colour still picks its text by contrast.
     val bg = settings.glass.role(SurfaceKind.Background)
     val dim = Color(bg.color ?: 0xFF000000.toInt()).copy(alpha = 1f)
-    val dimAlpha = bg.opacity ?: settings.glass.defaultOpacity(SurfaceKind.Background)
+    val dimAlpha = bg.opacity ?: PremiumDim.alphaFor(wallpaperLuminance)
     val textColor = bg.contentColor?.let { Color(it) }
         ?: if (bg.color == null) Color.White
         else Color(Contrast.pickText(Contrast.glassLuminance(Contrast.gammaToLinear(wallpaperLuminance), dim.toArgb(), dimAlpha)))
