@@ -1,5 +1,8 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.shivam.glasslauncher.ui.drawer
 
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import android.app.Activity
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
@@ -389,7 +392,7 @@ private fun CategoryPage(
     val iconSize = 58.dp * ap.iconScale.coerceIn(0.7f, 1.25f)
     val labelLines = if (!ap.drawerLabels) 0 else if (ap.twoLineLabels) 2 else 1
     val cellH = iconSize + (ap.labelSize * 1.35f * labelLines).dp + 22.dp
-    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val top = WindowInsets.statusBarsIgnoringVisibility.asPaddingValues().calculateTopPadding()
     val bottomReserve = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 92.dp
     val header: @Composable () -> Unit = {
         CategoryHeader(category.title, textColor, onSearch, onStore, onMore)

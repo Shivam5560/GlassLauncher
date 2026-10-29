@@ -1,5 +1,10 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.shivam.glasslauncher.widgets
 
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -74,7 +79,7 @@ fun GlassSheet(
         GlassSurface(
             Modifier
                 .align(Alignment.BottomCenter)
-                .statusBarsPadding()
+                .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
                 .fillMaxWidth()
                 .fillMaxHeight(heightFraction)
                 .padding(horizontal = 6.dp)

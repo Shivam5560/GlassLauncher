@@ -185,6 +185,10 @@ object NotificationHub {
             .toBundle()
     }
 
+    /** Opens a notification's full-screen intent (the dialer's incoming-call screen). */
+    fun openFullScreen(context: Context, key: String): Boolean =
+        raw[key]?.notification?.fullScreenIntent?.let { send(context, it) } ?: false
+
     fun send(context: Context, pi: PendingIntent, fill: Intent? = null): Boolean = try {
         pi.send(context, 0, fill, null, null, null, sendOptions())
         true

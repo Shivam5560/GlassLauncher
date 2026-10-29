@@ -203,7 +203,7 @@ class IslandWindow(
     }
 
     private fun expandedHeight(kind: IslandKind?): Float = when (kind) {
-        IslandKind.Music -> 176f
+        IslandKind.Music -> 214f
         IslandKind.IncomingCall, IslandKind.OngoingCall -> 128f
         IslandKind.Peek -> 96f
         IslandKind.Charging -> 104f

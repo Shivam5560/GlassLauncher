@@ -103,6 +103,17 @@ class OverlayController(
             }
         }
         OverlayRuntime.calibrating.let { flow -> scope.launch { flow.collect { island?.setCalibrating(it) } } }
+        if (accessibility != null) {
+            // An incoming call while Glass home is in front opens the dialer's full call screen (HyperOS
+            // banners are off while the island shows, so on home the call must not be just a pill).
+            scope.launch {
+                com.shivam.glasslauncher.overlay.notifications.NotificationHub.posted.collect { e ->
+                    if (homeInFront && com.shivam.glasslauncher.overlay.island.IslandClassifier.classify(e)?.kind == IslandKind.IncomingCall) {
+                        com.shivam.glasslauncher.overlay.notifications.NotificationHub.openFullScreen(service, e.key)
+                    }
+                }
+            }
+        }
     }
 
     fun detach() {

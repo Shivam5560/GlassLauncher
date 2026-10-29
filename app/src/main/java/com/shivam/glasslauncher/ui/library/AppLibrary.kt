@@ -131,7 +131,8 @@ private fun LibraryTile(
         GlassSurface(
             modifier = Modifier.fillMaxWidth().aspectRatio(1f).onGloballyPositioned { tileCoords[0] = it },
             shape = GlassShape.rounded(34.dp),
-            variant = GlassVariant.Clear,
+            // Frosted, to match the blurred wallpaper behind the library (Clear looked too glassy).
+            variant = GlassVariant.Regular,
             role = null,
         ) {
             BoxWithConstraints(Modifier.fillMaxSize().padding(TilePad)) {

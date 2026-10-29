@@ -1,5 +1,10 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.shivam.glasslauncher.ui.home
 
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.WindowInsets
 import android.app.Activity
 import android.content.pm.ShortcutInfo
 import androidx.activity.compose.BackHandler
@@ -112,7 +117,7 @@ fun FolderOverlay(
         GlassMorph(
             visible = current != null,
             origin = last.origin,
-            modifier = Modifier.fillMaxSize().statusBarsPadding(),
+            modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility),
             onProgress = { progress = it },
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 28.dp)) {

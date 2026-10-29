@@ -242,14 +242,15 @@ private fun ExpandedContent(a: IslandActivity, ui: IslandUi) {
     val white = Color.White
     when (val c = a.content) {
         is IslandContent.Music -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                AlbumArt(ui.media, 56.dp)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    GlassText(c.title.ifBlank { ui.media?.appLabel ?: "Now playing" }, style = GlassType.Headline, color = white, maxLines = 1)
-                    GlassText(c.artist, style = GlassType.Callout, color = white.copy(alpha = 0.6f), maxLines = 1)
-                }
+            // As on iOS: art and waves flank the camera, the song sits below it.
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                AlbumArt(ui.media, 48.dp)
+                Spacer(Modifier.weight(1f))
                 AudioBars(c.playing, Modifier.size(width = 26.dp, height = 20.dp), ui.media?.art)
+            }
+            Column(Modifier.fillMaxWidth()) {
+                GlassText(c.title.ifBlank { ui.media?.appLabel ?: "Now playing" }, style = GlassType.Headline, color = white, maxLines = 1)
+                GlassText(c.artist, style = GlassType.Callout, color = white.copy(alpha = 0.6f), maxLines = 1)
             }
             MusicProgress(ui.media)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {

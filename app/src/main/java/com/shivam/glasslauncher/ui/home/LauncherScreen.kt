@@ -1,3 +1,5 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.shivam.glasslauncher.ui.home
 
 import android.app.Activity
@@ -429,6 +431,23 @@ fun LauncherScreen(
                 SnapshotBackdropLayer(frozenHome, frozenHomeLayer)
                 WallpaperBackdropLayer(snapshot, wallpaperLayer, hasWallpaper, parallax = if (settings.wallpaperParallax && hasWallpaper && !reduced) ({ tilt.value }) else null)
 
+                // As on iOS the wallpaper blurs behind the App Library and Today view (HyperOS's window blur
+                // skips the system wallpaper, so this is our own blurred copy, faded in with the swipe).
+                val img = snapshot.image
+                if (img != null) {
+                    val sideFraction = {
+                        val pos = ringState.value.of(pagerState.currentPage) + pagerState.currentPageOffsetFraction
+                        maxOf((pos - (homePageCount - 1 + TODAY_PAGES)).coerceIn(0f, 1f), (TODAY_PAGES - pos).coerceIn(0f, 1f))
+                    }
+                    val showSideBlur by remember { androidx.compose.runtime.derivedStateOf { sideFraction() > 0.01f } }
+                    if (showSideBlur) Image(
+                        img,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().graphicsLayer { alpha = sideFraction() }.blur(glass.blurRadius.dp),
+                    )
+                }
+
                 // Fallback base layer when the compositor cannot blur behind the window
                 // (battery saver, some HyperOS builds): pre-blurred wallpaper, else solid tinted glass.
                 if (!crossWindowBlur && overlayAnim > 0.01f) {
@@ -561,10 +580,16 @@ fun LauncherScreen(
                     }
                 }
 
+                // Immersive hides the system status bar on home: Glass draws an iOS one around the island
+                // (idle island ≈ 132 dp on the Turbo 5; 140 dp keeps a gap).
+                if (settings.immersive && !ui.editMode) {
+                    IosStatusBar(if (lightWallpaper) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White, islandWidth = 140.dp)
+                }
+
                 // Edit-mode toolbar ("jiggle mode"); the Today view has its own buttons.
                 if (ui.editMode && ringPage >= TODAY_PAGES) {
                     Row(
-                        Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 16.dp, vertical = 6.dp),
+                        Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility).padding(horizontal = 16.dp, vertical = 6.dp),
                         horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

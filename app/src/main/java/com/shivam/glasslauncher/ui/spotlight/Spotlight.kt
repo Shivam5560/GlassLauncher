@@ -1,5 +1,12 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package com.shivam.glasslauncher.ui.spotlight
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.WindowInsets
 import android.Manifest
 import android.app.Activity
 import androidx.activity.compose.BackHandler
@@ -125,11 +132,15 @@ fun SpotlightOverlay(
     }
 
     Box(Modifier.fillMaxSize()) {
-        if (visible || progress > 0.01f) GlassScrim(progress * 0.6f) { close() }
+        // Darker than other scrims so results read clearly over the blurred home (as iOS Spotlight).
+        if (visible || progress > 0.01f) Box(
+            Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.38f * progress.coerceIn(0f, 1f)))
+                .pointerInput(Unit) { detectTapGestures { close() } },
+        )
         GlassMorph(
             visible = visible,
             origin = origin,
-            modifier = Modifier.fillMaxSize().statusBarsPadding().imePadding(),
+            modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility).imePadding(),
             contentAlignment = Alignment.TopCenter,
             onProgress = { progress = it },
         ) {
@@ -301,11 +312,10 @@ private fun AppIconRow(apps: List<AppEntry>, label: (AppEntry) -> String, onLaun
     Row(Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
         apps.forEach { e ->
             val coords = remember { arrayOfNulls<LayoutCoordinates>(1) }
-            GlassSurface(
-                modifier = Modifier.width(78.dp).onGloballyPositioned { coords[0] = it },
-                shape = GlassShape.rounded(18.dp),
-                variant = GlassVariant.Clear,
-                onClick = { onLaunch(e, coords[0]?.boundsInWindow()?.toAndroid()) },
+            // Plain icons inside the frosted section card: glass inside glass mirrored the icons below.
+            Box(
+                Modifier.width(78.dp).onGloballyPositioned { coords[0] = it }
+                    .clickable { onLaunch(e, coords[0]?.boundsInWindow()?.toAndroid()) },
             ) {
                 Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     AppIconImage(e, 54.dp)
@@ -320,11 +330,9 @@ private fun AppIconRow(apps: List<AppEntry>, label: (AppEntry) -> String, onLaun
 @Composable
 private fun AppResultRow(e: AppEntry, label: String, onLaunch: (AppEntry, android.graphics.Rect?) -> Unit) {
     val coords = remember { arrayOfNulls<LayoutCoordinates>(1) }
-    GlassSurface(
-        Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp).onGloballyPositioned { coords[0] = it },
-        shape = GlassShape.Row,
-        variant = GlassVariant.Clear,
-        onClick = { onLaunch(e, coords[0]?.boundsInWindow()?.toAndroid()) },
+    Box(
+        Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 2.dp).onGloballyPositioned { coords[0] = it }
+            .clickable { onLaunch(e, coords[0]?.boundsInWindow()?.toAndroid()) },
     ) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             AppIconImage(e, 36.dp)
