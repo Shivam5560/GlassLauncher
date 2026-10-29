@@ -46,6 +46,7 @@ import com.shivam.glasslauncher.ui.glass.GlassText
 import com.shivam.glasslauncher.ui.glass.GlassType
 import com.shivam.glasslauncher.ui.glass.GlassVariant
 import com.shivam.glasslauncher.ui.glass.LocalGlassContentColor
+import com.shivam.glasslauncher.ui.glass.ResumedLoop
 import kotlinx.coroutines.delay
 
 /**
@@ -88,7 +89,7 @@ fun MusicWidget(size: WidgetSize, modifier: Modifier = Modifier) {
 @Composable
 private fun PlayingContent(np: NowPlaying, size: WidgetSize, repo: MediaRepository, modifier: Modifier) {
     var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
-    LaunchedEffect(np.playing, np.positionUpdatedAt) {
+    ResumedLoop(np.playing, np.positionUpdatedAt) {
         while (np.playing) {
             now = SystemClock.elapsedRealtime()
             delay(500)

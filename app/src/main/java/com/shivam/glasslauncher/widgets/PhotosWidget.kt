@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.shivam.glasslauncher.ui.glass.ResumedLoop
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
@@ -58,7 +59,7 @@ fun PhotosWidget(inst: WidgetInstance, size: WidgetSize, modifier: Modifier = Mo
     }
     val reduced = env?.reducedMotion ?: reducedMotion(context)
     val index = remember(files) { mutableIntStateOf(0) }
-    LaunchedEffect(files) {
+    ResumedLoop(files) {
         while (files.size > 1) {
             delay(PHOTO_MS.toLong())
             index.intValue = (index.intValue + 1) % files.size

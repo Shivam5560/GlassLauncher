@@ -61,6 +61,12 @@ class GlassApp : Application() {
         }
     }
 
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        // Background or worse: drop most icon bitmaps (they re-render from the same sources on demand).
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) icons.trimCache()
+    }
+
     companion object {
         const val GLASS_ICONS_PACKAGE = "com.shivam.glassicons"
         fun from(context: Context) = context.applicationContext as GlassApp

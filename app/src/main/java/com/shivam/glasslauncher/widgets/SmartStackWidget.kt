@@ -23,6 +23,7 @@ import com.shivam.glasslauncher.ui.glass.GlassShape
 import com.shivam.glasslauncher.ui.glass.GlassSurface
 import com.shivam.glasslauncher.ui.glass.GlassVariant
 import com.shivam.glasslauncher.ui.glass.LocalGlassContentColor
+import com.shivam.glasslauncher.ui.glass.ResumedLoop
 import kotlinx.coroutines.delay
 import java.util.Calendar
 
@@ -51,8 +52,8 @@ fun SmartStackWidget(inst: WidgetInstance, size: WidgetSize, modifier: Modifier 
     val rotate = inst[WidgetKeys.STACK_ROTATE] != "0"
     val pager = rememberPagerState { children.size }
     var appliedPeriod by remember(inst.id) { mutableStateOf<StackRotation.Period?>(null) }
-    LaunchedEffect(rotate, children.map { it.kind }) {
-        if (!rotate) return@LaunchedEffect
+    ResumedLoop(rotate, children.map { it.kind }) {
+        if (!rotate) return@ResumedLoop
         while (true) {
             val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
             val period = StackRotation.period(hour)

@@ -122,7 +122,8 @@ class Polish(private val app: GlassApp) {
         withContext(Dispatchers.IO) {
             runCatching {
                 val bmp = wallpapers.loadFull(id, mode) ?: error("Wallpaper $id missing")
-                val systemId = app.wallpaper.setWallpaperBitmap(bmp, lockToo)
+                // Full-size (about 18 MB) decode: free it as soon as WallpaperManager has it.
+                val systemId = try { app.wallpaper.setWallpaperBitmap(bmp, lockToo) } finally { bmp.recycle() }
                 settings.setWallpaperApplied(id, mode, systemId, lockToo)
             }.onFailure { Log.w(TAG, "Could not set wallpaper $id", it) }
         }

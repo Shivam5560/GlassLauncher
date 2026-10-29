@@ -36,6 +36,7 @@ import com.shivam.glasslauncher.ui.glass.GlassSurface
 import com.shivam.glasslauncher.ui.glass.GlassText
 import com.shivam.glasslauncher.ui.glass.GlassType
 import com.shivam.glasslauncher.ui.glass.GlassVariant
+import com.shivam.glasslauncher.ui.glass.ResumedLoop
 import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.LocalDate
@@ -54,8 +55,8 @@ fun CalendarWidget(size: WidgetSize, modifier: Modifier = Modifier) {
     val tick = remember { mutableIntStateOf(0) }
     val ask = rememberPermissionRequest(Manifest.permission.READ_CALENDAR) { tick.intValue++ }
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { tick.intValue++ }
-    LaunchedEffect(Unit) {
-        // Drop finished events and roll over at midnight.
+    ResumedLoop(Unit) {
+        // Drop finished events and roll over at midnight (only while resumed; ON_RESUME ticks too).
         while (true) {
             delay(60_000L)
             tick.intValue++

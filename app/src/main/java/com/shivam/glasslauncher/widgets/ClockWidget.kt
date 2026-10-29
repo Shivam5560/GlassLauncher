@@ -32,6 +32,7 @@ import com.shivam.glasslauncher.ui.glass.GlassColors
 import com.shivam.glasslauncher.ui.glass.GlassText
 import com.shivam.glasslauncher.ui.glass.GlassType
 import com.shivam.glasslauncher.ui.glass.LocalGlassContentColor
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.delay
 import java.time.Instant
 import java.time.ZoneId
@@ -65,12 +66,16 @@ object ClockStyles {
 /** Ticks once per second (or per minute when seconds are not shown). */
 @Composable
 private fun rememberNow(everySecond: Boolean): Long {
-    val now by produceState(System.currentTimeMillis(), everySecond) {
-        while (true) {
-            val t = System.currentTimeMillis()
-            value = t
-            val step = if (everySecond) 1000L else 60_000L
-            delay(step - t % step + 5)
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    val now by produceState(System.currentTimeMillis(), everySecond, lifecycle) {
+        // Only ticks while Glass is resumed (no wakeups in the background).
+        lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+            while (true) {
+                val t = System.currentTimeMillis()
+                value = t
+                val step = if (everySecond) 1000L else 60_000L
+                delay(step - t % step + 5)
+            }
         }
     }
     return now
