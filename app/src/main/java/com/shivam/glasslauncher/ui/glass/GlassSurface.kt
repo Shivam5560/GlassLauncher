@@ -139,7 +139,10 @@ fun GlassSurface(
     val tint = if (tintOverride != null) baseTint else lerp(baseTint, lerp(baseTint, Color.White, 0.85f), tone)
     val tintAmount = if (tintOverride != null) 0.55f else (tintOpacity + 0.22f * tone).coerceAtMost(1f)
     val contentColor = roleStyle.contentColor?.let { Color(it) }
-        ?: Color(Contrast.textOnGlass(luminance, tint.toArgb(), tintAmount))
+        // Regular dark-tone glass is dark by definition (Clear stays thin and follows the measure): the averaged backdrop can read bright while the panel
+        // renders dark (purple blur under a menu), so never pick dark text on it.
+        ?: if (style.tone == GlassTone.Dark && variant == GlassVariant.Regular && tintOverride == null) Color(Contrast.LIGHT_TEXT)
+        else Color(Contrast.textOnGlass(luminance, tint.toArgb(), tintAmount))
     val strokeDp = roleStyle.stroke
 
     val shader = remember(style.liquidEffects) { if (style.liquidEffects) LiquidGlassShader.createEffectShader() else null }
