@@ -131,11 +131,10 @@ data class GlassStyle(
     fun role(kind: SurfaceKind): RoleStyle = roles[kind] ?: RoleStyle()
 
     /**
-     * Tint opacity a role uses when the user has not set one. Like iOS: widgets are dense dark glass
-     * and the dim behind the drawer is firm; other surfaces use the global [tintOpacity].
+     * Tint opacity a role uses when the user has not set one. The dim behind the drawer is firm;
+     * everything else, widgets included, follows the global [tintOpacity] so widgets match the background glass.
      */
     fun defaultOpacity(kind: SurfaceKind): Float = when (kind) {
-        SurfaceKind.Widget -> maxOf(tintOpacity, 0.86f)
         SurfaceKind.Background -> 0.5f
         else -> tintOpacity
     }
