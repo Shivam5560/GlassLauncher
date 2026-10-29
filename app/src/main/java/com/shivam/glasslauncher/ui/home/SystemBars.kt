@@ -8,7 +8,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 
 /**
- * Ultra-immersive mode (Phase 5): hides the status bar on home and in the drawer, plus the
+ * Ultra-immersive mode: keeps the system (HyperOS) status bar visible and hides the
  * navigation bar when Glass Gestures replace it (HyperOS forces 3-button navigation for third-party
  * launchers, so without the service the buttons must stay). Bars come back transiently with a
  * swipe from the edge.
@@ -18,7 +18,7 @@ object ImmersiveMode {
         val controller = WindowCompat.getInsetsController(window, window.decorView)
         if (enabled) {
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-            controller.hide(WindowInsetsCompat.Type.statusBars())
+            controller.show(WindowInsetsCompat.Type.statusBars())
             if (hideNavigation) controller.hide(WindowInsetsCompat.Type.navigationBars())
             else controller.show(WindowInsetsCompat.Type.navigationBars())
         } else {

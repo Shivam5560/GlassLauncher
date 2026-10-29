@@ -266,7 +266,7 @@ object SystemChecks {
                 if (home) null else "Set as default", CheckFix.OpenIntents(homeIntents(context)),
             ),
             CheckResult(
-                "immersive", "Ultra-immersive", "Hides the status bar on Home and in the drawer; the navigation bar is hidden only with Glass Gestures on, because HyperOS forces 3-button navigation for other launchers.",
+                "immersive", "Ultra-immersive", "Hides the navigation bar on Home and in the drawer, only with Glass Gestures on, because HyperOS forces 3-button navigation for other launchers.",
                 when {
                     !settings.immersive -> CheckStatus.Info
                     gestures -> CheckStatus.Ok

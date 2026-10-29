@@ -210,8 +210,8 @@ private fun GlobalAppearanceScreen(nav: SettingsNav, settings: LauncherSettings)
             item("immersive") {
                 GlassListGroup(
                     title = "Ultra-immersive",
-                    footer = if (gesturesOn) "Hides the status and navigation bars on Home and in the drawer; swipe from an edge to show them for a moment."
-                    else "Hides the status bar on Home and in the drawer. The navigation bar stays because HyperOS forces 3-button navigation for other launchers; turn on Glass Gestures to hide it too.",
+                    footer = if (gesturesOn) "Hides the navigation bar on Home and in the drawer; swipe from the edge to show it for a moment."
+                    else "The navigation bar stays because HyperOS forces 3-button navigation for other launchers; turn on Glass Gestures to hide it.",
                 ) {
                     GlassSwitchRow("Ultra-immersive mode", settings.immersive, { app.settings.setImmersive(it) })
                 }

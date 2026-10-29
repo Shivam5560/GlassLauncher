@@ -622,12 +622,6 @@ fun LauncherScreen(
                     }
                 }
 
-                // Immersive hides the system status bar on home: Glass draws an iOS one around the island
-                // (idle island ≈ 132 dp on the Turbo 5; 140 dp keeps a gap).
-                if (settings.immersive && !ui.editMode) {
-                    IosStatusBar(if (lightWallpaper) androidx.compose.ui.graphics.Color.Black else androidx.compose.ui.graphics.Color.White, islandWidth = 140.dp)
-                }
-
                 // Edit-mode toolbar ("jiggle mode"); the Today view has its own buttons.
                 if (ui.editMode && ringPage >= TODAY_PAGES) {
                     Row(

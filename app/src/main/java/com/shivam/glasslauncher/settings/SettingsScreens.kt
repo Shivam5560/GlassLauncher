@@ -169,7 +169,7 @@ private fun MainScreen(nav: SettingsNav, settings: LauncherSettings, wallpaper: 
                 GlassSwitchRow("True Tone", settings.trueTone, { app.settings.setTrueTone(it) }, subtitle = "Warms Glass's screens in indoor light, using the light sensor. Daylight: no change.")
                 if (settings.trueTone) GlassSliderRow("True Tone strength", settings.trueToneStrength, 0.2f..1f, { "${(it * 100).toInt()}%" }) { app.settings.setTrueToneStrength(it) }
                 GlassSwitchRow("Wallpaper 3D effect", settings.wallpaperParallax, { app.settings.setWallpaperParallax(it) }, subtitle = if (wallpaper.image != null) "The wallpaper moves as you tilt the phone" else "Needs the wallpaper set through Glass (Wallpaper)")
-                GlassSwitchRow("Ultra-immersive", settings.immersive, { app.settings.setImmersive(it) }, subtitle = if (gesturesOn) "Hide status and navigation bars on Home and in the drawer" else "Hide the status bar on Home and in the drawer")
+                GlassSwitchRow("Ultra-immersive", settings.immersive, { app.settings.setImmersive(it) }, subtitle = if (gesturesOn) "Hide the navigation bar on Home and in the drawer" else "Needs Glass Gestures to hide the navigation bar")
             }
         }
         item {
