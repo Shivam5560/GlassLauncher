@@ -95,6 +95,8 @@ fun GlassTheme(
     fallbackLuminance: Float,
     backdrop: Backdrop?,
     darkMode: Boolean = isSystemInDarkTheme(),
+    /** The True Tone veil paints the whole window; windows whose transparent margin must stay clear turn it off. */
+    trueTone: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     val typography = Typography(
@@ -123,7 +125,7 @@ fun GlassTheme(
             LocalBackdrop provides backdrop,
             LocalGlassContentColor provides Color.White,
         ) {
-            TrueToneVeil(content)
+            if (trueTone) TrueToneVeil(content) else content()
         }
     }
 }

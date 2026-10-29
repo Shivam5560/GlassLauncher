@@ -84,3 +84,24 @@ object IslandArbiter {
         return dismissed.filterTo(HashSet()) { it in live }
     }
 }
+
+/** What the engine knows between recomputes: the live activities and the ids swiped away. */
+data class IslandState(val activities: List<IslandActivity> = emptyList(), val dismissed: Set<String> = emptySet())
+
+sealed interface IslandEvent {
+    /** The sources (notifications, media, charging, ringer, peeks, demo) report the activities alive now. */
+    data class Sync(val activities: List<IslandActivity>) : IslandEvent
+    /** The user swiped an activity away. */
+    data class Dismiss(val id: String) : IslandEvent
+}
+
+object IslandReducer {
+    /** Pure state transition. A dismissal only lasts while its activity is still live (see pruneDismissed). */
+    fun reduce(state: IslandState, event: IslandEvent): IslandState = when (event) {
+        is IslandEvent.Sync -> IslandState(
+            activities = event.activities,
+            dismissed = IslandArbiter.pruneDismissed(state.dismissed, event.activities),
+        )
+        is IslandEvent.Dismiss -> state.copy(dismissed = state.dismissed + event.id)
+    }
+}

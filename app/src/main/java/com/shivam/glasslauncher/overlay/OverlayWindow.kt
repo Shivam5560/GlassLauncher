@@ -137,11 +137,11 @@ class ComposeOverlayWindow(
 
 /** Glass theme for overlay windows: the user's glass style, biased to dark glass over other apps. */
 @Composable
-fun OverlayTheme(content: @Composable () -> Unit) {
+fun OverlayTheme(trueTone: Boolean = true, content: @Composable () -> Unit) {
     val app = GlassApp.from(LocalContext.current)
     val launcher by app.settings.state.collectAsState()
     val base = launcher?.glass ?: GlassStyle()
     val style = if (base.tone == GlassTone.Auto) base.copy(tone = GlassTone.Dark) else base
     val light = rememberGlassLight(style.tiltLighting)
-    GlassTheme(style = style, light = light, fallbackLuminance = 0.2f, backdrop = null, darkMode = true, content = content)
+    GlassTheme(style = style, light = light, fallbackLuminance = 0.2f, backdrop = null, darkMode = true, trueTone = trueTone, content = content)
 }

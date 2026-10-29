@@ -99,7 +99,7 @@ class IslandEngine private constructor(context: Context) {
     }
 
     fun dismiss(id: String) {
-        dismissed = dismissed + id
+        dismissed = IslandReducer.reduce(IslandState(dismissed = dismissed), IslandEvent.Dismiss(id)).dismissed
         peeks.removeAll { it.first.id == id }
         recompute()
     }
@@ -148,9 +148,10 @@ class IslandEngine private constructor(context: Context) {
             list.add(IslandActivity("demo", IslandKind.Charging, now, IslandContent.Charging(battery.level, battery.watts)))
         }
 
-        dismissed = IslandArbiter.pruneDismissed(dismissed, list)
+        val state = IslandReducer.reduce(IslandState(dismissed = dismissed), IslandEvent.Sync(list))
+        dismissed = state.dismissed
         val slots = if (island.enabled) {
-            IslandArbiter.resolve(list, enabled = { island.isOn(it) || it == IslandKind.Charging && demoUntil > now }, dismissed = dismissed)
+            IslandArbiter.resolve(state.activities, enabled = { island.isOn(it) || it == IslandKind.Charging && demoUntil > now }, dismissed = dismissed)
         } else IslandSlots.EMPTY
         _ui.value = IslandUi(
             slots = slots,
