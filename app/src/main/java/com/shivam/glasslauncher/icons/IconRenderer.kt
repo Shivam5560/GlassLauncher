@@ -67,6 +67,14 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
     }
 
     @Volatile private var systemAppIcons = false
+    @Volatile private var greyscale = false
+
+    fun setGreyscale(on: Boolean) {
+        if (on == greyscale) return
+        greyscale = on
+        cache.evictAll()
+        _generation.value++
+    }
 
     /** With no pack chosen, core system apps take Glass Icons' iOS-style art; others keep their logo. */
     fun setSystemAppIcons(on: Boolean) {
@@ -174,8 +182,15 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
             val badged = context.packageManager.getUserBadgedIcon(BitmapDrawable(context.resources, out), entry.user)
             val b = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
             drawDrawable(Canvas(b), badged, 0, 0, size, size)
-            return b
+            return grey(b)
         }
+        return grey(out)
+    }
+
+    private fun grey(src: Bitmap): Bitmap {
+        if (!greyscale) return src
+        val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+        Canvas(out).drawBitmap(src, 0f, 0f, Paint().apply { colorFilter = android.graphics.ColorMatrixColorFilter(android.graphics.ColorMatrix().apply { setSaturation(0f) }) })
         return out
     }
 

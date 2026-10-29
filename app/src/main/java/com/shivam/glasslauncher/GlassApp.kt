@@ -54,6 +54,9 @@ class GlassApp : Application() {
             settings.state.filterNotNull().map { it.appearance.iconShape }.distinctUntilChanged().collect { icons.setShape(it) }
         }
         scope.launch {
+            settings.state.filterNotNull().map { it.greyscaleIcons }.distinctUntilChanged().collect { icons.setGreyscale(it) }
+        }
+        scope.launch {
             settings.state.filterNotNull().map { it.systemAppIcons }.distinctUntilChanged().collect { icons.setSystemAppIcons(it) }
         }
     }

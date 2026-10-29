@@ -118,6 +118,8 @@ data class LauncherSettings(
     val trueToneStrength: Float = 0.6f,
     /** With "System icons": core system apps (Phone, Camera, Settings…) use Glass Icons' iOS-style art. */
     val systemAppIcons: Boolean = true,
+    /** Desaturate every app icon (SL6 greyscale mode). */
+    val greyscaleIcons: Boolean = false,
 )
 
 class SettingsRepository(private val context: Context, private val scope: CoroutineScope) {
@@ -185,6 +187,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         val trueTone = booleanPreferencesKey("true_tone")
         val trueToneStrength = floatPreferencesKey("true_tone_strength")
         val systemAppIcons = booleanPreferencesKey("system_app_icons")
+        val greyscaleIcons = booleanPreferencesKey("greyscale_icons")
     }
 
     init {
@@ -269,6 +272,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
             trueTone = p[K.trueTone] ?: d.trueTone,
             trueToneStrength = p[K.trueToneStrength] ?: d.trueToneStrength,
             systemAppIcons = p[K.systemAppIcons] ?: d.systemAppIcons,
+            greyscaleIcons = p[K.greyscaleIcons] ?: d.greyscaleIcons,
         )
     }
 
@@ -364,5 +368,6 @@ class SettingsRepository(private val context: Context, private val scope: Corout
     fun setTrueTone(v: Boolean) = edit { it[K.trueTone] = v }
     fun setTrueToneStrength(v: Float) = edit { it[K.trueToneStrength] = v }
     fun setSystemAppIcons(v: Boolean) = edit { it[K.systemAppIcons] = v }
+    fun setGreyscaleIcons(v: Boolean) = edit { it[K.greyscaleIcons] = v }
     fun setOnboardingDone(v: Boolean) = edit { it[K.onboarding] = v }
 }

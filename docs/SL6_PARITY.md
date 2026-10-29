@@ -12,7 +12,7 @@ Status: [x] done, [~] partly, [ ] to do.
 - [ ] Blur vibrancy (backdrop saturation)
 - [ ] Widget shadow blur/opacity, transparent widget background, apply theme/font to all widgets
 - [x] Make extra pages darker
-- [ ] Greyscale mode
+- [x] Greyscale mode (Icon pack screen)
 - [ ] Letter spacing / line height / item spacing in Fonts
 
 - [x] True Tone (Glass windows, ambient-light veil; off by default) and one notification finish for lock screen + panel

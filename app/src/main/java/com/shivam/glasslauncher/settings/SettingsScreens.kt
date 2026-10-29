@@ -375,6 +375,11 @@ private fun IconPackScreen(nav: SettingsNav, settings: LauncherSettings) {
     val packs by produceState<List<IconPackInfo>?>(null) { value = withContext(Dispatchers.IO) { IconPack.installed(context) } }
     ScreenScaffold("Icon pack", nav) {
         item {
+            GlassListGroup(footer = "Removes the colour from every app icon.") {
+                GlassSwitchRow("Greyscale icons", settings.greyscaleIcons, { app.settings.setGreyscaleIcons(it) })
+            }
+        }
+        item {
             GlassListGroup(footer = "Packs using the standard ADW/Nova format are detected. Icons a pack doesn't cover are masked to the squircle with the pack's back/mask.") {
                 GlassRow("System icons", onClick = { app.settings.setIconPack("") }, showChevron = false) {
                     if (settings.iconPack.isEmpty()) GlassIcon(GlassIcons.Check, size = 18.dp, tint = GlassColors.Accent)
