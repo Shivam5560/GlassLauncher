@@ -108,7 +108,7 @@ fun SettingsScreen(
             val set = settings.gestures.excludedApps.let { if (on) it + e.packageName else it - e.packageName }
             app.settings.setGestures(settings.gestures.copy(excludedApps = set))
         }
-        "payment" -> AppToggleScreen(nav, "Payment apps", "UPI and bank apps often refuse to open while an accessibility service is on. Glass Gestures switches off while these are open (the system buttons show instead) and comes back when you return Home.", byPackage = true, isOn = { it.packageName in settings.gestures.pauseForApps }) { e, on ->
+        "payment" -> AppToggleScreen(nav, "Payment & sensitive apps", "UPI, bank and other apps that refuse to open with an accessibility service or ad blocking. While one is open Glass Gestures switches off (system buttons show) and Private DNS ad blocking pauses; both come back when you leave the app.", byPackage = true, isOn = { it.packageName in settings.gestures.pauseForApps }) { e, on ->
             val set = settings.gestures.pauseForApps.let { if (on) it + e.packageName else it - e.packageName }
             app.settings.setGestures(settings.gestures.copy(pauseForApps = set))
         }
@@ -369,7 +369,7 @@ private fun GesturesScreen(nav: SettingsNav, settings: LauncherSettings, resumeT
                 GlassSwitchRow("Pause while keyboard is up", g.pauseWithKeyboard, { g = g.copy(pauseWithKeyboard = it) })
                 GlassSwitchRow("Haptics", g.haptics, { g = g.copy(haptics = it) })
                 GlassRow("Excluded apps", subtitle = "${g.excludedApps.size} apps", onClick = { nav.push("excluded") })
-                GlassRow("Payment apps", subtitle = "Gestures switch off in these", onClick = { nav.push("payment") })
+                GlassRow("Payment & sensitive apps", subtitle = "Gestures and ad blocking pause in these", onClick = { nav.push("payment") })
             }
         }
         item {
