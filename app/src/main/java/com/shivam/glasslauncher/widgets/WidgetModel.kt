@@ -59,6 +59,8 @@ object WidgetKeys {
     const val CHECKLIST = "checklist"
     const val QUOTE_TEXT = "quoteText"
     const val QUOTE_AUTHOR = "quoteAuthor"
+    /** Coloured runs of the quote, see [QuoteSpans]. */
+    const val QUOTE_COLORS = "quoteColors"
     const val PROVIDER_GLASS = "providerGlass"
     const val PROVIDER_BACKGROUND = "providerBackground"
     const val FOCUS_MINUTES = "focusMinutes"
@@ -66,6 +68,7 @@ object WidgetKeys {
     const val PHOTO_COUNT = "photos"
     const val STACK_CHILDREN = "children" // comma-separated instance ids
     const val STACK_ROTATE = "rotate" // "1" / "0"
+    const val STACK_FLIP_SIDE = "flipSide" // "right" (default) / "left": where a vertical swipe flips the stack
     const val APP_WIDGET_ID = "appWidgetId"
     const val APP_WIDGET_PROVIDER = "provider"
     /** Third-party widgets in the Today view: height in grid rows. */

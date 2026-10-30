@@ -29,6 +29,7 @@ internal object SettingsCatalog {
         SettingsDestination("pinned", "Pinned shortcuts", "Manage shortcuts added by apps", "Everyday"),
         SettingsDestination("hidden", "Hidden apps", "Choose what stays out of sight", "Privacy & care", "hide private"),
         SettingsDestination("locked", "Locked apps", "Require authentication when opened from Glass", "Privacy & care", "lock fingerprint face biometric security"),
+        SettingsDestination("payment", "Payment & sensitive apps", "Gestures and ad blocking pause while these are open", "Privacy & care", "upi bank pay phonepe gpay paytm accessibility ad block dns adguard"),
         SettingsDestination("backup", "Backup & restore", "Keep your setup safe", "Privacy & care", "export import save layout data"),
         SettingsDestination("check", "System check", "Permissions & launcher health", "Privacy & care", "default home battery notification access"),
         SettingsDestination("setup", "Setup guide", "Get the most from Glass", "Privacy & care", "hyperos autostart restrictions permissions"),
