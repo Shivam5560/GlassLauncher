@@ -43,6 +43,8 @@ class IslandWindow(
         IslandFrame(IslandPresentation.Hidden, IslandUi(), Rect.Zero, null, 0f),
     )
     private var origin by mutableStateOf(Offset.Zero)
+    /** Screen x of the camera; the window is symmetric around it. */
+    private var centerX by mutableStateOf(0)
 
     private val window = ComposeOverlayWindow(
         context,
@@ -58,7 +60,7 @@ class IslandWindow(
     ) {
         // The True Tone veil fills the whole window, including the transparent margin, so over a dark app
         // it reads as a square around the pill. The island draws its own black pill and needs no veil.
-        OverlayTheme(trueTone = false) { IslandSurface(frame, origin, this) }
+        OverlayTheme(trueTone = false) { IslandSurface(frame, centerX, origin.y, this) }
     }
 
     init {
@@ -78,8 +80,6 @@ class IslandWindow(
     private var collapsedIds: Set<String> = emptySet()
     private var expandedAt = 0L
     private var windowRect = Rect.Zero
-    private val shrink = Runnable { applyWindow(targetRect, allowShrink = true) }
-    private var targetRect = Rect.Zero
     private val autoCollapse = Runnable {
         val p = slots().primary
         if (p != null && p.kind != IslandKind.IncomingCall && p.kind != IslandKind.Peek && SystemClock.elapsedRealtime() - expandedAt >= AUTO_COLLAPSE_MS - 50) {
@@ -93,8 +93,9 @@ class IslandWindow(
     }
 
     fun destroy() {
-        main.removeCallbacks(shrink)
         main.removeCallbacks(autoCollapse)
+        hit?.let { try { wm.removeViewImmediate(it) } catch (_: Exception) { } }
+        hit = null
         window.destroy()
     }
 
@@ -186,17 +187,22 @@ class IslandWindow(
         // The window is the only clip boundary: a pill whose spring overshoots past it is cut into a
         // straight edge. The margin must exceed the spring's overshoot (about 4% of the travel).
         val pad = dp(24f)
-        var target = if (bubble != null) Rect(pill.left, pill.top, bubble.right, pill.bottom) else pill
-        target = Rect(target.left - pad, (target.top - pad).coerceAtLeast(0f), target.right + pad, target.bottom + pad)
-        targetRect = target
+        val content = if (bubble != null) Rect(pill.left, pill.top, bubble.right, pill.bottom) else pill
+        // Always centred on the camera: the pill is drawn from the window's centre, so when the window
+        // shrinks after a spring the pill doesn't jump for a frame (HyperOS showed a doubled pill).
+        val cxi = cx.toInt()
+        centerX = cxi
+        val half = kotlin.math.ceil(max(cxi - content.left, content.right - cxi) + pad)
+        val target = Rect(cxi - half, (content.top - pad).coerceAtLeast(0f), cxi + half, content.bottom + pad)
 
-        // Grow the window at once (union with the old one) so the spring has room; shrink after it settles.
+        // The window only ever grows: shrinking it after a spring showed one doubled frame on HyperOS
+        // (the pill seemed to "go back" twice). Touches outside the pill go to a small hit window instead.
         if (windowRect == Rect.Zero) applyWindow(target, allowShrink = true)
         else if (!windowRect.containsRect(target)) applyWindow(union(windowRect, target), allowShrink = true)
-        main.removeCallbacks(shrink)
-        main.postDelayed(shrink, 700)
 
-        val touchable = pres == IslandPresentation.Compact || pres == IslandPresentation.Expanded
+        // Only an expanded island takes touches in the big window; the compact pill uses the hit window.
+        val touchable = pres == IslandPresentation.Expanded
+        updateHitWindow(if (pres == IslandPresentation.Compact) (if (bubble != null) Rect(pill.left, pill.top, bubble.right, pill.bottom) else pill) else null, pill.right)
         val p = window.params
         val newFlags = if (touchable) p.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
         else p.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
@@ -215,6 +221,58 @@ class IslandWindow(
 
     private fun Rect.containsRect(o: Rect) = o.left >= left && o.top >= top && o.right <= right && o.bottom <= bottom
     private fun union(a: Rect, b: Rect) = Rect(min(a.left, b.left), min(a.top, b.top), max(a.right, b.right), max(a.bottom, b.bottom))
+
+    private val wm = context.getSystemService(android.view.WindowManager::class.java)
+    private var hit: android.view.View? = null
+    private var hitSplitX = 0f
+
+    /** Invisible touch target over the compact pill (and its bubble); null removes it. */
+    @android.annotation.SuppressLint("ClickableViewAccessibility")
+    private fun updateHitWindow(r: Rect?, pillRight: Float) {
+        if (r == null) {
+            hit?.visibility = android.view.View.GONE
+            return
+        }
+        hitSplitX = pillRight
+        val v = hit ?: android.view.View(context).also { view ->
+            val far = 56f * density
+            var downX = 0f
+            var downY = 0f
+            val detector = android.view.GestureDetector(context, object : android.view.GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: android.view.MotionEvent) = true
+                override fun onSingleTapUp(e: android.view.MotionEvent): Boolean { onTap(secondary = e.rawX > hitSplitX); return true }
+                override fun onLongPress(e: android.view.MotionEvent) { onLongPress(secondary = e.rawX > hitSplitX) }
+            })
+            view.setOnTouchListener { _, e ->
+                if (e.actionMasked == android.view.MotionEvent.ACTION_DOWN) { downX = e.rawX; downY = e.rawY }
+                if (e.actionMasked == android.view.MotionEvent.ACTION_UP &&
+                    (kotlin.math.abs(e.rawX - downX) > far || downY - e.rawY > far * 0.6f)) {
+                    onSwipeAway()
+                    return@setOnTouchListener true
+                }
+                detector.onTouchEvent(e)
+            }
+            val lp = WindowManager.LayoutParams(1, 1, windowType,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+                android.graphics.PixelFormat.TRANSPARENT,
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                fitInsetsTypes = 0
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                title = "GlassIslandHit"
+            }
+            try { wm.addView(view, lp) } catch (_: Exception) { return }
+            hit = view
+        }
+        v.visibility = android.view.View.VISIBLE
+        val lp = v.layoutParams as WindowManager.LayoutParams
+        val x = r.left.toInt(); val y = r.top.toInt(); val w = r.width.toInt().coerceAtLeast(1); val h = r.height.toInt().coerceAtLeast(1)
+        if (lp.x != x || lp.y != y || lp.width != w || lp.height != h) {
+            lp.x = x; lp.y = y; lp.width = w; lp.height = h
+            try { wm.updateViewLayout(v, lp) } catch (_: Exception) { }
+        }
+    }
 
     private fun applyWindow(r: Rect, allowShrink: Boolean) {
         if (!allowShrink && windowRect.containsRect(r)) return
@@ -287,6 +345,8 @@ class IslandWindow(
         haptic()
         openSource(a)
     }
+
+    override fun onTapOutside() { if (presentation() == IslandPresentation.Expanded) collapse() }
 
     override fun onSwipeAway() {
         val a = slots().primary ?: return

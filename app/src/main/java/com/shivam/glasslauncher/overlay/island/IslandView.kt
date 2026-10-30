@@ -89,6 +89,7 @@ interface IslandCallbacks {
     fun onTap(secondary: Boolean)
     fun onLongPress(secondary: Boolean)
     fun onSwipeAway()
+    fun onTapOutside()
 }
 
 private val IslandSpring = spring<Float>(dampingRatio = 0.72f, stiffness = 360f)
@@ -102,7 +103,7 @@ private val Blue = Color(0xFF64D2FF)
  * split (a second bubble). Controls inside it are Clear glass.
  */
 @Composable
-fun IslandSurface(frame: IslandFrame, windowOrigin: Offset, callbacks: IslandCallbacks) {
+fun IslandSurface(frame: IslandFrame, centerX: Int, windowTop: Float, callbacks: IslandCallbacks) {
     val density = LocalDensity.current
     val visible = frame.presentation != IslandPresentation.Hidden
     val expanded = frame.presentation == IslandPresentation.Expanded
@@ -118,11 +119,16 @@ fun IslandSurface(frame: IslandFrame, windowOrigin: Offset, callbacks: IslandCal
     val radius = compactRadius + (40.dp - compactRadius) * expand
     val shape = GlassShape(radius, 2f + 1.4f * expand)
 
-    Box(Modifier.fillMaxSize()) {
+    // The window stays at its largest size; its empty area only takes touches while expanded, where a tap closes it.
+    androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxSize().pointerInput(expanded) {
+        if (expanded) detectTapGestures { callbacks.onTapOutside() }
+    }) {
+        // Screen x -> window x through the window's own (synchronously laid out) width, not a state.
+        val windowLeft = centerX - constraints.maxWidth / 2
         val primary = frame.ui.slots.primary
         Box(
             Modifier
-                .offset { IntOffset((left - windowOrigin.x + drag * 0.35f).roundToInt(), (top - windowOrigin.y).roundToInt()) }
+                .offset { IntOffset((left - windowLeft + drag * 0.35f).roundToInt(), (top - windowTop).roundToInt()) }
                 .size(with(density) { width.toDp() }, with(density) { height.toDp() })
                 .graphicsLayer {
                     alpha = shown
@@ -178,7 +184,7 @@ fun IslandSurface(frame: IslandFrame, windowOrigin: Offset, callbacks: IslandCal
             val bubbleSize = with(density) { bubble.width.toDp() }
             Box(
                 Modifier
-                    .offset { IntOffset((bubble.left - windowOrigin.x).roundToInt(), (bubble.top - windowOrigin.y).roundToInt()) }
+                    .offset { IntOffset((bubble.left - windowLeft).roundToInt(), (bubble.top - windowTop).roundToInt()) }
                     .size(bubbleSize)
                     .graphicsLayer {
                         // Splits out of the main pill: starts squeezed against it, springs out.
