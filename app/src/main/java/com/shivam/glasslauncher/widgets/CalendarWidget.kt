@@ -147,8 +147,8 @@ private fun EventRow(e: CalendarEvent, compact: Boolean) {
     val env = LocalWidgetEnv.current
     val tint = Color(e.color or 0xFF000000.toInt())
     val allDay = e.allDay || e.end - e.begin >= 23 * 3600_000L
-    if (!compact) {
-        // Every event is a slim neutral glass chip: calendar-colour dot, title, time on the right.
+    if (allDay && !compact) {
+        // All-day items (out of office, holidays) are slim neutral glass chips.
         GlassSurface(
             Modifier.fillMaxWidth(),
             shape = GlassShape.Capsule,
@@ -159,18 +159,16 @@ private fun EventRow(e: CalendarEvent, compact: Boolean) {
                 Box(Modifier.size(8.dp).clip(GlassShape.Circle).background(tint))
                 Spacer(Modifier.width(8.dp))
                 GlassText(e.title, Modifier.weight(1f), style = GlassType.Footnote.copy(fontWeight = FontWeight.SemiBold), color = Color.White, maxLines = 1)
-                val (start, end) = timeColumn(context, e)
-                GlassText(if (allDay || end.isEmpty()) start else "$start – $end", style = GlassType.Caption.copy(fontFeatureSettings = "tnum"), color = Color.White.copy(alpha = 0.7f), maxLines = 1)
+                GlassText("All day", style = GlassType.Caption, color = Color.White.copy(alpha = 0.7f), maxLines = 1)
             }
         }
         return
     }
-    // Each timed event is its own clear glass card with just a hint of its calendar's colour.
+    // Timed events keep their details (title, place, start/end) in the same neutral glass as the chips.
     GlassSurface(
         Modifier.fillMaxWidth(),
-        shape = GlassShape.rounded(14.dp),
+        shape = GlassShape.rounded(18.dp),
         variant = GlassVariant.Clear,
-        tintOverride = tint.copy(alpha = 0.10f),
         onClick = { if (!CalendarRepository.openEvent(context, e)) env?.toast?.invoke("No calendar app is available") },
     ) {
     Row(

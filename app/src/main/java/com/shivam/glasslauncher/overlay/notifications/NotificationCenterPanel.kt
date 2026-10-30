@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardActions
@@ -117,7 +118,8 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
     val panelDim = remember(wallpaper) {
         PremiumDim.alphaFor(wallpaper.luminance(0f, 0f, wallpaper.screenWidth.toFloat(), wallpaper.screenHeight.toFloat()))
     }
-    OverlayWallpaperBackdrop(wallpaper, drawToScreen = true, blurRadius = 32.dp, dimAlpha = panelDim) {
+    // iOS 26 keeps the wallpaper sharp behind Notification Centre; only a faint dim for text.
+    OverlayWallpaperBackdrop(wallpaper, drawToScreen = true, dimAlpha = 0.12f) {
         Box(
             Modifier
                 .fillMaxSize()
@@ -131,15 +133,14 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                 state = listState,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(bottom = 80.dp)
-                    .statusBarsPadding()
+                    .padding(bottom = 118.dp)
                     .graphicsLayer {
                         alpha = progress.coerceIn(0f, 1f)
                         translationY = -(1f - progress) * 120.dp.toPx()
                         transformOrigin = TransformOrigin(0f, 0f)
                     },
-                contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(start = 15.dp, end = 15.dp, top = 0.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 item("clock") { LockClock(listState, onSwitch = { host.switchPanel() }) }
                 if (!connected) {
@@ -157,17 +158,17 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                         }
                     }
                 }
-                // "Notification Centre" with a round clear button, as on iOS 26.
-                item("title") {
-                    Row(Modifier.fillMaxWidth().padding(start = 6.dp, top = 4.dp, bottom = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                        GlassText("Notification Centre", Modifier.weight(1f), style = GlassType.Title.copy(fontWeight = FontWeight.Medium), color = Color.White, maxLines = 1)
-                        // Include dismissible summaries so a cleared group cannot return as an empty pile.
-                        val clear = filtered.filter { !it.isMedia && it.isClearable }.map { it.key }
-                        if (clear.isNotEmpty()) GlassIconButton(GlassIcons.Close, onClick = { NotificationHub.dismissAll(clear) }, size = 34.dp, contentDescription = "Clear all notifications")
-                    }
-                }
                 val m = media
                 if (m != null) item("media") { MediaCard(m, host, SurfaceKind.Panel) }
+                // "Notification Centre" with a round clear button, as on iOS 26.
+                item("title") {
+                    Row(Modifier.fillMaxWidth().padding(start = 9.dp, end = 0.dp, top = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        GlassText("Notification Centre", Modifier.weight(1f), style = GlassType.Title.copy(fontSize = 24.sp, fontWeight = FontWeight.Medium), color = Color.White, maxLines = 1)
+                        // Include dismissible summaries so a cleared group cannot return as an empty pile.
+                        val clear = filtered.filter { !it.isMedia && it.isClearable }.map { it.key }
+                        if (clear.isNotEmpty()) GlassIconButton(GlassIcons.Close, onClick = { NotificationHub.dismissAll(clear) }, size = 33.dp, contentDescription = "Clear all notifications")
+                    }
+                }
                 stacks.forEach { stack ->
                     if (stack.expanded) {
                         item("h:" + stack.packageName) {
@@ -201,7 +202,7 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                     }
                 }
             }
-            QuickButtons(host, Modifier.align(Alignment.BottomCenter).padding(horizontal = 36.dp, vertical = 14.dp).graphicsLayer { alpha = progress.coerceIn(0f, 1f) })
+            QuickButtons(host, Modifier.align(Alignment.BottomCenter).padding(start = 48.dp, end = 48.dp, bottom = 36.dp).graphicsLayer { alpha = progress.coerceIn(0f, 1f) })
         }
     }
 }
@@ -233,22 +234,26 @@ private fun LockClock(state: androidx.compose.foundation.lazy.LazyListState, onS
             transformOrigin = TransformOrigin(0.5f, 0f)
         },
     ) {
-        Column(Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            GlassText(date, style = GlassType.Headline.copy(fontWeight = FontWeight.SemiBold), color = Color.White.copy(alpha = 0.92f), maxLines = 1)
+        // Date below the camera row (iOS: ~11% of the height), clock right under it; nothing shares the island's row.
+        Column(Modifier.fillMaxWidth().padding(top = 78.dp, bottom = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            GlassText(date, style = GlassType.Title.copy(fontSize = 20.sp, fontWeight = FontWeight.SemiBold), color = Color.White.copy(alpha = 0.9f), maxLines = 1)
             androidx.compose.material3.Text(
                 time,
-                modifier = Modifier.graphicsLayer { scaleY = 1.3f; transformOrigin = TransformOrigin(0.5f, 0f) }.padding(bottom = 40.dp),
+                modifier = Modifier.graphicsLayer { scaleY = 1.12f; transformOrigin = TransformOrigin(0.5f, 0f) }.padding(top = 0.dp, bottom = 22.dp),
                 maxLines = 1,
                 style = GlassType.LargeTitle.copy(
-                    fontSize = 128.sp, lineHeight = 128.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-5).sp,
+                    // Light glass numerals from the system sans (Inter here ships no light weight).
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
+                    fontSize = 190.sp, lineHeight = 190.sp, fontWeight = FontWeight.Light, letterSpacing = (-4).sp,
                     textAlign = TextAlign.Center, fontFeatureSettings = "tnum",
-                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.95f), Color.White.copy(alpha = 0.62f))),
-                    shadow = androidx.compose.ui.graphics.Shadow(Color(0x40000000), androidx.compose.ui.geometry.Offset(0f, 3f), 18f),
+                    // Translucent blue-white glass with a bright specular top.
+                    brush = androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xF2FFFFFF), Color(0xB3DCE8FF), Color(0x80C8D8FF))),
+                    shadow = androidx.compose.ui.graphics.Shadow(Color(0x26000000), androidx.compose.ui.geometry.Offset(0f, 2f), 12f),
                     platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false),
                 ),
             )
         }
-        GlassIconButton(OverlayIcons.ControlCenter, onClick = onSwitch, size = 38.dp, modifier = Modifier.align(Alignment.TopEnd), contentDescription = "Open system quick settings")
+        GlassIconButton(OverlayIcons.ControlCenter, onClick = onSwitch, size = 38.dp, modifier = Modifier.align(Alignment.TopEnd).padding(top = 72.dp), contentDescription = "Open system quick settings")
     }
 }
 
@@ -276,7 +281,7 @@ private fun QuickButtons(host: PanelHost, modifier: Modifier) {
         GlassIconButton(
             OverlayIcons.Flashlight,
             onClick = { torchId?.let { try { camera?.setTorchMode(it, !torchOn) } catch (_: Exception) { } } },
-            size = 52.dp,
+            size = 54.dp,
             contentDescription = if (torchOn) "Turn flashlight off" else "Turn flashlight on",
             tint = if (torchOn) Color.White else null,
             tintGlyph = if (torchOn) Color.Black else null,
@@ -284,7 +289,7 @@ private fun QuickButtons(host: PanelHost, modifier: Modifier) {
         GlassIconButton(
             OverlayIcons.Camera,
             onClick = { host.launch(Intent(android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA)) },
-            size = 52.dp,
+            size = 54.dp,
             contentDescription = "Open camera",
         )
     }
@@ -428,27 +433,28 @@ private fun NotificationCard(e: NotifEntry, host: PanelHost, showActions: Boolea
     val focus = remember { FocusRequester() }
     val canAct = showActions && e.actions.isNotEmpty()
     NotifSurface(Modifier.fillMaxWidth(), onClick = onClick, onLongClick = if (canAct) ({ actionsOpen = !actionsOpen }) else null, kind = kind) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp), verticalAlignment = Alignment.Top) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 80.dp).padding(horizontal = 14.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
             Box {
                 OverlayAppIcon(e.packageName, 38.dp)
                 if (badge != null) {
+                    // iOS: black count badge on the icon's top-right corner.
                     Box(
-                        Modifier.align(Alignment.TopStart).offset(x = (-5).dp, y = (-5).dp).heightIn(min = 18.dp)
-                            .clip(GlassShape.Capsule).background(Color.White.copy(alpha = 0.92f), GlassShape.Capsule).padding(horizontal = 5.dp),
+                        Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-6).dp).heightIn(min = 18.dp).widthIn(min = 18.dp)
+                            .clip(GlassShape.Capsule).background(Color.Black, GlassShape.Capsule).padding(horizontal = 4.dp),
                         contentAlignment = Alignment.Center,
-                    ) { GlassText(badge, style = GlassType.Caption.copy(fontWeight = FontWeight.Bold), color = Color.Black, maxLines = 1) }
+                    ) { GlassText(badge, style = GlassType.Caption.copy(fontWeight = FontWeight.Bold), color = Color.White, maxLines = 1) }
                 }
             }
-            Spacer(Modifier.width(11.dp))
+            Spacer(Modifier.width(13.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.Top) {
-                    GlassText(e.title.ifBlank { e.appLabel }, Modifier.weight(1f), style = GlassType.Subhead.copy(fontWeight = FontWeight.SemiBold), color = Color.White, maxLines = 2)
+                    GlassText(e.title.ifBlank { e.appLabel }, Modifier.weight(1f), style = GlassType.Subhead.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold), color = Color.White, maxLines = 2)
                     Spacer(Modifier.width(8.dp))
-                    GlassText(relativeTime(e.postTime), style = GlassType.Caption, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
+                    GlassText(relativeTime(e.postTime), style = GlassType.Footnote, color = Color(0x8CE6EEFF), maxLines = 1)
                 }
                 if (e.text.isNotBlank()) {
                     Spacer(Modifier.height(2.dp))
-                    GlassText(e.text, style = GlassType.Subhead.copy(lineHeight = 20.sp), color = Color.White.copy(alpha = 0.88f), maxLines = if (actionsOpen) 8 else 4)
+                    GlassText(e.text, style = GlassType.Subhead.copy(fontSize = 15.sp, lineHeight = 20.sp), color = Color.White.copy(alpha = 0.9f), maxLines = if (actionsOpen) 8 else 4)
                 }
                 if (e.progressMax > 0 || e.progressIndeterminate) {
                     Spacer(Modifier.height(8.dp))
@@ -519,8 +525,8 @@ private fun MediaCard(m: MediaInfo, host: PanelHost, kind: SurfaceKind? = null) 
                 }
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    GlassText(m.title.ifBlank { m.appLabel }, style = GlassType.Headline, maxLines = 1)
-                    GlassText(m.artist.ifBlank { m.appLabel }, style = GlassType.Callout, secondary = true, maxLines = 1)
+                    GlassText(m.title.ifBlank { m.appLabel }, style = GlassType.Headline, color = Color.White, maxLines = 1)
+                    GlassText(m.artist.ifBlank { m.appLabel }, style = GlassType.Callout, color = Color.White.copy(alpha = 0.7f), maxLines = 1)
                 }
                 AudioBars(m.playing, Modifier.size(width = 24.dp, height = 18.dp), m.art)
             }
@@ -530,12 +536,23 @@ private fun MediaCard(m: MediaInfo, host: PanelHost, kind: SurfaceKind? = null) 
             }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-                GlassIconButton(OverlayIcons.Previous, onClick = { MediaHub.previous() }, size = 48.dp)
-                GlassIconButton(if (m.playing) OverlayIcons.Pause else OverlayIcons.Play, onClick = { MediaHub.toggle() }, size = 50.dp)
-                GlassIconButton(OverlayIcons.Next, onClick = { MediaHub.next() }, size = 48.dp)
+                // Bare white glyphs, no circles (iOS 26).
+                BareGlyph(OverlayIcons.Previous, "Previous", 30.dp) { MediaHub.previous() }
+                BareGlyph(if (m.playing) OverlayIcons.Pause else OverlayIcons.Play, if (m.playing) "Pause" else "Play", 38.dp) { MediaHub.toggle() }
+                BareGlyph(OverlayIcons.Next, "Next", 30.dp) { MediaHub.next() }
             }
         }
     }
+}
+
+@Composable
+private fun BareGlyph(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, size: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+    Box(
+        Modifier.size(52.dp).clip(GlassShape.Circle)
+            .pointerInput(onClick) { detectTapGestures { onClick() } }
+            .semantics { contentDescription = label },
+        contentAlignment = Alignment.Center,
+    ) { GlassIcon(icon, size = size, tint = Color.White) }
 }
 
 private fun relativeTime(t: Long): String {
@@ -566,9 +583,9 @@ private fun NotifSurface(modifier: Modifier, onClick: (() -> Unit)?, kind: Surfa
     // iOS 26 cards are see-through glass: the wallpaper shows through, only the rim and a light veil.
     GlassSurface(
         modifier = modifier,
-        shape = GlassShape.rounded(24.dp),
+        shape = GlassShape.rounded(21.dp),
         variant = GlassVariant.Clear,
-        tintOverride = Color.White.copy(alpha = 0.10f),
+        tintOverride = Color(0x383C4B66),
         onClick = onClick,
         onLongClick = onLongClick,
         role = if (onClick != null) androidx.compose.ui.semantics.Role.Button else null,
