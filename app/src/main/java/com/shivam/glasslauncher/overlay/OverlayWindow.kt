@@ -109,6 +109,15 @@ class ComposeOverlayWindow(
         }
     }
 
+    /** Re-adds the window so it sits above windows added after it (the island over an open panel). */
+    fun raise() {
+        if (!attached) return
+        try {
+            wm.removeViewImmediate(root)
+            wm.addView(root, params)
+        } catch (e: Exception) { Log.w("GlassOverlay", "raise failed", e) }
+    }
+
     fun update() {
         if (!attached) return
         try { wm.updateViewLayout(root, params) } catch (e: Exception) { Log.w("GlassOverlay", "update failed", e) }

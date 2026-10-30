@@ -580,16 +580,15 @@ private fun Modifier.cascade(progress: Float, index: Int): Modifier = graphicsLa
 /** Shared adaptive glass keeps text legible and follows the user's material settings. */
 @Composable
 private fun NotifSurface(modifier: Modifier, onClick: (() -> Unit)?, kind: SurfaceKind?, onLongClick: (() -> Unit)? = null, content: @Composable () -> Unit) {
-    // iOS 26 cards are see-through glass: the wallpaper shows through, only the rim and a light veil.
     GlassSurface(
         modifier = modifier,
-        shape = GlassShape.rounded(21.dp),
-        variant = GlassVariant.Clear,
-        tintOverride = Color(0x383C4B66),
+        // Same glass recipe as the home widgets (frosted, rim-lit), at iOS 26's round corner (~30% of a two-line card).
+        shape = GlassShape.rounded(28.dp),
+        variant = GlassVariant.Regular,
         onClick = onClick,
         onLongClick = onLongClick,
         role = if (onClick != null) androidx.compose.ui.semantics.Role.Button else null,
-        kind = kind ?: SurfaceKind.Panel,
+        kind = SurfaceKind.Widget,
     ) { content() }
 }
 
