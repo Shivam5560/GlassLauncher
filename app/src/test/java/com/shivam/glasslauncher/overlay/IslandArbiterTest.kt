@@ -148,6 +148,12 @@ class IslandArbiterTest {
     }
 
     @Test
+    fun finishedTimerShowsItsTitleNotTheOriginalLength() {
+        assertEquals("Time's up!", IslandContent.Clock("Time's up!", 0, true, false, "10 seconds").stoppedLabel)
+        assertEquals("4:52 left", IslandContent.Clock("Timer will stop at 23:20", 0, true, false, "4:52 left").stoppedLabel)
+    }
+
+    @Test
     fun callTimerStartsOnlyOnceAnswered() {
         val dialing = IslandClassifier.classify(e("c", category = "call", callType = 2, ongoing = true))?.content as IslandContent.Call
         assertEquals(0L, dialing.since)

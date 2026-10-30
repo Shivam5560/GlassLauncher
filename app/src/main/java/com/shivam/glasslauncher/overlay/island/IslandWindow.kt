@@ -147,9 +147,10 @@ class IslandWindow(
         val desiredCompactW = when (primary?.kind) {
             // Music keeps the idle pill's size: art and waves fit either side of the camera.
             null, IslandKind.Music -> idleW
-            IslandKind.Navigation, IslandKind.Peek -> h * 6.4f
-            IslandKind.Charging, IslandKind.Ringer -> h * 5.2f
-            else -> h * 5.6f
+            // Narrow enough to leave HyperOS's status bar icons (speed, VoLTE) uncovered.
+            IslandKind.Navigation, IslandKind.Peek -> h * 5.0f
+            IslandKind.Charging, IslandKind.Ringer -> h * 4.2f
+            else -> h * 4.6f
         }
         val margin = dp(10f)
         val compactW = min(desiredCompactW, screenW - 2 * margin)
@@ -158,7 +159,7 @@ class IslandWindow(
                 val w = min(screenW - 2 * margin, dp(420f))
                 val cameraBand = IslandGeometry.contentTop(c?.safeBottom?.div(density), (cy - h / 2f) / density, h / density)
                 val eh = if (primary?.kind == IslandKind.Peek) dp(IslandGeometry.peekHeight(cameraBand, context.resources.configuration.fontScale))
-                    else max(dp(expandedHeight(primary?.kind)) * s.scale.coerceIn(0.85f, 1.3f), dp(cameraBand + 80f))
+                    else max(dp(expandedHeight(primary?.kind)) * s.scale.coerceIn(0.85f, 1.3f), dp(cameraBand + contentBelowCamera(primary?.kind)))
                 val left = (cx - w / 2f).coerceIn(margin, screenW - margin - w)
                 Rect(left, cy - h / 2f, left + w, cy - h / 2f + eh)
             }
@@ -217,6 +218,12 @@ class IslandWindow(
         p.height = r.height.toInt().coerceAtLeast(1)
         origin = Offset(p.x.toFloat(), p.y.toFloat())
         window.update()
+    }
+
+    /** Content under the camera band: calls need the caller row (40 dp) plus a 48 dp button row. */
+    private fun contentBelowCamera(kind: IslandKind?): Float = when (kind) {
+        IslandKind.IncomingCall, IslandKind.OngoingCall -> 122f
+        else -> 80f
     }
 
     private fun expandedHeight(kind: IslandKind?): Float = when (kind) {

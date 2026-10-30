@@ -241,7 +241,7 @@ private fun Trailing(a: IslandActivity, ui: IslandUi, h: Dp) {
         is IslandContent.Music -> AudioBars(c.playing, Modifier.size(width = h * 0.5f, height = h * 0.36f), ui.media?.art)
         is IslandContent.Charging -> IslandLabel("${c.level}%", style = small, color = Green, maxLines = 1)
         is IslandContent.Call -> if (c.incoming) IslandLabel("Incoming", style = small, color = Green, maxLines = 1) else if (c.since == 0L) IslandLabel("Calling", style = small, color = Green, maxLines = 1) else LiveClock(c.since, false, small, Green)
-        is IslandContent.Clock -> if (c.hasChronometer) LiveClock(c.base, c.countDown, small, Orange) else IslandLabel(IslandText.clean(c.text), style = small, color = Orange, maxLines = 1)
+        is IslandContent.Clock -> if (c.hasChronometer) LiveClock(c.base, c.countDown, small, Orange) else IslandLabel(IslandText.clean(c.stoppedLabel), style = small, color = Orange, maxLines = 1)
         is IslandContent.Navigation -> IslandLabel(IslandText.clean(c.primary), Modifier.padding(start = 8.dp), style = small, color = Color.White, maxLines = 1)
         is IslandContent.Progress -> ProgressRing(if (c.indeterminate) 0.25f else c.fraction, Blue, h * 0.5f, stroke = 2.5.dp)
         is IslandContent.Peek -> IslandLabel(IslandText.orFallback(c.title, c.appLabel), Modifier.padding(start = 4.dp), style = small, color = Color.White, maxLines = 1)
@@ -347,7 +347,8 @@ private fun ExpandedContent(a: IslandActivity, ui: IslandUi) {
 @Composable
 private fun CallActions(key: String) {
     val entries by NotificationHub.entries.collectAsState()
-    val actions = entries.firstOrNull { it.key == key }?.actions.orEmpty().take(3)
+    // CallStyle adds its own Hang up next to the dialer's: HyperOS's in-call notification lists it twice.
+    val actions = entries.firstOrNull { it.key == key }?.actions.orEmpty().distinctBy { it.title.lowercase() }.take(3)
     if (actions.isEmpty()) return
     val context = androidx.compose.ui.platform.LocalContext.current
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
