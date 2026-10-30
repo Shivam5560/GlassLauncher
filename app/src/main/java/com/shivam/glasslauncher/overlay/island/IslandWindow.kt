@@ -122,7 +122,11 @@ class IslandWindow(
     fun setLocked(value: Boolean) { if (value != locked) { locked = value; render() } }
 
     fun setSettings(s: IslandSettings) { settings = s; render() }
-    fun setScreen(widthPx: Int, cutout: CutoutInfo?) { screenW = widthPx; this.cutout = cutout; render() }
+    fun setScreen(widthPx: Int, cutout: CutoutInfo?) {
+        // Rotation moves the camera: start a fresh window centred on it (the grow-only union would stay lopsided).
+        if (widthPx != screenW || cutout != this.cutout) windowRect = Rect.Zero
+        screenW = widthPx; this.cutout = cutout; render()
+    }
     /** Non-null hides the island (lock screen, fullscreen video or games, an open panel). */
     fun setHidden(reason: String?) { hiddenReason = reason; render() }
     fun setCalibrating(on: Boolean) { calibrating = on; render() }

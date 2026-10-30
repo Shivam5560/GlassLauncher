@@ -42,6 +42,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.input.pointer.pointerInput
@@ -109,43 +110,60 @@ fun GlanceWidget(modifier: Modifier = Modifier) {
     val shadow = if (color == Color.White) Shadow(Color(0x66000000), Offset(0f, 2f), 10f) else null
     val is24 = DateFormat.is24HourFormat(context)
     val time = now.format(DateTimeFormatter.ofPattern(if (is24) "HH:mm" else "h:mm"))
-    val date = now.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault()))
 
-    Column(
-        modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        GlassText(
-            time,
-            Modifier.pointerInput(Unit) { detectTapGestures { openAlarms(context) } },
-            style = GlassType.LargeTitle.copy(fontSize = 76.sp, fontWeight = FontWeight.Light, letterSpacing = (-2).sp, shadow = shadow, textAlign = TextAlign.Center),
-            color = color,
-            maxLines = 1,
-        )
-        Row(
-            Modifier.pointerInput(Unit) { detectTapGestures { CalendarRepository.openCalendar(context) } },
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            GlassText(date, style = GlassType.Headline.copy(shadow = shadow), color = color, maxLines = 1)
-            val data = weather.data
-            if (data != null) {
-                val g = WeatherCodes.glyph(data.current.code, data.current.isDay)
-                Spacer(Modifier.width(10.dp))
-                GlassIcon(WidgetGlyphs.weather(g), size = 18.dp, tint = color)
-                Spacer(Modifier.width(4.dp))
-                GlassText("${WeatherCodes.display(data.current.tempC, prefs?.fahrenheit == true)}°", style = GlassType.Headline.copy(shadow = shadow), color = color, maxLines = 1)
+    val date = now.format(DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.getDefault())).uppercase()
+    // iOS lock-screen style: a small date line, then tall glass numerals filling the widget.
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier.fillMaxSize()) {
+        val nextLine = next != null && maxHeight > 150.dp
+        val clockBox = maxHeight - 26.dp - (if (nextLine) 22.dp else 0.dp)
+        // Digits are ~0.72 of the font size tall; stretched 1.2x. Width keeps "12:59" inside the widget.
+        val stretch = 1.2f
+        val bySize = (clockBox.value / (0.72f * stretch) * 0.92f)
+        val byWidth = maxWidth.value / 2.75f
+        val fontSize = minOf(bySize, byWidth).coerceAtLeast(40f).sp
+        Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(
+                Modifier.height(26.dp).pointerInput(Unit) { detectTapGestures { CalendarRepository.openCalendar(context) } },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                GlassText(date, style = GlassType.Footnote.copy(fontWeight = FontWeight.SemiBold, letterSpacing = 1.2.sp, shadow = shadow), color = color.copy(alpha = 0.9f), maxLines = 1)
+                val data = weather.data
+                if (data != null) {
+                    val g = WeatherCodes.glyph(data.current.code, data.current.isDay)
+                    Spacer(Modifier.width(10.dp))
+                    GlassIcon(WidgetGlyphs.weather(g), size = 15.dp, tint = color.copy(alpha = 0.9f))
+                    Spacer(Modifier.width(3.dp))
+                    GlassText("${WeatherCodes.display(data.current.tempC, prefs?.fahrenheit == true)}°", style = GlassType.Footnote.copy(fontWeight = FontWeight.SemiBold, shadow = shadow), color = color.copy(alpha = 0.9f), maxLines = 1)
+                }
             }
-        }
-        next?.let { e ->
-            Spacer(Modifier.height(4.dp))
-            GlassText(
-                "Next: ${e.title}",
-                Modifier.pointerInput(e) { detectTapGestures { CalendarRepository.openEvent(context, e) } },
-                style = GlassType.Callout.copy(shadow = shadow),
-                color = color.copy(alpha = 0.85f),
-                maxLines = 1,
-            )
+            Box(Modifier.weight(1f).fillMaxWidth().pointerInput(Unit) { detectTapGestures { openAlarms(context) } }, contentAlignment = Alignment.Center) {
+                androidx.compose.material3.Text(
+                    time,
+                    modifier = Modifier.graphicsLayer { scaleY = stretch },
+                    maxLines = 1,
+                    style = GlassType.LargeTitle.copy(
+                        fontSize = fontSize,
+                        lineHeight = fontSize,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = (-fontSize.value * 0.04f).sp,
+                        textAlign = TextAlign.Center,
+                        fontFeatureSettings = "tnum",
+                        // Frosted numerals: solid at the top, softening towards the bottom like glass.
+                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(listOf(color.copy(alpha = 0.98f), color.copy(alpha = 0.72f))),
+                        shadow = Shadow(if (color == Color.White) Color(0x55000000) else Color(0x33FFFFFF), Offset(0f, 3f), 18f),
+                        platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false),
+                    ),
+                )
+            }
+            if (nextLine) next?.let { e ->
+                GlassText(
+                    "Next · ${e.title}",
+                    Modifier.height(22.dp).pointerInput(e) { detectTapGestures { CalendarRepository.openEvent(context, e) } },
+                    style = GlassType.Footnote.copy(shadow = shadow),
+                    color = color.copy(alpha = 0.85f),
+                    maxLines = 1,
+                )
+            }
         }
     }
 }
