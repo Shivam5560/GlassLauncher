@@ -36,8 +36,9 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import com.shivam.glasslauncher.ui.glass.GlassColors
 import com.shivam.glasslauncher.ui.glass.GlassShape
 import com.shivam.glasslauncher.ui.glass.GlassText
+import com.shivam.glasslauncher.ui.glass.GlassSurface
+import com.shivam.glasslauncher.ui.glass.GlassVariant
 import com.shivam.glasslauncher.ui.glass.GlassType
-import com.shivam.glasslauncher.ui.glass.glassPressable
 import com.shivam.glasslauncher.ui.glass.ResumedLoop
 import kotlinx.coroutines.delay
 import java.time.Instant
@@ -112,7 +113,7 @@ fun CalendarWidget(size: WidgetSize, modifier: Modifier = Modifier) {
                     val days = list.groupBy { eventDay(it) }
                     // In a stack the swipe flips widgets, so the list stays put there (what fits is shown).
                     val inStack = LocalInStack.current
-                    LazyColumn(Modifier.fillMaxSize().then(if (inStack) Modifier else Modifier.ownsVerticalScroll()), userScrollEnabled = !inStack, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    LazyColumn(Modifier.fillMaxSize().then(if (inStack) Modifier else Modifier.ownsVerticalScroll()), userScrollEnabled = !inStack, contentPadding = androidx.compose.foundation.layout.PaddingValues(end = if (inStack) 16.dp else 0.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         days.forEach { (day, items) ->
                             item(key = "d$day") { DayHeader(day, today, first = day == days.keys.first()) }
                             items(items, key = { "e${it.eventId}_${it.begin}" }) { EventRow(it, compact = false) }
@@ -144,15 +145,16 @@ private fun EventRow(e: CalendarEvent, compact: Boolean) {
     val context = LocalContext.current
     val env = LocalWidgetEnv.current
     val tint = Color(e.color or 0xFF000000.toInt())
-    // A faint wash of the calendar's colour behind each event, like iOS; the widget stays the only lens.
+    // Each event is its own clear glass card, tinted with its calendar's colour.
+    GlassSurface(
+        Modifier.fillMaxWidth(),
+        shape = GlassShape.rounded(14.dp),
+        variant = GlassVariant.Clear,
+        tintOverride = tint.copy(alpha = 0.22f),
+        onClick = { if (!CalendarRepository.openEvent(context, e)) env?.toast?.invoke("No calendar app is available") },
+    ) {
     Row(
-        Modifier.fillMaxWidth()
-            .clip(GlassShape.rounded(12.dp))
-            .background(tint.copy(alpha = 0.16f))
-            .glassPressable(onClick = {
-                if (!CalendarRepository.openEvent(context, e)) env?.toast?.invoke("No calendar app is available")
-            }, shape = GlassShape.rounded(12.dp))
-            .padding(start = 0.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+        Modifier.fillMaxWidth().padding(start = 0.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(Modifier.padding(start = 6.dp).width(4.dp).height(if (compact) 34.dp else 36.dp).clip(GlassShape.Capsule).background(tint))
@@ -172,6 +174,7 @@ private fun EventRow(e: CalendarEvent, compact: Boolean) {
             }
         }
     }
+}
 }
 
 /** Right-hand time column: start large, end small; "All day" alone. */
