@@ -142,15 +142,20 @@ fun GlanceWidget(modifier: Modifier = Modifier) {
                     modifier = Modifier.graphicsLayer { scaleY = stretch },
                     maxLines = 1,
                     style = GlassType.LargeTitle.copy(
+                        // Same light glass numerals as Notification Centre.
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif,
                         fontSize = fontSize,
                         lineHeight = fontSize,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = (-fontSize.value * 0.04f).sp,
+                        fontWeight = FontWeight.Light,
+                        letterSpacing = (-fontSize.value * 0.02f).sp,
                         textAlign = TextAlign.Center,
                         fontFeatureSettings = "tnum",
-                        // Frosted numerals: solid at the top, softening towards the bottom like glass.
-                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(listOf(color.copy(alpha = 0.98f), color.copy(alpha = 0.72f))),
-                        shadow = Shadow(if (color == Color.White) Color(0x55000000) else Color(0x33FFFFFF), Offset(0f, 3f), 18f),
+                        // Translucent blue-white glass with a bright top (dark glass on light wallpapers).
+                        brush = androidx.compose.ui.graphics.Brush.verticalGradient(
+                            if (color == Color.White) listOf(Color(0xF2FFFFFF), Color(0xB3DCE8FF), Color(0x80C8D8FF))
+                            else listOf(color.copy(alpha = 0.95f), color.copy(alpha = 0.7f), color.copy(alpha = 0.5f)),
+                        ),
+                        shadow = Shadow(if (color == Color.White) Color(0x26000000) else Color(0x22FFFFFF), Offset(0f, 2f), 12f),
                         platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false),
                     ),
                 )
