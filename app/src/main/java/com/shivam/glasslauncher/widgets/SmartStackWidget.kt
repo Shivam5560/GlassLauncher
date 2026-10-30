@@ -9,6 +9,8 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.VerticalPager
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
 import com.shivam.glasslauncher.ui.home.ownsVerticalScroll
 import kotlinx.coroutines.launch
 import androidx.compose.ui.input.pointer.pointerInput
@@ -89,9 +91,13 @@ fun SmartStackWidget(inst: WidgetInstance, size: WidgetSize, modifier: Modifier 
         }
     }
 
-    Box(modifier) {
+    val flipLeft = inst[WidgetKeys.STACK_FLIP_SIDE] == "left"
+    val flipScope = androidx.compose.runtime.rememberCoroutineScope()
+    Box(modifier.flipZone(flipLeft, children.size > 1, pager, flipScope)) {
         VerticalPager(
             state = pager,
+            // Flipping is driven by the flip-side zone, so the rest of the widget can scroll its own content.
+            userScrollEnabled = false,
             // Vertical swipes here flip the stack, not open Spotlight / the drawer.
             modifier = Modifier.fillMaxSize().then(if (children.size > 1) Modifier.ownsVerticalScroll() else Modifier),
             key = { children.getOrNull(it)?.id ?: it },
@@ -132,3 +138,45 @@ fun SmartStackWidget(inst: WidgetInstance, size: WidgetSize, modifier: Modifier 
         }
     }
 }
+
+/**
+ * Vertical swipes that start on the flip side (about 40% of the width) turn the stack page by page and
+ * follow the finger; everything else reaches the widget. Taps are never taken.
+ */
+private fun Modifier.flipZone(left: Boolean, enabled: Boolean, pager: androidx.compose.foundation.pager.PagerState, scope: kotlinx.coroutines.CoroutineScope): Modifier =
+    if (!enabled) this else pointerInput(left) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false, pass = androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+            val zone = size.width * 0.4f
+            val inZone = if (left) down.position.x < zone else down.position.x > size.width - zone
+            if (!inZone) return@awaitEachGesture
+            val slop = viewConfiguration.touchSlop
+            val startPage = pager.currentPage
+            val tracker = androidx.compose.ui.input.pointer.util.VelocityTracker()
+            var dy = 0f
+            var dragging = false
+            while (true) {
+                val ev = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                if (!ch.pressed) break
+                tracker.addPosition(ch.uptimeMillis, ch.position)
+                val delta = ch.position.y - ch.previousPosition.y
+                dy += delta
+                if (!dragging && kotlin.math.abs(dy) > slop && kotlin.math.abs(dy) > kotlin.math.abs(ch.position.x - down.position.x)) dragging = true
+                if (dragging) {
+                    ch.consume()
+                    pager.dispatchRawDelta(-delta)
+                }
+            }
+            if (dragging) {
+                val v = tracker.calculateVelocity().y
+                // A flick turns one page from where the drag started; a slow drag snaps to the nearest page.
+                val target = when {
+                    v < -600f -> startPage + 1
+                    v > 600f -> startPage - 1
+                    else -> pager.currentPage
+                }.coerceIn(0, pager.pageCount - 1)
+                scope.launch { pager.animateScrollToPage(target) }
+            }
+        }
+    }

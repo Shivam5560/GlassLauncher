@@ -112,9 +112,9 @@ fun CalendarWidget(size: WidgetSize, modifier: Modifier = Modifier) {
                 } else {
                     // Grouped by day and scrollable: each event sits under its own day, so later days never read as today.
                     val days = list.groupBy { eventDay(it) }
-                    // In a stack the swipe flips widgets, so the list stays put there (what fits is shown).
+                    // In a stack only the flip side turns pages, so the list scrolls everywhere else.
                     val inStack = LocalInStack.current
-                    LazyColumn(Modifier.fillMaxSize().then(if (inStack) Modifier else Modifier.ownsVerticalScroll()), userScrollEnabled = !inStack, contentPadding = androidx.compose.foundation.layout.PaddingValues(end = if (inStack) 16.dp else 0.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    LazyColumn(Modifier.fillMaxSize().ownsVerticalScroll(), contentPadding = androidx.compose.foundation.layout.PaddingValues(end = if (inStack) 16.dp else 0.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         days.forEach { (day, items) ->
                             item(key = "d$day") { DayHeader(day, today, first = day == days.keys.first()) }
                             items(items, key = { "e${it.eventId}_${it.begin}" }) { EventRow(it, compact = false) }
@@ -147,8 +147,8 @@ private fun EventRow(e: CalendarEvent, compact: Boolean) {
     val env = LocalWidgetEnv.current
     val tint = Color(e.color or 0xFF000000.toInt())
     val allDay = e.allDay || e.end - e.begin >= 23 * 3600_000L
-    if (allDay && !compact) {
-        // All-day items (out of office, holidays) are slim neutral chips, not big coloured blocks.
+    if (!compact) {
+        // Every event is a slim neutral glass chip: calendar-colour dot, title, time on the right.
         GlassSurface(
             Modifier.fillMaxWidth(),
             shape = GlassShape.Capsule,
@@ -159,7 +159,8 @@ private fun EventRow(e: CalendarEvent, compact: Boolean) {
                 Box(Modifier.size(8.dp).clip(GlassShape.Circle).background(tint))
                 Spacer(Modifier.width(8.dp))
                 GlassText(e.title, Modifier.weight(1f), style = GlassType.Footnote.copy(fontWeight = FontWeight.SemiBold), color = Color.White, maxLines = 1)
-                GlassText("All day", style = GlassType.Caption, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
+                val (start, end) = timeColumn(context, e)
+                GlassText(if (allDay || end.isEmpty()) start else "$start – $end", style = GlassType.Caption.copy(fontFeatureSettings = "tnum"), color = Color.White.copy(alpha = 0.7f), maxLines = 1)
             }
         }
         return

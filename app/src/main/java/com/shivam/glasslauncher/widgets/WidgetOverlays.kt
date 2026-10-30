@@ -294,6 +294,12 @@ private fun StackSettings(widgets: WidgetUiState, inst: WidgetInstance) {
         GlassListGroup(footer = "Turns to the calendar in the morning, weather during the day, music in the evening and batteries at night. A swipe stays until the next part of the day.") {
             GlassSwitchRow("Smart Rotate", inst[WidgetKeys.STACK_ROTATE] != "0", { on -> widgets.repo.setConfig(inst.id, WidgetKeys.STACK_ROTATE, if (on) "1" else "0") })
         }
+        GlassListGroup(title = "Flip widgets from", footer = "Swipe up or down on this side to change widget; swipes on the other side scroll inside the widget (like the calendar's events).") {
+            val left = inst[WidgetKeys.STACK_FLIP_SIDE] == "left"
+            com.shivam.glasslauncher.ui.glass.GlassSegmented(listOf("Left side", "Right side"), if (left) 0 else 1, { i ->
+                widgets.repo.setConfig(inst.id, WidgetKeys.STACK_FLIP_SIDE, if (i == 0) "left" else "right")
+            }, Modifier.padding(12.dp))
+        }
         GlassListGroup(title = "Widgets in this stack") {
             WidgetKind.stackable.forEach { k ->
                 GlassSwitchRow(k.title, k in kinds, { on ->
