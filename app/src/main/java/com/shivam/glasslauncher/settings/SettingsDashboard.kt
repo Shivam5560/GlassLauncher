@@ -100,6 +100,8 @@ internal fun SettingsDashboard(nav: SettingsNav, settings: LauncherSettings, wal
                         icon = GlassIcons.EyeOff, onClick = { open("hidden") })
                     GlassRow("Locked apps", subtitle = if (settings.locked.isEmpty()) "Extra protection when opening from Glass" else "${settings.locked.size} protected in Glass",
                         icon = GlassIcons.Lock, onClick = { open("locked") })
+                    GlassRow("Payment & sensitive apps", subtitle = "${settings.gestures.pauseForApps.size} apps · gestures and ad blocking pause in these",
+                        icon = GlassIcons.Hand, onClick = { open("payment") })
                     DestinationRow("backup", ::open)
                     DestinationRow("check", ::open)
                     DestinationRow("setup", ::open)
