@@ -59,6 +59,8 @@ object WidgetKeys {
     const val CHECKLIST = "checklist"
     const val QUOTE_TEXT = "quoteText"
     const val QUOTE_AUTHOR = "quoteAuthor"
+    /** Coloured runs of the quote, see [QuoteSpans]. */
+    const val QUOTE_COLORS = "quoteColors"
     const val PROVIDER_GLASS = "providerGlass"
     const val PROVIDER_BACKGROUND = "providerBackground"
     const val FOCUS_MINUTES = "focusMinutes"
