@@ -188,9 +188,10 @@ class OverlayController(
     fun onSystemShade() {
         val (kind, at) = cornerDown ?: return
         cornerDown = null
-        if (android.os.SystemClock.uptimeMillis() - at > 800 || panelKind != null) return
+        if (android.os.SystemClock.uptimeMillis() - at > 800) return
+        // Our panel may already be up (the corner fired too): the shade under it would be left behind on close.
         accessibility?.performGlobalAction(AccessibilityService.GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE)
-        openPanel(kind)
+        if (panelKind == null) openPanel(kind)
     }
 
     /** From the accessibility service on window changes: HyperOS doesn't always send USER_PRESENT on a swipe unlock. */
@@ -364,7 +365,6 @@ class OverlayController(
                     val dy = e.rawY - downY
                     if (!fired && dy > dp(22f) && dy > abs(e.rawX - downX)) {
                         fired = true
-                        cornerDown = null
                         view.performHapticFeedback(HapticFeedbackConstants.GESTURE_START)
                         openPanel(kind)
                     }

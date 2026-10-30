@@ -52,6 +52,16 @@ data class GestureSettings(
     val excludedApps: Set<String> = emptySet(),
     /** Hide the zones while the on-screen keyboard is showing. */
     val pauseWithKeyboard: Boolean = true,
+    /** Payment/bank apps that refuse to run while an accessibility service is on: Glass Gestures switches off for them. */
+    val pauseForApps: Set<String> = PAYMENT_APPS,
+)
+
+val PAYMENT_APPS = setOf(
+    "com.phonepe.app", "net.one97.paytm", "com.google.android.apps.nbu.paisa.user", "in.org.npci.upiapp",
+    "com.dreamplug.androidapp", "com.mobikwik_new", "com.sbi.lotusintouch",
+    "com.sbi.upi", "com.snapwork.hdfc", "com.csam.icici.bank.imobile", "com.axis.mobile", "com.msf.kbank.mobile",
+    "com.bankofbaroda.mconnect", "com.fss.pnbone", "com.canarabank.mobility", "com.unionbank.ebanking",
+    "com.idfcfirstbank.optimus", "com.yesbank", "com.freecharge.android", "money.super.payments",
 )
 
 /** Which drawer category opens first (Settings → App drawer). */
@@ -160,6 +170,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         val gHaptics = booleanPreferencesKey("g_haptics")
         val gExcluded = stringSetPreferencesKey("g_excluded")
         val gKeyboard = booleanPreferencesKey("g_keyboard_pause")
+        val gPauseApps = stringSetPreferencesKey("g_pause_apps")
         val autostartConfirmed = booleanPreferencesKey("autostart_confirmed")
         val restrictedConfirmed = booleanPreferencesKey("restricted_confirmed")
         // Phase 5
@@ -244,6 +255,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
                 haptics = p[K.gHaptics] ?: d.gestures.haptics,
                 excludedApps = p[K.gExcluded] ?: d.gestures.excludedApps,
                 pauseWithKeyboard = p[K.gKeyboard] ?: d.gestures.pauseWithKeyboard,
+                pauseForApps = p[K.gPauseApps] ?: d.gestures.pauseForApps,
             ),
             iconPack = p[K.iconPack] ?: d.iconPack,
             hidden = p[K.hidden] ?: d.hidden,
@@ -331,6 +343,7 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         it[K.gHaptics] = g.haptics
         it[K.gExcluded] = g.excludedApps
         it[K.gKeyboard] = g.pauseWithKeyboard
+        it[K.gPauseApps] = g.pauseForApps
     }
 
     fun setAutostartConfirmed(v: Boolean) = edit { it[K.autostartConfirmed] = v }

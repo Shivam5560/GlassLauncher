@@ -40,7 +40,8 @@ object IslandClassifier {
                 id = "call:${e.key}",
                 kind = if (incoming) IslandKind.IncomingCall else IslandKind.OngoingCall,
                 since = e.postTime,
-                content = IslandContent.Call(name, incoming, if (e.whenTime > 0) e.whenTime else e.postTime, e.key),
+                // Dialers repost with a fresh `when` once answered and only then turn on the chronometer; 0 = still ringing.
+                content = IslandContent.Call(name, incoming, if (e.usesChronometer && e.whenTime > 0) e.whenTime else 0L, e.key),
                 sourcePackage = e.packageName,
                 notificationKey = e.key,
             )

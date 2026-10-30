@@ -67,8 +67,8 @@ object NotificationHub {
         val isNew = !raw.containsKey(sbn.key)
         raw[sbn.key] = sbn
         val entry = parse(service, sbn, ranking)
-        _entries.value = _entries.value.filterNot { it.key == sbn.key } + entry
-        if (isNew) _posted.tryEmit(entry)
+        _entries.value = _entries.value.filterNot { it.key == sbn.key } + listOfNotNull(entry.takeUnless { it.isSystemStatus })
+        if (isNew && !entry.isSystemStatus) _posted.tryEmit(entry)
     }
 
     fun onRemoved(sbn: StatusBarNotification) {
@@ -79,7 +79,7 @@ object NotificationHub {
     /** Channel/privacy changes can arrive without a new notification being posted. */
     fun onRankingUpdated(service: NotificationListenerService, ranking: NotificationListenerService.RankingMap) {
         if (listener !== service) return
-        _entries.value = raw.values.toList().map { parse(service, it, ranking) }
+        _entries.value = raw.values.toList().map { parse(service, it, ranking) }.filterNot { it.isSystemStatus }
     }
 
     fun onInterruptionFilterChanged(filter: Int) { _interruptionFilter.value = filter }
@@ -89,7 +89,15 @@ object NotificationHub {
         val ranking = try { service.currentRanking } catch (e: Exception) { null }
         raw.clear()
         active.forEach { raw[it.key] = it }
-        _entries.value = active.map { parse(service, it, ranking) }
+        _entries.value = active.map { parse(service, it, ranking) }.filterNot { it.isSystemStatus }
+    }
+
+    private val systemApps = ConcurrentHashMap<String, Boolean>()
+
+    private fun isSystemApp(context: Context, pkg: String): Boolean = systemApps.getOrPut(pkg) {
+        try {
+            context.packageManager.getApplicationInfo(pkg, 0).flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM != 0
+        } catch (e: Exception) { pkg == "android" }
     }
 
     fun label(context: Context, pkg: String): String = labels.getOrPut(pkg) {
@@ -141,6 +149,7 @@ object NotificationHub {
             importance = importance,
             channelId = n.channelId,
             visibility = effectiveLockScreenVisibility(n.visibility, visibilityOverride, channelVisibility),
+            isSystem = isSystemApp(context, sbn.packageName),
             actions = n.actions.orEmpty().mapIndexed { i, a ->
                 NotifAction(i, a.title?.toString().orEmpty(), a.remoteInputs?.any { it.allowFreeFormInput } == true)
             }.filter { it.title.isNotBlank() },
@@ -158,8 +167,12 @@ object NotificationHub {
 
     fun notification(key: String): StatusBarNotification? = raw[key]
 
-    fun dismiss(key: String) {
-        try { listener?.cancelNotification(key) } catch (e: Exception) { Log.w(TAG, "dismiss failed", e) }
+    fun dismiss(key: String) = dismissAll(listOf(key))
+
+    /** Drops cancelled cards at once: waiting for onRemoved left an empty gap in the list for ~0.5 s. */
+    private fun dropNow(keys: Collection<String>) {
+        keys.forEach { raw.remove(it) }
+        _entries.value = _entries.value.filterNot { it.key in keys }
     }
 
     /**
@@ -173,7 +186,13 @@ object NotificationHub {
         if (keys.isEmpty()) return
         val (clearable, sticky) = keys.partition { raw[it]?.isClearable != false }
         if (clearable.isNotEmpty()) {
-            try { listener?.cancelNotifications(clearable.toTypedArray()) } catch (e: Exception) { Log.w(TAG, "clear failed", e) }
+            try {
+                val l = listener
+                if (l != null) {
+                    l.cancelNotifications(clearable.toTypedArray())
+                    dropNow(clearable.toHashSet())
+                }
+            } catch (e: Exception) { Log.w(TAG, "clear failed", e) }
         }
         if (sticky.isNotEmpty()) _hidden.value = _hidden.value + sticky.associateWith { raw[it]?.postTime ?: Long.MAX_VALUE }
     }

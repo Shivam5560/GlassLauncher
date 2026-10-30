@@ -240,7 +240,7 @@ private fun Trailing(a: IslandActivity, ui: IslandUi, h: Dp) {
     when (val c = a.content) {
         is IslandContent.Music -> AudioBars(c.playing, Modifier.size(width = h * 0.5f, height = h * 0.36f), ui.media?.art)
         is IslandContent.Charging -> IslandLabel("${c.level}%", style = small, color = Green, maxLines = 1)
-        is IslandContent.Call -> if (c.incoming) IslandLabel("Incoming", style = small, color = Green, maxLines = 1) else LiveClock(c.since, false, small, Green)
+        is IslandContent.Call -> if (c.incoming) IslandLabel("Incoming", style = small, color = Green, maxLines = 1) else if (c.since == 0L) IslandLabel("Calling", style = small, color = Green, maxLines = 1) else LiveClock(c.since, false, small, Green)
         is IslandContent.Clock -> if (c.hasChronometer) LiveClock(c.base, c.countDown, small, Orange) else IslandLabel(IslandText.clean(c.text), style = small, color = Orange, maxLines = 1)
         is IslandContent.Navigation -> IslandLabel(IslandText.clean(c.primary), Modifier.padding(start = 8.dp), style = small, color = Color.White, maxLines = 1)
         is IslandContent.Progress -> ProgressRing(if (c.indeterminate) 0.25f else c.fraction, Blue, h * 0.5f, stroke = 2.5.dp)
@@ -293,6 +293,7 @@ private fun ExpandedContent(a: IslandActivity, ui: IslandUi) {
                 Column(Modifier.weight(1f)) {
                     IslandLabel(IslandText.clean(c.name), style = GlassType.Headline, color = white, maxLines = 1)
                     if (c.incoming) IslandLabel("Incoming call", style = GlassType.Footnote, color = white.copy(alpha = 0.6f), maxLines = 1)
+                    else if (c.since == 0L) IslandLabel("Calling…", style = GlassType.Footnote, color = white.copy(alpha = 0.6f), maxLines = 1)
                     else LiveClock(c.since, false, GlassType.Footnote, Green)
                 }
             }

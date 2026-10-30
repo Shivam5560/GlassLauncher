@@ -79,8 +79,9 @@ object HomeGestureMap {
 }
 
 /**
- * Vertical swipes and two-finger gestures on the home pages. One-finger drags only count when
- * mostly vertical and unconsumed, so icons, widgets and the pager keep theirs. Once a second finger
+ * Vertical swipes and two-finger gestures on the home pages. A one-finger drag that is mostly
+ * vertical at touch slop (and starts before a long press) is claimed in the Initial pass, so the
+ * pager and icons never see it; sideways or late drags stay with them. Once a second finger
  * lands, its events are consumed in the Initial pass so the pager does not scroll during a pinch.
  */
 fun Modifier.homeGestures(
@@ -89,9 +90,12 @@ fun Modifier.homeGestures(
     onGesture: (HomeGesture, Offset) -> Unit,
 ): Modifier = if (!enabled) this else pointerInput(Unit) {
     val swipe = 56.dp.toPx()
+    val fire = 40.dp.toPx()
+    val slop = viewConfiguration.touchSlop
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         var total = Offset.Zero
+        var vertical = false
         var multi = false
         var zoom = 1f
         var rotation = 0f
@@ -124,23 +128,27 @@ fun Modifier.homeGestures(
                 continue
             }
             if (multi) continue
-            // Same event, Main pass: children (icon drags, widgets) have had their turn.
-            val main = awaitPointerEvent(PointerEventPass.Main)
-            val ch = main.changes.firstOrNull { it.id == down.id } ?: break
+            val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
             if (!ch.pressed) break
-            if (ch.isConsumed) break
             total += ch.positionChange()
-            if (abs(total.x) > swipe) break
-            val g = when {
-                total.y > swipe && total.y > abs(total.x) * 1.4f -> HomeGesture.SwipeDown
-                total.y < -swipe && -total.y > abs(total.x) * 1.4f -> HomeGesture.SwipeUp
-                else -> null
+            if (!vertical && total.getDistance() >= slop) {
+                // Direction is decided once, at touch slop: later wobble no longer hands the swipe to the pager.
+                val dir = if (total.y < 0) HomeGesture.SwipeUp else HomeGesture.SwipeDown
+                // Page swipes are nearly flat: anything steeper than ~30° is a vertical swipe.
+                if (abs(total.y) < abs(total.x) * 0.6f || !isBound(dir) ||
+                    ch.uptimeMillis - down.uptimeMillis > viewConfiguration.longPressTimeoutMillis) break
+                vertical = true
             }
-            if (g != null) {
-                if (isBound(g)) {
-                    ch.consume()
-                    onGesture(g, down.position)
-                }
+            if (!vertical) {
+                // Same event, Main pass: a child (widget, icon drag) that claimed it keeps it.
+                val main = awaitPointerEvent(PointerEventPass.Main).changes.firstOrNull { it.id == down.id } ?: break
+                if (main.isConsumed) break
+                continue
+            }
+            ch.consume()
+            if (abs(total.y) > fire) {
+                onGesture(if (total.y < 0) HomeGesture.SwipeUp else HomeGesture.SwipeDown, down.position)
+                do { awaitPointerEvent(PointerEventPass.Initial).changes.forEach { it.consume() } } while (currentEvent.changes.any { it.pressed })
                 break
             }
         }

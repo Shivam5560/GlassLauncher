@@ -148,6 +148,14 @@ class IslandArbiterTest {
     }
 
     @Test
+    fun callTimerStartsOnlyOnceAnswered() {
+        val dialing = IslandClassifier.classify(e("c", category = "call", callType = 2, ongoing = true))?.content as IslandContent.Call
+        assertEquals(0L, dialing.since)
+        val answered = IslandClassifier.classify(e("c", category = "call", callType = 2, ongoing = true, chrono = true))?.content as IslandContent.Call
+        assertEquals(500L, answered.since)
+    }
+
+    @Test
     fun uploadsAreTold() {
         val up = IslandClassifier.classify(e("u", max = 10, progress = 5, title = "Uploading 3 photos"))?.content as IslandContent.Progress
         assertTrue(up.upload)

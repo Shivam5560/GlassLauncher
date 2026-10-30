@@ -37,8 +37,16 @@ data class NotifEntry(
     val channelId: String? = null,
     val actions: List<NotifAction> = emptyList(),
     val visibility: Int = 0, // Notification.VISIBILITY_PRIVATE; -1 is secret
-
-)
+    /** Posted by a preinstalled system app (Android System, System UI, HyperOS services). */
+    val isSystem: Boolean = false,
+) {
+    /**
+     * Sticky system status (USB debugging, charging, "running in background") that the user can't
+     * clear: never listed. Calls, timers, progress and navigation are live activities and stay.
+     */
+    val isSystemStatus: Boolean get() = isSystem && !isClearable && !usesChronometer &&
+        progressMax == 0 && !progressIndeterminate && category != "call" && category != "navigation" && template != "CallStyle"
+}
 
 data class NotifAction(val index: Int, val title: String, val hasRemoteInput: Boolean)
 

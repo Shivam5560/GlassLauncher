@@ -117,4 +117,16 @@ class NotificationGroupingTest {
     fun emptyInputGivesNoStacks() {
         assertTrue(NotificationGrouping.stacks(emptyList()).isEmpty())
     }
+
+    @Test
+    fun stickySystemStatusIsNotListedButLiveActivitiesAre() {
+        val usb = n("usb", "android", 1, clearable = false).copy(isSystem = true, isOngoing = true)
+        assertTrue(usb.isSystemStatus)
+        assertFalse(usb.copy(usesChronometer = true).isSystemStatus)
+        assertFalse(usb.copy(category = "call").isSystemStatus)
+        assertFalse(usb.copy(isSystem = false).isSystemStatus)
+        assertFalse(usb.copy(isClearable = true).isSystemStatus)
+        // HyperOS foreground services are NO_CLEAR without ONGOING_EVENT.
+        assertTrue(usb.copy(isOngoing = false).isSystemStatus)
+    }
 }
