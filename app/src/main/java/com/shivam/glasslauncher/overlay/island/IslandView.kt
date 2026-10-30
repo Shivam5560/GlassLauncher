@@ -35,6 +35,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
@@ -431,20 +433,57 @@ private fun MusicProgress(media: MediaInfo?) {
         Spacer(Modifier.height(4.dp))
         return
     }
+    SeekBar(media, Color.White)
+}
+
+/**
+ * iOS-style scrubber: moves every frame while playing; drag or tap to seek (the bar thickens and the
+ * times follow the finger), the player jumps on release. Shared by the island and Notification Center.
+ */
+@Composable
+fun SeekBar(media: MediaInfo, color: Color, showTimes: Boolean = true) {
     var now by remember { mutableLongStateOf(android.os.SystemClock.elapsedRealtime()) }
-    LaunchedEffect(media.playing) {
-        while (media.playing) {
-            delay(500)
-            now = android.os.SystemClock.elapsedRealtime()
-        }
+    LaunchedEffect(media.playing, media.positionMs) {
+        while (media.playing) androidx.compose.runtime.withFrameMillis { now = android.os.SystemClock.elapsedRealtime() }
     }
-    val pos = media.livePosition(now)
-    // iOS: elapsed and remaining time either side of the bar.
+    var dragging by remember { mutableStateOf<Float?>(null) }
+    // Hold the released spot until the player reports the new position, so the bar doesn't snap back.
+    var pending by remember { mutableStateOf<Float?>(null) }
+    LaunchedEffect(media.positionMs) { pending = null }
+    val live = media.livePosition(now).toFloat() / media.durationMs
+    val fraction = (dragging ?: pending ?: live).coerceIn(0f, 1f)
+    val shown = (fraction * media.durationMs).toLong()
+    val thick by animateFloatAsState(if (dragging != null) 1f else 0f, spring(stiffness = 700f), label = "seekThick")
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         val time = GlassType.Caption.copy(fontWeight = FontWeight.Medium)
-        IslandLabel(mmss(pos), style = time, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
-        Box(Modifier.weight(1f).padding(horizontal = 10.dp)) { LinearBar(pos.toFloat() / media.durationMs, Color.White) }
-        IslandLabel("-" + mmss(media.durationMs - pos), style = time, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
+        if (showTimes) IslandLabel(mmss(shown), style = time, color = color.copy(alpha = 0.6f + 0.4f * thick), maxLines = 1)
+        Box(
+            Modifier.weight(1f).height(28.dp).padding(horizontal = if (showTimes) 10.dp else 0.dp)
+                .pointerInput(media.durationMs) {
+                    detectTapGestures { o -> (o.x / size.width).coerceIn(0f, 1f).let { pending = it; com.shivam.glasslauncher.overlay.notifications.MediaHub.seekTo((it * media.durationMs).toLong()) } }
+                }
+                .pointerInput(media.durationMs) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { o -> dragging = (o.x / size.width).coerceIn(0f, 1f) },
+                        onDragEnd = {
+                            dragging?.let { pending = it; com.shivam.glasslauncher.overlay.notifications.MediaHub.seekTo((it * media.durationMs).toLong()) }
+                            dragging = null
+                        },
+                        onDragCancel = { dragging = null },
+                    ) { change, dx ->
+                        change.consume()
+                        dragging = ((dragging ?: fraction) + dx / size.width).coerceIn(0f, 1f)
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            androidx.compose.foundation.Canvas(Modifier.fillMaxWidth().height((5 + 5 * thick).dp)) {
+                val r = androidx.compose.ui.geometry.CornerRadius(size.height / 2)
+                drawRoundRect(color.copy(alpha = 0.25f), cornerRadius = r)
+                drawRoundRect(color, size = androidx.compose.ui.geometry.Size(size.width * fraction, size.height), cornerRadius = r)
+            }
+        }
+        if (showTimes) IslandLabel("-" + mmss(media.durationMs - shown), style = time, color = color.copy(alpha = 0.6f + 0.4f * thick), maxLines = 1)
     }
 }
 

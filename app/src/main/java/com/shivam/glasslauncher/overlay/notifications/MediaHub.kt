@@ -152,6 +152,12 @@ object MediaHub {
     }
     fun next() { current?.transportControls?.skipToNext() }
     fun previous() { current?.transportControls?.skipToPrevious() }
+    /** Jumps to [ms] when the player supports seeking. */
+    fun seekTo(ms: Long) {
+        val c = current ?: return
+        val actions = c.playbackState?.actions ?: 0L
+        if (actions and android.media.session.PlaybackState.ACTION_SEEK_TO != 0L) c.transportControls.seekTo(ms)
+    }
 
     /** Opens the player: its session activity if it has one, else its launcher activity. */
     fun openPlayer(context: Context): Boolean {

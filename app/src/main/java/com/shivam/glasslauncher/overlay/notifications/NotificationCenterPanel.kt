@@ -513,15 +513,8 @@ private fun MediaCard(m: MediaInfo, host: PanelHost, kind: SurfaceKind? = null) 
                 AudioBars(m.playing, Modifier.size(width = 24.dp, height = 18.dp), m.art)
             }
             if (m.durationMs > 0) {
-                Spacer(Modifier.height(10.dp))
-                var now by remember { mutableLongStateOf(android.os.SystemClock.elapsedRealtime()) }
-                LaunchedEffect(m.playing) {
-                    while (m.playing) {
-                        delay(500)
-                        now = android.os.SystemClock.elapsedRealtime()
-                    }
-                }
-                LinearBar(m.livePosition(now).toFloat() / m.durationMs, Color.White)
+                Spacer(Modifier.height(6.dp))
+                com.shivam.glasslauncher.overlay.island.SeekBar(m, Color.White)
             }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
