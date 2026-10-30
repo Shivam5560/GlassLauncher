@@ -233,7 +233,6 @@ class OverlayController(
             !screenInteractive -> "screen-off"
             // The app behind the keyguard doesn't count, and HyperOS reports no status bar window while locked.
             excludedInFront && !locked -> "excluded"
-            panelKind != null -> "panel"
             landscape -> "landscape"
             fullscreen && !locked -> "fullscreen"
             gameInFront && !locked -> "game"
@@ -484,6 +483,8 @@ class OverlayController(
             }
             if (!w.show()) return
             panelWindow = w
+            // iOS keeps the Dynamic Island over Notification Centre.
+            island?.raise()
         }
         animatePanel(1f)
     }

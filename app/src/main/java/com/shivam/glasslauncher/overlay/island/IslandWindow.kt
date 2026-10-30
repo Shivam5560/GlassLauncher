@@ -130,6 +130,11 @@ class IslandWindow(
     /** Non-null hides the island (lock screen, fullscreen video or games, an open panel). */
     fun setHidden(reason: String?) { hiddenReason = reason; render() }
     fun setCalibrating(on: Boolean) { calibrating = on; render() }
+    /** Keeps the island (and its touch target) above a panel opened after it, as on iOS. */
+    fun raise() {
+        window.raise()
+        hit?.let { v -> try { wm.removeViewImmediate(v); wm.addView(v, v.layoutParams) } catch (_: Exception) { } }
+    }
 
     private fun presentation(): IslandPresentation {
         if (hiddenReason != null) return IslandPresentation.Hidden
