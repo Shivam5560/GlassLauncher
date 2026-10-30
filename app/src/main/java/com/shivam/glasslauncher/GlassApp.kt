@@ -40,6 +40,7 @@ class GlassApp : Application() {
         layout.load()
         wallpaper.start()
         polish.start()
+        com.shivam.glasslauncher.gestures.GestureGuard.register(this)
         scope.launch {
             settings.state.filterNotNull().map { it.trueTone to it.trueToneStrength }.distinctUntilChanged()
                 .collect { (on, strength) -> com.shivam.glasslauncher.ui.glass.TrueTone.configure(this@GlassApp, on, strength) }

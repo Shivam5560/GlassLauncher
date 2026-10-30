@@ -63,6 +63,7 @@ class GlassGestureService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        GestureGuard.setWanted(this, true)
         wm = getSystemService(WindowManager::class.java)
         overlays = OverlayRuntime.attachAccessibility(this)
         contentResolver.registerContentObserver(Settings.Global.getUriFor("force_fsg_nav_bar"), false, navObserver)
@@ -184,6 +185,8 @@ class GlassGestureService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     override fun onDestroy() {
+        // A clean shutdown is the user switching it off (or our payment pause); a kill never gets here.
+        GestureGuard.setWanted(this, false)
         contentResolver.unregisterContentObserver(navObserver)
         OverlayRuntime.detachAccessibility(this)
         overlays = null
@@ -402,15 +405,43 @@ class GlassGestureService : AccessibilityService() {
          * [resumeAfterPaymentApp] (Glass home resuming) switches it on again. Needs WRITE_SECURE_SETTINGS.
          */
         fun pauseForPaymentApp(context: Context): Boolean {
-            val service = instance ?: return false
             if (context.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) != android.content.pm.PackageManager.PERMISSION_GRANTED) return false
+            pauseAdBlocking(context)
+            val service = instance ?: return false
             context.getSharedPreferences(PAUSE_PREFS, Context.MODE_PRIVATE).edit().putBoolean("paused", true).commit()
             try { Settings.Global.putInt(context.contentResolver, "force_fsg_nav_bar", 0) } catch (_: RuntimeException) { }
             service.disableSelf()
+            GestureGuard.watchPaymentExit(context)
             return true
         }
 
+        /**
+         * Private DNS ad blocking (e.g. AdGuard) breaks some of these apps at launch: while one is open
+         * Private DNS drops to Automatic, and the user's provider comes back with the gestures.
+         */
+        private fun pauseAdBlocking(context: Context) {
+            val prefs = context.getSharedPreferences(PAUSE_PREFS, Context.MODE_PRIVATE)
+            val cr = context.contentResolver
+            try {
+                if (prefs.contains("dns_mode") || Settings.Global.getString(cr, "private_dns_mode") != "hostname") return
+                prefs.edit().putString("dns_mode", "hostname").putString("dns_host", Settings.Global.getString(cr, "private_dns_specifier")).commit()
+                Settings.Global.putString(cr, "private_dns_mode", "opportunistic")
+            } catch (_: RuntimeException) { }
+        }
+
+        private fun resumeAdBlocking(context: Context) {
+            val prefs = context.getSharedPreferences(PAUSE_PREFS, Context.MODE_PRIVATE)
+            val mode = prefs.getString("dns_mode", null) ?: return
+            try {
+                val cr = context.contentResolver
+                prefs.getString("dns_host", null)?.let { Settings.Global.putString(cr, "private_dns_specifier", it) }
+                Settings.Global.putString(cr, "private_dns_mode", mode)
+                prefs.edit().remove("dns_mode").remove("dns_host").apply()
+            } catch (_: RuntimeException) { }
+        }
+
         fun resumeAfterPaymentApp(context: Context) {
+            resumeAdBlocking(context)
             val prefs = context.getSharedPreferences(PAUSE_PREFS, Context.MODE_PRIVATE)
             if (!prefs.getBoolean("paused", false)) return
             try {

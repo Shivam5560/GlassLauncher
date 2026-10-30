@@ -26,4 +26,11 @@ class IslandGeometryTest {
         assertTrue(large > normal)
         assertEquals(normal, IslandGeometry.peekHeight(48f, 0.8f), 0.01f)
     }
+
+    @org.junit.Test
+    fun peekFitsShortMessages() {
+        val short = com.shivam.glasslauncher.overlay.island.IslandGeometry.peekHeight(48f, 1f, "Team: Ana", "Are we on?")
+        val long = com.shivam.glasslauncher.overlay.island.IslandGeometry.peekHeight(48f, 1f, "Team: Ana", "x".repeat(200))
+        org.junit.Assert.assertEquals(20f, long - short, 0.01f) // same one-line title; one vs two message lines
+    }
 }

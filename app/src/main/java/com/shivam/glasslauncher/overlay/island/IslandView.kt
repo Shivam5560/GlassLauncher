@@ -297,14 +297,18 @@ private fun ExpandedContent(a: IslandActivity, ui: IslandUi) {
                     else LiveClock(c.since, false, GlassType.Footnote, Green)
                 }
             }
-            CallActions(c.notificationKey)
+            NotificationActions(c.notificationKey)
         }
-        is IslandContent.Clock -> Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-            GlassIcon(OverlayIcons.Timer, size = 40.dp, tint = Orange)
-            Spacer(Modifier.width(12.dp))
-            IslandLabel(IslandText.clean(c.label), Modifier.weight(1f), style = GlassType.Headline, color = white, maxLines = 2)
-            val big = GlassType.LargeTitle.copy(fontSize = 36.sp, fontWeight = FontWeight.Medium)
-            if (c.hasChronometer) LiveClock(c.base, c.countDown, big, Orange) else IslandLabel(IslandText.clean(c.text), style = big, color = Orange, maxLines = 1)
+        is IslandContent.Clock -> Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                GlassIcon(OverlayIcons.Timer, size = 40.dp, tint = Orange)
+                Spacer(Modifier.width(12.dp))
+                IslandLabel(IslandText.clean(c.label), Modifier.weight(1f), style = GlassType.Headline, color = white, maxLines = 2)
+                val big = GlassType.LargeTitle.copy(fontSize = 36.sp, fontWeight = FontWeight.Medium)
+                if (c.hasChronometer) LiveClock(c.base, c.countDown, big, Orange) else IslandLabel(IslandText.clean(c.text), style = big, color = Orange, maxLines = 1)
+            }
+            // The clock app's own Stop / Silence / Pause buttons.
+            a.notificationKey?.let { NotificationActions(it) }
         }
         is IslandContent.Navigation -> Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
             GlassIcon(OverlayIcons.Navigate, size = 44.dp, tint = Blue)
@@ -345,7 +349,7 @@ private fun ExpandedContent(a: IslandActivity, ui: IslandUi) {
 }
 
 @Composable
-private fun CallActions(key: String) {
+private fun NotificationActions(key: String) {
     val entries by NotificationHub.entries.collectAsState()
     // CallStyle adds its own Hang up next to the dialer's: HyperOS's in-call notification lists it twice.
     val actions = entries.firstOrNull { it.key == key }?.actions.orEmpty().distinctBy { it.title.lowercase() }.take(3)
