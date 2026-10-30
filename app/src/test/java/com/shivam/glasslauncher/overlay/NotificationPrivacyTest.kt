@@ -25,6 +25,26 @@ class NotificationPrivacyTest {
         assertEquals(0, redacted.progressMax)
     }
 
+    @Test fun lockScreenFollowsAndroidSensitiveContentRules() {
+        val noLock = LockPrivacy(deviceSecure = false, allowPrivate = false)
+        val showSensitive = LockPrivacy(deviceSecure = true, allowPrivate = true)
+        val hideSensitive = LockPrivacy(deviceSecure = true, allowPrivate = false)
+        // No PIN: nothing to protect, even secret notifications show.
+        assertEquals("Private message", lockScreenEntries(listOf(entry("s", -1)), noLock).single().text)
+        // PIN + "show sensitive content": private text shows, secret still hidden, actions wait for unlock.
+        val shown = lockScreenEntries(listOf(entry("p"), entry("s", -1)), showSensitive)
+        assertEquals(listOf("p"), shown.map { it.key })
+        assertEquals("Private message", shown.single().text)
+        assertTrue(shown.single().actions.isEmpty())
+        // PIN + hide sensitive: the app's public version, else redacted; public notifications stay readable.
+        val pub = entry("v").copy(publicTitle = "WhatsApp", publicText = "2 new messages")
+        assertEquals("2 new messages", lockScreenEntries(listOf(pub), hideSensitive).single().text)
+        assertEquals(LOCK_REDACTED_TEXT, lockScreenEntries(listOf(entry("r")), hideSensitive).single().text)
+        assertEquals("Private message", lockScreenEntries(listOf(entry("u", 1)), hideSensitive).single().text)
+        // An app locked in Glass stays redacted even when sensitive content is allowed.
+        assertEquals(LOCK_REDACTED_TEXT, lockScreenEntries(listOf(entry("g", 1)), showSensitive.copy(lockedPackages = setOf("app"))).single().text)
+    }
+
     @Test fun filtersPartitionByAndroidChannelImportance() {
         val entries = (0..5).map { entry("$it").copy(importance = it) }
         assertEquals(listOf(3, 4, 5), NotificationFilter.ALERTING.select(entries).map { it.importance })

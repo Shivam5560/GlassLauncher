@@ -150,6 +150,8 @@ object NotificationHub {
             channelId = n.channelId,
             visibility = effectiveLockScreenVisibility(n.visibility, visibilityOverride, channelVisibility),
             isSystem = isSystemApp(context, sbn.packageName),
+            publicTitle = n.publicVersion?.extras?.getCharSequence(Notification.EXTRA_TITLE)?.toString().orEmpty(),
+            publicText = n.publicVersion?.extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString().orEmpty(),
             actions = n.actions.orEmpty().mapIndexed { i, a ->
                 NotifAction(i, a.title?.toString().orEmpty(), a.remoteInputs?.any { it.allowFreeFormInput } == true)
             }.filter { it.title.isNotBlank() },

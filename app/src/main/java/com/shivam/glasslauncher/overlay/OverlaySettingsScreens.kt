@@ -278,8 +278,8 @@ private fun NotificationCenterSettingsScreen(nav: SettingsNav, resumeTick: Int, 
             }
         }
         item {
-            GlassListGroup(title = "Lock screen", footer = "Off by default. Turn this on only if you want Glass to show app names and notification counts while locked, even with the system notification list off. Glass never changes system settings. Message content and actions remain hidden.") {
-                GlassSwitchRow("Private glass cards", s.lockScreenCards, { OverlayPrefs.setLockScreenCards(context, it) }, subtitle = "Show app names and counts while locked; no message text or replies")
+            GlassListGroup(title = "Lock screen", footer = "Off by default. Previews follow Android: with no screen lock everything shows; with a lock, \"Show sensitive content\" in system settings decides, and apps can still hide or shorten theirs. Replies and buttons always wait for unlock.") {
+                GlassSwitchRow("Private glass cards", s.lockScreenCards, { OverlayPrefs.setLockScreenCards(context, it) }, subtitle = "Glass notification cards on the lock screen")
                 GlassRow("System notification settings", icon = GlassIcons.Bell, onClick = opener(activity, listOf(android.content.Intent(Settings.ACTION_SETTINGS))))
             }
         }
