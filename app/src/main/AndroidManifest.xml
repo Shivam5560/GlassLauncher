@@ -113,6 +113,15 @@
         </activity>
 
         <!-- Phase 2: invisible trampoline for the widget bind dialog and configure activities. -->
+        <!-- Lock-screen card tap: unlock, then open that notification. -->
+        <activity
+            android:name=".overlay.notifications.UnlockAndOpenActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
         <activity
             android:name=".widgets.WidgetBindActivity"
             android:excludeFromRecents="true"

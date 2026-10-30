@@ -49,7 +49,7 @@ enum class PanelKind { ControlCenter, NotificationCenter }
  *    zones and the Control Center / Notification Center panels;
  *  - without it (display-over-apps fallback, hosted by the notification listener): the island only,
  *    as TYPE_APPLICATION_OVERLAY, which sits below the status bar.
- * The island hides on the lock screen, in landscape, while the status bar is hidden (fullscreen
+ * The island hides in landscape (and shows only live activities when locked), while the status bar is hidden (fullscreen
  * video) and while a game is in front.
  */
 class OverlayController(
@@ -231,14 +231,15 @@ class OverlayController(
         val reason = when {
             !settingsFlow.value.loaded -> "loading"
             !screenInteractive -> "screen-off"
-            locked -> "locked"
-            excludedInFront -> "excluded"
+            // The app behind the keyguard doesn't count, and HyperOS reports no status bar window while locked.
+            excludedInFront && !locked -> "excluded"
             panelKind != null -> "panel"
             landscape -> "landscape"
-            fullscreen -> "fullscreen"
-            gameInFront -> "game"
+            fullscreen && !locked -> "fullscreen"
+            gameInFront && !locked -> "game"
             else -> null
         }
+        island?.setLocked(locked)
         island?.setHidden(reason)
     }
 

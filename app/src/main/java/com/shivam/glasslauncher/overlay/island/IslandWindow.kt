@@ -110,8 +110,15 @@ class IslandWindow(
     /** The arbiter's slots, swapped while the user has the split activity open. */
     private fun slots(): IslandSlots {
         val s = ui.slots
+        // Message previews would show their text to anyone holding the locked phone.
+        if (locked && s.primary?.kind == IslandKind.Peek) return IslandSlots(s.secondary, null)
         return if (promotedId != null && s.secondary?.id == promotedId) IslandSlots(s.secondary, s.primary) else s
     }
+
+    private var locked = false
+
+    /** Locked: live activities (music, calls, timers) stay; previews and the empty idle pill hide. */
+    fun setLocked(value: Boolean) { if (value != locked) { locked = value; render() } }
 
     fun setSettings(s: IslandSettings) { settings = s; render() }
     fun setScreen(widthPx: Int, cutout: CutoutInfo?) { screenW = widthPx; this.cutout = cutout; render() }
@@ -124,7 +131,7 @@ class IslandWindow(
         if (!settings.showsGlass) return IslandPresentation.Hidden
         val p = slots().primary
         if (p == null) {
-            return if ((settings.showIdlePill && cutout != null) || calibrating) IslandPresentation.Idle else IslandPresentation.Hidden
+            return if ((settings.showIdlePill && cutout != null && !locked) || calibrating) IslandPresentation.Idle else IslandPresentation.Hidden
         }
         if (p.id == expandedId) return IslandPresentation.Expanded
         if (p.kind.autoExpand && p.id !in collapsedIds) return IslandPresentation.Expanded
