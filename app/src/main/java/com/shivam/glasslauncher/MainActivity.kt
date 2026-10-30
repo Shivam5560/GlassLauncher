@@ -49,6 +49,7 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Picks up newly granted wallpaper access (Path B) or a wallpaper changed elsewhere.
         vm.refreshWallpaper()
+        com.shivam.glasslauncher.gestures.GlassGestureService.resumeAfterPaymentApp(this)
     }
 
     override fun onNewIntent(intent: Intent) {

@@ -118,6 +118,7 @@ class GlassGestureService : AccessibilityService() {
                 } catch (e: Exception) { false }
                 if (isActivity && pkg != foregroundPackage) {
                     foregroundPackage = pkg
+                    if (pkg in config.pauseForApps && pauseForPaymentApp(this)) return
                     overlays?.onForegroundApp(pkg, pkg in config.excludedApps)
                 }
             }
@@ -133,6 +134,7 @@ class GlassGestureService : AccessibilityService() {
                     val pkg = try { app.root?.packageName?.toString() } catch (e: Exception) { null }
                     if (pkg != null && pkg != foregroundPackage) {
                         foregroundPackage = pkg
+                        if (pkg in config.pauseForApps && pauseForPaymentApp(this)) return
                         overlays?.onForegroundApp(pkg, pkg in config.excludedApps)
                     }
                 }
@@ -155,7 +157,8 @@ class GlassGestureService : AccessibilityService() {
 
     /**
      * Excluded apps lose the back-swipe edge zones (the home swipe stays so you can always leave);
-     * while the keyboard is up every zone and the pill are hidden.
+     * while the keyboard is up the edges and pill hide and the home zone shrinks to a sliver below
+     * the space bar, so home still works without stealing key taps.
      */
     private fun updatePause() {
         val c = config
@@ -164,8 +167,13 @@ class GlassGestureService : AccessibilityService() {
         val pauseEdges = keyboard || excluded
         if (keyboard != paused) {
             paused = keyboard
-            val vis = if (keyboard) View.GONE else View.VISIBLE
-            listOf(bottomZone, pill).forEach { it?.visibility = vis }
+            pill?.visibility = if (keyboard) View.GONE else View.VISIBLE
+            bottomZone?.let { v ->
+                val p = v.layoutParams as? WindowManager.LayoutParams ?: return@let
+                // ponytail: fixed 10 dp sliver; read the IME window's bottom gap if a keyboard still loses taps.
+                p.height = dp(if (keyboard) minOf(c.bottomZoneHeight, 10f) else c.bottomZoneHeight).toInt()
+                try { wm.updateViewLayout(v, p) } catch (_: Exception) { }
+            }
         }
         if (pauseEdges != edgesPaused) {
             edgesPaused = pauseEdges
@@ -385,6 +393,37 @@ class GlassGestureService : AccessibilityService() {
     companion object {
         @Volatile var instance: GlassGestureService? = null
             private set
+
+        private const val PAUSE_PREFS = "gesture_pause"
+
+        /**
+         * UPI and bank apps refuse to open while a screen-reading accessibility service is on, so the
+         * service switches itself off for them and HyperOS's own buttons come back meanwhile.
+         * [resumeAfterPaymentApp] (Glass home resuming) switches it on again. Needs WRITE_SECURE_SETTINGS.
+         */
+        fun pauseForPaymentApp(context: Context): Boolean {
+            val service = instance ?: return false
+            if (context.checkSelfPermission(android.Manifest.permission.WRITE_SECURE_SETTINGS) != android.content.pm.PackageManager.PERMISSION_GRANTED) return false
+            context.getSharedPreferences(PAUSE_PREFS, Context.MODE_PRIVATE).edit().putBoolean("paused", true).commit()
+            try { Settings.Global.putInt(context.contentResolver, "force_fsg_nav_bar", 0) } catch (_: RuntimeException) { }
+            service.disableSelf()
+            return true
+        }
+
+        fun resumeAfterPaymentApp(context: Context) {
+            val prefs = context.getSharedPreferences(PAUSE_PREFS, Context.MODE_PRIVATE)
+            if (!prefs.getBoolean("paused", false)) return
+            try {
+                val cr = context.contentResolver
+                val me = ComponentName(context, GlassGestureService::class.java).flattenToString()
+                val current = Settings.Secure.getString(cr, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty()
+                if (!isEnabled(context)) {
+                    Settings.Secure.putString(cr, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES, listOf(current, me).filter { it.isNotBlank() }.joinToString(":"))
+                    Settings.Secure.putInt(cr, Settings.Secure.ACCESSIBILITY_ENABLED, 1)
+                }
+                prefs.edit().putBoolean("paused", false).apply()
+            } catch (_: RuntimeException) { }
+        }
 
         fun isEnabled(context: Context): Boolean {
             val flat = Settings.Secure.getString(context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES) ?: return false

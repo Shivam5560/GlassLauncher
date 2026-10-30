@@ -104,6 +104,18 @@ class OverlayController(
                     .collect { rebuildCorners(); updateLockScreen() }
             }
         }
+        if (accessibility != null) {
+            service.contentResolver.registerContentObserver(NativeIslandFlag.uri(), false, nativeIslandObserver)
+            scope.launch {
+                settingsFlow.map { it.loaded to (it.island.enabled && it.island.compatibility == IslandCompatibility.GLASS) }
+                    .distinctUntilChanged()
+                    .collect { (loaded, glassOnly) ->
+                        suppressNative = loaded && glassOnly
+                        if (!loaded) return@collect
+                        if (glassOnly) NativeIslandFlag.suppress(service) else NativeIslandFlag.restore(service)
+                    }
+            }
+        }
         OverlayRuntime.calibrating.let { flow -> scope.launch { flow.collect { island?.setCalibrating(it) } } }
         if (accessibility != null) {
             // Preserve the dialer's incoming-call experience while Glass home is in front.
@@ -117,7 +129,15 @@ class OverlayController(
         }
     }
 
+    private var suppressNative = false
+
+    /** HyperOS switches its island back on at boot: switch it off again while GLASS mode wants one island. */
+    private val nativeIslandObserver = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) { if (suppressNative) NativeIslandFlag.suppress(service) }
+    }
+
     fun detach() {
+        try { service.contentResolver.unregisterContentObserver(nativeIslandObserver) } catch (_: Exception) { }
         lockWindow?.destroy()
         lockWindow = null
         closePanel(immediate = true)
@@ -188,9 +208,10 @@ class OverlayController(
     fun onSystemShade() {
         val (kind, at) = cornerDown ?: return
         cornerDown = null
-        if (android.os.SystemClock.uptimeMillis() - at > 800 || panelKind != null) return
+        if (android.os.SystemClock.uptimeMillis() - at > 800) return
+        // Our panel may already be up (the corner fired too): the shade under it would be left behind on close.
         accessibility?.performGlobalAction(AccessibilityService.GLOBAL_ACTION_DISMISS_NOTIFICATION_SHADE)
-        openPanel(kind)
+        if (panelKind == null) openPanel(kind)
     }
 
     /** From the accessibility service on window changes: HyperOS doesn't always send USER_PRESENT on a swipe unlock. */
@@ -364,7 +385,6 @@ class OverlayController(
                     val dy = e.rawY - downY
                     if (!fired && dy > dp(22f) && dy > abs(e.rawX - downX)) {
                         fired = true
-                        cornerDown = null
                         view.performHapticFeedback(HapticFeedbackConstants.GESTURE_START)
                         openPanel(kind)
                     }

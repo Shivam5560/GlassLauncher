@@ -186,13 +186,15 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                             }
                         }
                         items(stack.items, key = { it.key }) { e ->
-                            SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(listOf(e.key)) }, enabled = e.isClearable) {
-                                NotificationCard(e, host, showActions = true, onClick = { if (NotificationHub.open(context, e.key)) host.close() }, kind = SurfaceKind.Panel)
+                            Box(Modifier.animateItem()) {
+                                SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(listOf(e.key)) }, enabled = e.isClearable) {
+                                    NotificationCard(e, host, showActions = true, onClick = { if (NotificationHub.open(context, e.key)) host.close() }, kind = SurfaceKind.Panel)
+                                }
                             }
                         }
                     } else {
                         item("s:" + stack.packageName) {
-                            Box(if (reducedMotion) Modifier else Modifier.cascade(progress, stacks.indexOf(stack))) {
+                            Box(Modifier.animateItem().then(if (reducedMotion) Modifier else Modifier.cascade(progress, stacks.indexOf(stack)))) {
                                 SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(appKeys(filtered, stack.packageName)) }, enabled = stack.clearableKeys.isNotEmpty()) {
                                     CollapsedStack(stack, host, onExpand = { expanded = expanded + stack.packageName }, kind = SurfaceKind.Panel)
                                 }
@@ -350,7 +352,8 @@ private fun SwipeToDismiss(onDismiss: () -> Unit, enabled: Boolean, content: @Co
                     onDragEnd = {
                         scope.launch {
                             if (abs(offset.value) > width * 0.35f) {
-                                if (!reducedMotion) offset.animateTo(if (offset.value > 0) width * 1.2f else -width * 1.2f, spring(stiffness = 600f))
+                                // A spring keeps settling off-screen (~0.5 s of empty gap); a short tween hands off as soon as the card is gone.
+                                if (!reducedMotion) offset.animateTo(if (offset.value > 0) width * 1.1f else -width * 1.1f, androidx.compose.animation.core.tween(140))
                                 dismiss()
                                 offset.snapTo(0f)
                             } else {

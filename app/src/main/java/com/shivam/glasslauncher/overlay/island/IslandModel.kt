@@ -24,7 +24,10 @@ sealed interface IslandContent {
     data class Charging(val level: Int, val watts: Float?) : IslandContent
     data class Call(val name: String, val incoming: Boolean, val since: Long, val notificationKey: String) : IslandContent
     /** [base] is the chronometer base (Notification.when); [text] is the notification text as a fallback. */
-    data class Clock(val label: String, val base: Long, val countDown: Boolean, val hasChronometer: Boolean, val text: String) : IslandContent
+    data class Clock(val label: String, val base: Long, val countDown: Boolean, val hasChronometer: Boolean, val text: String) : IslandContent {
+        /** No running clock: a finished timer ("Time's up!" over the original "10 seconds") or a paused one. */
+        val stoppedLabel: String get() = if (label.length <= 14) label else text
+    }
     data class Navigation(val primary: String, val secondary: String) : IslandContent
     data class Progress(val title: String, val progress: Int, val max: Int, val indeterminate: Boolean, val upload: Boolean) : IslandContent {
         val fraction: Float get() = if (indeterminate || max <= 0) 0f else (progress.toFloat() / max).coerceIn(0f, 1f)

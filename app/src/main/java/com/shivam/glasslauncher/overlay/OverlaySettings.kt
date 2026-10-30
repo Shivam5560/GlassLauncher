@@ -92,9 +92,7 @@ object OverlayPrefs {
         synchronized(this) {
             flow?.let { return it }
             appContext = context.applicationContext
-            val nativeIsland = try {
-                android.provider.Settings.Global.getInt(appContext.contentResolver, "support_dynamic_island", 0) == 1
-            } catch (_: Exception) { false }
+            val nativeIsland = NativeIslandFlag.present(appContext)
             val d = OverlaySettings(island = IslandSettings(nativeIsland = nativeIsland))
             val f = appContext.overlayStore.data.map { p ->
                 OverlaySettings(

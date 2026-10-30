@@ -185,6 +185,10 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
 
     /** Launches without the lock check. */
     fun launchNow(activity: Activity, entry: AppEntry, bounds: Rect?) {
+        // Off before the app starts: payment apps check for accessibility services at launch.
+        if (settings.value?.gestures?.pauseForApps?.contains(entry.packageName) == true) {
+            com.shivam.glasslauncher.gestures.GlassGestureService.pauseForPaymentApp(activity)
+        }
         if (g.actions.launch(activity, entry, bounds)) g.usage.recordLaunch(entry.key)
     }
 
