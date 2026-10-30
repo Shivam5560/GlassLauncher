@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import com.shivam.glasslauncher.ui.home.ownsVerticalScroll
@@ -145,12 +146,30 @@ private fun EventRow(e: CalendarEvent, compact: Boolean) {
     val context = LocalContext.current
     val env = LocalWidgetEnv.current
     val tint = Color(e.color or 0xFF000000.toInt())
-    // Each event is its own clear glass card, tinted with its calendar's colour.
+    val allDay = e.allDay || e.end - e.begin >= 23 * 3600_000L
+    if (allDay && !compact) {
+        // All-day items (out of office, holidays) are slim neutral chips, not big coloured blocks.
+        GlassSurface(
+            Modifier.fillMaxWidth(),
+            shape = GlassShape.Capsule,
+            variant = GlassVariant.Clear,
+            onClick = { if (!CalendarRepository.openEvent(context, e)) env?.toast?.invoke("No calendar app is available") },
+        ) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.size(8.dp).clip(GlassShape.Circle).background(tint))
+                Spacer(Modifier.width(8.dp))
+                GlassText(e.title, Modifier.weight(1f), style = GlassType.Footnote.copy(fontWeight = FontWeight.SemiBold), color = Color.White, maxLines = 1)
+                GlassText("All day", style = GlassType.Caption, color = Color.White.copy(alpha = 0.6f), maxLines = 1)
+            }
+        }
+        return
+    }
+    // Each timed event is its own clear glass card with just a hint of its calendar's colour.
     GlassSurface(
         Modifier.fillMaxWidth(),
         shape = GlassShape.rounded(14.dp),
         variant = GlassVariant.Clear,
-        tintOverride = tint.copy(alpha = 0.22f),
+        tintOverride = tint.copy(alpha = 0.10f),
         onClick = { if (!CalendarRepository.openEvent(context, e)) env?.toast?.invoke("No calendar app is available") },
     ) {
     Row(
