@@ -269,7 +269,16 @@ private fun QuickButtons(host: PanelHost, modifier: Modifier) {
 @Composable
 fun LockScreenNotifications(host: PanelHost, maxHeight: androidx.compose.ui.unit.Dp) {
     val all by NotificationHub.entries.collectAsState()
-    val entries = remember(all) { lockScreenEntries(all) }
+    // Read once per lock: the window is rebuilt every time the phone locks.
+    val privacy = remember {
+        val context = host.context
+        LockPrivacy(
+            deviceSecure = context.getSystemService(android.app.KeyguardManager::class.java)?.isDeviceSecure != false,
+            allowPrivate = Settings.Secure.getInt(context.contentResolver, "lock_screen_allow_private_notifications", 1) != 0,
+            lockedPackages = GlassApp.from(context).settings.state.value?.locked.orEmpty().mapTo(HashSet()) { it.substringBefore('/') },
+        )
+    }
+    val entries = remember(all, privacy) { lockScreenEntries(all, privacy) }
     var expanded by remember { mutableStateOf(emptySet<String>()) }
     val stacks = remember(entries, expanded) { NotificationGrouping.stacks(entries, expanded) }
     if (stacks.isEmpty()) return
@@ -282,7 +291,7 @@ fun LockScreenNotifications(host: PanelHost, maxHeight: androidx.compose.ui.unit
             GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.Capsule, role = null) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     GlassText("${stacks.sumOf { it.count }} notifications", Modifier.weight(1f), style = GlassType.Subhead)
-                    GlassText("Unlock to view", style = GlassType.Caption, secondary = true)
+                    if (entries.any { it.text == LOCK_REDACTED_TEXT }) GlassText("Unlock to view", style = GlassType.Caption, secondary = true)
                 }
             }
         }

@@ -39,6 +39,9 @@ data class NotifEntry(
     val visibility: Int = 0, // Notification.VISIBILITY_PRIVATE; -1 is secret
     /** Posted by a preinstalled system app (Android System, System UI, HyperOS services). */
     val isSystem: Boolean = false,
+    /** Notification.publicVersion: the app's own safe lock-screen text ("2 new messages"). */
+    val publicTitle: String = "",
+    val publicText: String = "",
 ) {
     /**
      * Sticky system status (USB debugging, charging, "running in background") that the user can't
@@ -100,11 +103,28 @@ object NotificationGrouping {
     fun clearAllKeys(entries: List<NotifEntry>): List<String> = visible(entries).filter { it.isClearable }.map { it.key }
 }
 
-/** Lock overlays never expose message content, actions, progress or private group metadata. */
-fun lockScreenEntries(entries: List<NotifEntry>): List<NotifEntry> = entries
-    .filter { it.visibility != -1 && !it.isMedia }
-    .map { it.copy(title = it.appLabel, text = "Unlock to view notification", subText = "",
-        actions = emptyList(), progress = 0, progressMax = 0, progressIndeterminate = false) }
+/** Android's lock-screen rules: a phone without a PIN has nothing to hide; "sensitive content" decides the rest. */
+data class LockPrivacy(val deviceSecure: Boolean, val allowPrivate: Boolean, val lockedPackages: Set<String> = emptySet())
+
+const val LOCK_REDACTED_TEXT = "Unlock to view notification"
+
+/**
+ * What a locked phone may show, as SystemUI does: secret notifications are dropped on a secure lock,
+ * private ones show when "sensitive content" is allowed, else the app's public version, else a
+ * redacted card. Actions and replies always wait for unlock.
+ */
+fun lockScreenEntries(entries: List<NotifEntry>, privacy: LockPrivacy = LockPrivacy(deviceSecure = true, allowPrivate = false)): List<NotifEntry> = entries
+    .filter { !it.isMedia && !(privacy.deviceSecure && it.visibility == -1) }
+    .map { e ->
+        val base = e.copy(actions = emptyList())
+        when {
+            // Apps locked in Glass keep their text behind the unlock, like a hidden-content app.
+            !privacy.deviceSecure || (e.packageName !in privacy.lockedPackages && (e.visibility == 1 || privacy.allowPrivate)) -> base
+            e.publicTitle.isNotBlank() || e.publicText.isNotBlank() ->
+                base.copy(title = e.publicTitle.ifBlank { e.appLabel }, text = e.publicText, subText = "", progress = 0, progressMax = 0, progressIndeterminate = false)
+            else -> base.copy(title = e.appLabel, text = LOCK_REDACTED_TEXT, subText = "", progress = 0, progressMax = 0, progressIndeterminate = false)
+        }
+    }
 
 /** These are Android channel importance buckets, never an inferred AI priority. */
 enum class NotificationFilter(val title: String) {

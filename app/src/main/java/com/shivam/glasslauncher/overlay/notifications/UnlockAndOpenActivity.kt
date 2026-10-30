@@ -14,7 +14,8 @@ class UnlockAndOpenActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setShowWhenLocked(true)
+        // Not setShowWhenLocked: on HyperOS an activity over the keyguard occludes it, which cancels the
+        // bouncer ~0.4 s after it appears. Staying behind the keyguard keeps PIN/fingerprint up.
         val key = intent.getStringExtra(EXTRA_KEY) ?: return finish()
         val keyguard = getSystemService(KeyguardManager::class.java)
         if (keyguard == null || !keyguard.isKeyguardLocked) {
