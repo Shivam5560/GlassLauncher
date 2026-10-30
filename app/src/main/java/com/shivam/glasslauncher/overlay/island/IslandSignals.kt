@@ -23,7 +23,7 @@ data class BatteryInfo(val level: Int, val charging: Boolean, val watts: Float?,
  * System signals for the island that do not come from notifications: battery and charging
  * (ACTION_POWER_CONNECTED + BatteryManager), ringer mode changes, camera and microphone use
  * (CameraManager.AvailabilityCallback / AudioManager recording callbacks: best effort), and the
- * keyguard, so the island hides on the lock screen.
+ * keyguard, so the island drops message previews on the lock screen.
  */
 class IslandSignals(context: Context) {
 

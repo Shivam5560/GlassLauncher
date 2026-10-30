@@ -292,7 +292,8 @@ fun LockScreenNotifications(host: PanelHost, maxHeight: androidx.compose.ui.unit
                     GlassButton("Show less · ${stack.appLabel}", onClick = { expanded = expanded - stack.packageName })
                 }
                 items(stack.items, key = { "lock:" + it.key }) { e ->
-                    NotificationCard(e, host, showActions = false, onClick = { expanded = expanded - stack.packageName }, kind = SurfaceKind.Panel)
+                    // Expanded cards open their notification after unlock; "Show less" collapses.
+                    NotificationCard(e, host, showActions = false, onClick = { UnlockAndOpenActivity.start(host.context, e.key) }, kind = SurfaceKind.Panel)
                 }
             } else {
                 item("lock-stack:" + stack.packageName) {
@@ -395,7 +396,11 @@ private fun CollapsedStack(stack: NotifStack, host: PanelHost, onExpand: () -> U
             host,
             showActions = stack.count == 1 && !locked,
             badge = if (stack.hiddenCount > 0) "+${stack.hiddenCount}" else null,
-            onClick = if (locked || stack.count > 1) onExpand else openLatest,
+            onClick = when {
+                stack.count > 1 -> onExpand
+                locked -> { { UnlockAndOpenActivity.start(host.context, stack.latest.key) } }
+                else -> openLatest
+            },
             kind = kind,
         )
     }

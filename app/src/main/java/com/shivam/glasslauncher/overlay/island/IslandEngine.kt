@@ -84,8 +84,8 @@ class IslandEngine private constructor(context: Context) {
             },
             // Ticker: expires transient activities, paused music and refreshes the charging watts.
             scope.launch {
-                combine(settings, signals.interactive, signals.locked) { prefs, interactive, locked ->
-                    prefs.island.showsGlass && interactive && !locked
+                combine(settings, signals.interactive) { prefs, interactive ->
+                    prefs.island.showsGlass && interactive
                 }.distinctUntilChanged().collectLatest { enabled ->
                     recompute()
                     if (enabled) while (isActive) {
@@ -136,11 +136,13 @@ class IslandEngine private constructor(context: Context) {
         val now = SystemClock.elapsedRealtime()
         val settings: OverlaySettings = OverlayPrefs.state(ctx).value
         val island = settings.island
-        if (!island.showsGlass || !signals.interactive.value || signals.locked.value) {
+        if (!island.showsGlass || !signals.interactive.value) {
             peeks.clear()
             _ui.value = IslandUi(battery = signals.batteryInfo.value)
             return
         }
+        // Locked: live activities (music, calls, timers) stay; message previews never show.
+        if (signals.locked.value) peeks.clear()
         val list = ArrayList<IslandActivity>()
 
         NotificationHub.entries.value.forEach { e: NotifEntry -> IslandClassifier.classify(e)?.let { list.add(it) } }
