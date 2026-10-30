@@ -165,7 +165,8 @@ class IslandWindow(
             IslandPresentation.Expanded -> {
                 val w = min(screenW - 2 * margin, dp(420f))
                 val cameraBand = IslandGeometry.contentTop(c?.safeBottom?.div(density), (cy - h / 2f) / density, h / density)
-                val eh = if (primary?.kind == IslandKind.Peek) dp(IslandGeometry.peekHeight(cameraBand, context.resources.configuration.fontScale))
+                val peek = primary?.content as? IslandContent.Peek
+                val eh = if (peek != null) dp(IslandGeometry.peekHeight(cameraBand, context.resources.configuration.fontScale, IslandText.orFallback(peek.title, peek.appLabel), IslandText.clean(peek.text)))
                     else max(dp(expandedHeight(primary?.kind)) * s.scale.coerceIn(0.85f, 1.3f), dp(cameraBand + contentBelowCamera(primary?.kind)))
                 val left = (cx - w / 2f).coerceIn(margin, screenW - margin - w)
                 Rect(left, cy - h / 2f, left + w, cy - h / 2f + eh)
@@ -227,9 +228,9 @@ class IslandWindow(
         window.update()
     }
 
-    /** Content under the camera band: calls need the caller row (40 dp) plus a 48 dp button row. */
+    /** Content under the camera band: calls and clocks need their row (40 dp) plus a 48 dp button row. */
     private fun contentBelowCamera(kind: IslandKind?): Float = when (kind) {
-        IslandKind.IncomingCall, IslandKind.OngoingCall -> 122f
+        IslandKind.IncomingCall, IslandKind.OngoingCall, IslandKind.Timer, IslandKind.Stopwatch -> 122f
         else -> 80f
     }
 

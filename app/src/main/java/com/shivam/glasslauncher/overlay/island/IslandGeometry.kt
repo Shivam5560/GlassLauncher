@@ -12,9 +12,14 @@ object IslandGeometry {
 
     fun peekMessageLines(fontScale: Float): Int = if (fontScale > 1.2f) 3 else 2
 
-    fun peekHeight(cameraBand: Float, fontScale: Float): Float {
+    fun peekHeight(cameraBand: Float, fontScale: Float, title: String? = null, message: String? = null): Float {
         val scale = fontScale.coerceAtLeast(1f)
-        // App row, gaps/insets, two title lines and the available message lines.
-        return cameraBand + max(26f, 18f * scale) + 28f + (44f + 20f * peekMessageLines(scale)) * scale
+        // ponytail: ~38 characters per line at 1x on a 420 dp card; measure text if previews still pad oddly.
+        val perLine = (38f / scale).toInt().coerceAtLeast(10)
+        fun lines(t: String?, max: Int) = if (t == null) max else ((t.length + perLine - 1) / perLine).coerceIn(if (t.isEmpty()) 0 else 1, max)
+        val titleLines = lines(title, 2)
+        val messageLines = lines(message, peekMessageLines(scale))
+        // App row, gaps/insets, title lines (22 dp) and message lines (20 dp).
+        return cameraBand + max(26f, 18f * scale) + 28f + (22f * titleLines + 20f * messageLines) * scale
     }
 }

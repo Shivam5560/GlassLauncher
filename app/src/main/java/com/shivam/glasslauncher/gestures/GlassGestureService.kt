@@ -63,6 +63,7 @@ class GlassGestureService : AccessibilityService() {
     override fun onServiceConnected() {
         super.onServiceConnected()
         instance = this
+        GestureGuard.setWanted(this, true)
         wm = getSystemService(WindowManager::class.java)
         overlays = OverlayRuntime.attachAccessibility(this)
         contentResolver.registerContentObserver(Settings.Global.getUriFor("force_fsg_nav_bar"), false, navObserver)
@@ -184,6 +185,8 @@ class GlassGestureService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     override fun onDestroy() {
+        // A clean shutdown is the user switching it off (or our payment pause); a kill never gets here.
+        GestureGuard.setWanted(this, false)
         contentResolver.unregisterContentObserver(navObserver)
         OverlayRuntime.detachAccessibility(this)
         overlays = null
@@ -407,6 +410,7 @@ class GlassGestureService : AccessibilityService() {
             context.getSharedPreferences(PAUSE_PREFS, Context.MODE_PRIVATE).edit().putBoolean("paused", true).commit()
             try { Settings.Global.putInt(context.contentResolver, "force_fsg_nav_bar", 0) } catch (_: RuntimeException) { }
             service.disableSelf()
+            GestureGuard.watchPaymentExit(context)
             return true
         }
 

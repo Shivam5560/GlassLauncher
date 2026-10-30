@@ -50,6 +50,8 @@ class MainActivity : ComponentActivity() {
         // Picks up newly granted wallpaper access (Path B) or a wallpaper changed elsewhere.
         vm.refreshWallpaper()
         com.shivam.glasslauncher.gestures.GlassGestureService.resumeAfterPaymentApp(this)
+        // Give a normal (re)bind a moment before treating the service as dead.
+        window.decorView.postDelayed({ com.shivam.glasslauncher.gestures.GestureGuard.ensureRunning(this) }, 2_000)
     }
 
     override fun onNewIntent(intent: Intent) {
