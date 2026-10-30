@@ -5,7 +5,15 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculateRotation
 import androidx.compose.foundation.gestures.calculateZoom
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -88,12 +96,16 @@ fun Modifier.homeGestures(
     enabled: Boolean,
     isBound: (HomeGesture) -> Boolean,
     onGesture: (HomeGesture, Offset) -> Unit,
-): Modifier = if (!enabled) this else pointerInput(Unit) {
+): Modifier = if (!enabled) this else composed {
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    onGloballyPositioned { origin = it.positionInWindow() }.pointerInput(Unit) {
     val swipe = 56.dp.toPx()
     val fire = 40.dp.toPx()
     val slop = viewConfiguration.touchSlop
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
+        // A list inside a widget (calendar) keeps its own vertical scrolling.
+        val inScroller = ScrollRegions.contains(down.position + origin)
         var total = Offset.Zero
         var vertical = false
         var multi = false
@@ -129,7 +141,7 @@ fun Modifier.homeGestures(
             }
             if (multi) continue
             val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
-            if (!ch.pressed) break
+            if (!ch.pressed || inScroller) break
             total += ch.positionChange()
             if (!vertical && total.getDistance() >= slop) {
                 // Direction is decided once, at touch slop: later wobble no longer hands the swipe to the pager.
@@ -153,6 +165,21 @@ fun Modifier.homeGestures(
             }
         }
     }
+    }
+}
+
+/** Areas (window coordinates) that scroll vertically on their own; home swipes starting there are skipped. */
+object ScrollRegions {
+    private val rects = HashMap<Any, Rect>()
+    fun contains(p: Offset) = rects.values.any { it.contains(p) }
+    fun set(key: Any, r: Rect?) { if (r == null) rects.remove(key) else rects[key] = r }
+}
+
+/** Marks a vertically scrolling list inside a home widget (see [ScrollRegions]). */
+fun Modifier.ownsVerticalScroll(): Modifier = composed {
+    val key = remember { Any() }
+    androidx.compose.runtime.DisposableEffect(key) { onDispose { ScrollRegions.set(key, null) } }
+    onGloballyPositioned { ScrollRegions.set(key, it.boundsInWindow()) }
 }
 
 /** Small rect around a touch point, used as the morph origin for Spotlight. */

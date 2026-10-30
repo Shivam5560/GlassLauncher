@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import com.shivam.glasslauncher.ui.home.ownsVerticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,7 +48,7 @@ import java.time.format.TextStyle
 import java.util.Locale
 
 /**
- * Today's date and "Up next" events with coloured calendar markers. READ_CALENDAR is asked the
+ * Upcoming events grouped under their own day (Today, Tomorrow, …) with coloured calendar markers. READ_CALENDAR is asked the
  * first time the user taps the prompt; tapping an event opens it in the calendar app.
  */
 @Composable
@@ -65,7 +68,7 @@ fun CalendarWidget(size: WidgetSize, modifier: Modifier = Modifier) {
     LaunchedEffect(Unit) { CalendarRepository.changes(context).collect { tick.intValue++ } }
     val granted = remember(tick.intValue) { CalendarRepository.hasPermission(context) }
     val events by produceState<List<CalendarEvent>?>(null, tick.intValue, granted) {
-        value = if (granted) CalendarRepository.upcoming(context, days = if (size == WidgetSize.LARGE) 7 else 3) else emptyList()
+        value = if (granted) CalendarRepository.upcoming(context, days = 7, limit = 30) else emptyList()
     }
 
     if (!granted) {
@@ -87,42 +90,39 @@ fun CalendarWidget(size: WidgetSize, modifier: Modifier = Modifier) {
     }) {
         when (size) {
             WidgetSize.SMALL, WidgetSize.BAR -> Column(Modifier.fillMaxSize()) {
-                DateHeader(today, big = true)
-                Spacer(Modifier.weight(1f))
                 val next = list.firstOrNull()
+                // The day of the next event, not today's date: "Tomorrow" must never read as today.
+                GlassText(if (next == null) "TODAY" else dayTitle(eventDay(next), today), style = GlassType.Caption, color = GlassColors.Red, maxLines = 1)
+                Spacer(Modifier.weight(1f))
                 if (next == null) {
-                    GlassText("No more events today", style = GlassType.Footnote, secondary = true, maxLines = 2)
+                    GlassText("No upcoming events", style = GlassType.Footnote, secondary = true, maxLines = 2)
                 } else {
                     EventRow(next, compact = true)
                 }
             }
-            WidgetSize.MEDIUM -> Row(Modifier.fillMaxSize()) {
-                Column(Modifier.width(96.dp).fillMaxHeight()) {
-                    DateHeader(today, big = true)
-                }
-                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    if (list.isEmpty()) {
-                        GlassText("No more events", style = GlassType.Callout, secondary = true)
-                    } else {
-                        list.take(3).forEach { EventRow(it, compact = false) }
-                    }
-                }
-            }
-            WidgetSize.LARGE -> Column(Modifier.fillMaxSize()) {
-                DateHeader(today, big = false)
-                Spacer(Modifier.height(10.dp))
+            WidgetSize.MEDIUM, WidgetSize.LARGE -> {
                 if (list.isEmpty()) {
-                    GlassText("Nothing planned for the next 7 days", style = GlassType.Callout, secondary = true)
+                    Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
+                        GlassText("UP NEXT", style = GlassType.Caption, color = GlassColors.Red, maxLines = 1)
+                        Spacer(Modifier.height(6.dp))
+                        GlassText("Nothing planned for the next 7 days", style = GlassType.Callout, secondary = true)
+                    }
                 } else {
-                    var lastDay: LocalDate? = null
-                    list.take(7).forEach { e ->
-                        val d = Instant.ofEpochMilli(e.begin.coerceAtLeast(System.currentTimeMillis())).atZone(ZoneId.systemDefault()).toLocalDate()
-                        if (d != lastDay) {
-                            lastDay = d
-                            GlassText(dayTitle(d, today), style = GlassType.Caption, secondary = true, modifier = Modifier.padding(top = 6.dp, bottom = 3.dp))
+                    // Grouped by day and scrollable: each event sits under its own day, so later days never read as today.
+                    val days = list.groupBy { eventDay(it) }
+                    LazyColumn(Modifier.fillMaxSize().ownsVerticalScroll(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        days.forEach { (day, items) ->
+                            item(key = "d$day") {
+                                GlassText(
+                                    dayTitle(day, today),
+                                    style = GlassType.Caption.copy(fontWeight = FontWeight.SemiBold),
+                                    color = if (day == today) GlassColors.Red else Color.White.copy(alpha = 0.72f),
+                                    maxLines = 1,
+                                    modifier = Modifier.padding(top = if (day == days.keys.first()) 0.dp else 8.dp, bottom = 2.dp),
+                                )
+                            }
+                            items(items, key = { "e${it.eventId}_${it.begin}" }) { EventRow(it, compact = false) }
                         }
-                        EventRow(e, compact = false)
-                        Spacer(Modifier.height(5.dp))
                     }
                 }
             }
@@ -130,15 +130,9 @@ fun CalendarWidget(size: WidgetSize, modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-private fun DateHeader(day: LocalDate, big: Boolean) {
-    GlassText(day.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault()).uppercase(), style = GlassType.Caption, color = GlassColors.Red, maxLines = 1)
-    if (big) {
-        GlassText("${day.dayOfMonth}", style = GlassType.LargeTitle.copy(fontSize = 48.sp, fontWeight = FontWeight.Normal, letterSpacing = (-1.5).sp, fontFeatureSettings = "tnum"), maxLines = 1)
-    } else {
-        GlassText(day.format(DateTimeFormatter.ofPattern("d MMMM")), style = GlassType.Title, maxLines = 1)
-    }
-}
+/** The day an event belongs to in the list: today for ones already running. */
+private fun eventDay(e: CalendarEvent): LocalDate =
+    Instant.ofEpochMilli(e.begin.coerceAtLeast(System.currentTimeMillis())).atZone(ZoneId.systemDefault()).toLocalDate()
 
 @Composable
 private fun EventRow(e: CalendarEvent, compact: Boolean) {
@@ -165,7 +159,8 @@ private fun EventRow(e: CalendarEvent, compact: Boolean) {
 }
 
 private fun timeLabel(context: android.content.Context, e: CalendarEvent): String {
-    if (e.allDay) return "All day"
+    // Full-day blocks (e.g. "Out of office" stored as 12:00 am – 12:00 am) read as all day.
+    if (e.allDay || e.end - e.begin >= 23 * 3600_000L) return "All day"
     val fmt = DateTimeFormatter.ofPattern(if (DateFormat.is24HourFormat(context)) "HH:mm" else "h:mm a")
     val zone = ZoneId.systemDefault()
     val b = Instant.ofEpochMilli(e.begin).atZone(zone)
@@ -175,7 +170,7 @@ private fun timeLabel(context: android.content.Context, e: CalendarEvent): Strin
 }
 
 private fun dayTitle(d: LocalDate, today: LocalDate): String = when (d) {
-    today -> "TODAY"
-    today.plusDays(1) -> "TOMORROW"
+    today -> "TODAY · " + d.format(DateTimeFormatter.ofPattern("EEE d MMM")).uppercase()
+    today.plusDays(1) -> "TOMORROW · " + d.format(DateTimeFormatter.ofPattern("EEE d MMM")).uppercase()
     else -> d.format(DateTimeFormatter.ofPattern("EEEE d MMM")).uppercase()
 }
