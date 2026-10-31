@@ -77,9 +77,11 @@ fun WallpaperBackdropLayer(
     parallax: (() -> Offset)? = null,
     /** Black dim alpha baked into the recorded copy, so glass refracts the dimmed picture, not a brighter one. */
     dim: (() -> Float)? = null,
+    /** Records this (e.g. a pre-blurred copy of the wallpaper) instead, never drawn on screen. */
+    still: androidx.compose.ui.graphics.ImageBitmap? = null,
 ) {
-    val image = snapshot.image
-    Canvas(Modifier.fillMaxSize().recordBackdrop(layer, drawToScreen = parallax != null)) {
+    val image = still ?: snapshot.image
+    Canvas(Modifier.fillMaxSize().recordBackdrop(layer, drawToScreen = parallax != null && still == null)) {
         if (enabled && image != null) {
             if (parallax == null) {
                 drawImage(

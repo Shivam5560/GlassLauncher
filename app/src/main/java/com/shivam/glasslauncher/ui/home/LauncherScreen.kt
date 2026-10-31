@@ -235,6 +235,14 @@ fun LauncherScreen(
     val panelWall = rememberBlurredCopy(snapshot.image, glass.blurRadius)
     val panelHome = rememberBlurredCopy(frozenHome, glass.blurRadius, FROZEN_SCALE)
     val stills = hasWallpaper && panelWall != null && panelHome != null
+    // Glass on the pages refracts the blurred wallpaper still, not the live copy: every widget, folder
+    // and App Library panel otherwise re-blurred the wallpaper on every frame of a swipe.
+    // Blurred at the real radius (the wallpaper copy is smaller than the screen), so widgets look as before.
+    val pagesWallLayer = rememberGraphicsLayer()
+    val pagesWall = rememberBlurredCopy(snapshot.image, glass.blurRadius, snapshot.image?.let { it.width.toFloat() / snapshot.screenWidth.coerceAtLeast(1) } ?: 1f)
+    val pagesBackdrop = remember(wallpaperOnly, pagesWall != null) {
+        if (hasWallpaper && pagesWall != null) Backdrop(listOf(pagesWallLayer), snapshot, preBlurred = true) else wallpaperOnly
+    }
     val overlayBackdrop = remember(hasWallpaper, snapshot, frozen, stills) {
         if (stills) Backdrop(listOf(panelWallLayer, panelHomeLayer), snapshot, preBlurred = true)
         else Backdrop(if (frozen) base + frozenHomeLayer else base, snapshot)
@@ -503,6 +511,7 @@ fun LauncherScreen(
                 }
                 val parallaxOn = settings.wallpaperParallax && hasWallpaper && !reduced
                 WallpaperBackdropLayer(snapshot, wallpaperLayer, hasWallpaper, parallax = if (parallaxOn) ({ tilt.value }) else null, dim = { dimFraction() * pageDimAlpha })
+                if (pagesWall != null) WallpaperBackdropLayer(snapshot, pagesWallLayer, hasWallpaper, parallax = if (parallaxOn) ({ tilt.value }) else null, dim = { dimFraction() * pageDimAlpha }, still = pagesWall)
 
                 // As on iOS the wallpaper blurs behind the App Library and Today view (HyperOS's window blur
                 // skips the system wallpaper, so this is our own blurred copy, faded in with the swipe).
@@ -610,7 +619,7 @@ fun LauncherScreen(
                                         translationY += editShift.value
                                     }
                                 }) {
-                                CompositionLocalProvider(LocalBackdrop provides wallpaperOnly) {
+                                CompositionLocalProvider(LocalBackdrop provides pagesBackdrop) {
                                     if (page < 0) {
                                         // The dim keeps white text at AA for any wallpaper, so Today always uses light text.
                                         TodayView(widgetUi, ui.editMode, { ui.editMode = it }, lightWallpaper = false)
