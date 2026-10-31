@@ -99,6 +99,12 @@ class OverlayController(
         scope.launch { engine.signals.interactive.collect { screenInteractive = it; updateHidden(); updateLockScreen(); rebuildCorners() } }
         if (accessibility != null) {
             scope.launch {
+                com.shivam.glasslauncher.overlay.notifications.NotificationHub.entries
+                    .map { es -> es.any { com.shivam.glasslauncher.overlay.island.IslandClassifier.classify(it)?.kind.let { k -> k == IslandKind.IncomingCall || k == IslandKind.OngoingCall } } }
+                    .distinctUntilChanged()
+                    .collect { callActive = it; updateLockScreen() }
+            }
+            scope.launch {
                 settingsFlow.map { listOf(it.loaded, it.controlCenter, it.notificationCenter, it.lockScreenCards, it.cornerWidth, it.cornerHeight) }
                     .distinctUntilChanged()
                     .collect { rebuildCorners(); updateLockScreen() }
@@ -260,6 +266,8 @@ class OverlayController(
      * Privacy-safe glass cards supplement the lock screen only when its native list is off.
      */
     private var wasLocked = false
+    /** A call is ringing or live (same classification as the island's call activities). */
+    private var callActive = false
 
     private fun updateLockScreen() {
         // A panel left open when the phone locks would sit behind the lock cards (two backgrounds).
@@ -274,6 +282,7 @@ class OverlayController(
         val show = com.shivam.glasslauncher.overlay.notifications.shouldShowLockCards(
             optedIn = prefs.lockScreenCards, nativeNotificationsShown = nativeList, locked = locked,
             ready = prefs.loaded && prefs.notificationCenter && accessibility != null && screenInteractive,
+            callActive = callActive,
         )
         if (show == (lockWindow != null)) return
         if (!show) {

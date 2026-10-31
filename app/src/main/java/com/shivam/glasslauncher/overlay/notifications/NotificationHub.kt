@@ -50,6 +50,7 @@ object NotificationHub {
 
     fun onConnected(service: NotificationListenerService) {
         listener = service
+        loadHidden(service)
         _connected.value = true
         _interruptionFilter.value = try { service.currentInterruptionFilter } catch (e: Exception) { NotificationListenerService.INTERRUPTION_FILTER_UNKNOWN }
         refreshAll(service)
@@ -67,8 +68,9 @@ object NotificationHub {
         val isNew = !raw.containsKey(sbn.key)
         raw[sbn.key] = sbn
         val entry = parse(service, sbn, ranking)
-        _entries.value = _entries.value.filterNot { it.key == sbn.key } + entry
-        if (isNew) _posted.tryEmit(entry)
+        val shown = !isHidden(entry)
+        _entries.value = _entries.value.filterNot { it.key == sbn.key } + listOfNotNull(entry.takeIf { shown })
+        if (isNew && shown) _posted.tryEmit(entry)
     }
 
     fun onRemoved(sbn: StatusBarNotification) {
@@ -79,7 +81,7 @@ object NotificationHub {
     /** Channel/privacy changes can arrive without a new notification being posted. */
     fun onRankingUpdated(service: NotificationListenerService, ranking: NotificationListenerService.RankingMap) {
         if (listener !== service) return
-        _entries.value = raw.values.toList().map { parse(service, it, ranking) }
+        _entries.value = raw.values.toList().map { parse(service, it, ranking) }.filterNot(::isHidden)
     }
 
     fun onInterruptionFilterChanged(filter: Int) { _interruptionFilter.value = filter }
@@ -89,7 +91,10 @@ object NotificationHub {
         val ranking = try { service.currentRanking } catch (e: Exception) { null }
         raw.clear()
         active.forEach { raw[it.key] = it }
-        _entries.value = active.map { parse(service, it, ranking) }
+        // Forget hides for notifications that are gone, so the saved list can't grow forever.
+        val live = _hidden.value.filterKeys { raw.containsKey(it) }
+        if (live.size != _hidden.value.size) setHidden(live)
+        _entries.value = active.map { parse(service, it, ranking) }.filterNot(::isHidden)
     }
 
     private val systemApps = ConcurrentHashMap<String, Boolean>()
@@ -179,10 +184,27 @@ object NotificationHub {
 
     /**
      * Ongoing notifications the user cleared (key -> postTime then). Android won't cancel them, so
-     * Glass hides them until the app posts them again.
+     * Glass hides them until the app posts them again. Applied here, at the source, so every surface
+     * (Notification Centre, lock-screen cards) agrees, and saved so a Glass restart doesn't bring them back.
      */
-    private val _hidden = kotlinx.coroutines.flow.MutableStateFlow<Map<String, Long>>(emptyMap())
-    val hidden: kotlinx.coroutines.flow.StateFlow<Map<String, Long>> = _hidden
+    private val _hidden = MutableStateFlow<Map<String, Long>>(emptyMap())
+    private var hiddenPrefs: android.content.SharedPreferences? = null
+
+    private fun isHidden(e: NotifEntry) = (_hidden.value[e.key] ?: -1L) >= e.postTime
+
+    private fun loadHidden(context: Context) {
+        val prefs = context.getSharedPreferences("notif_hidden", Context.MODE_PRIVATE).also { hiddenPrefs = it }
+        _hidden.value = prefs.all.mapNotNull { (k, v) -> (v as? Long)?.let { k to it } }.toMap()
+    }
+
+    private fun setHidden(map: Map<String, Long>) {
+        _hidden.value = map
+        hiddenPrefs?.edit()?.let { ed ->
+            ed.clear()
+            map.forEach { (k, t) -> ed.putLong(k, t) }
+            ed.apply()
+        }
+    }
 
     fun dismissAll(keys: List<String>) {
         if (keys.isEmpty()) return
@@ -196,7 +218,10 @@ object NotificationHub {
                 }
             } catch (e: Exception) { Log.w(TAG, "clear failed", e) }
         }
-        if (sticky.isNotEmpty()) _hidden.value = _hidden.value + sticky.associateWith { raw[it]?.postTime ?: Long.MAX_VALUE }
+        if (sticky.isNotEmpty()) {
+            setHidden(_hidden.value + sticky.associateWith { raw[it]?.postTime ?: Long.MAX_VALUE })
+            _entries.value = _entries.value.filterNot { it.key in sticky }
+        }
     }
 
     /** Asks the system for a Do Not Disturb filter through the listener (fallback without DND access). */

@@ -102,10 +102,8 @@ import kotlin.math.roundToInt
 @Composable
 fun NotificationCenterPanel(host: PanelHost, progress: Float) {
     val context = host.context
-    val all by NotificationHub.entries.collectAsState()
-    val hidden by NotificationHub.hidden.collectAsState()
-    // Honor cards hidden by earlier sessions while keeping ongoing activities out of Clear All.
-    val entries = remember(all, hidden) { all.filter { (hidden[it.key] ?: -1L) < it.postTime } }
+    // Cleared sticky notifications are already left out by NotificationHub.
+    val entries by NotificationHub.entries.collectAsState()
     val connected by NotificationHub.connected.collectAsState()
     val media by MediaHub.state.collectAsState()
     var expanded by remember { mutableStateOf(emptySet<String>()) }
