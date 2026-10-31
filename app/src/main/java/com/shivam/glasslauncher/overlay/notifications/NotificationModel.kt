@@ -140,9 +140,13 @@ enum class NotificationFilter(val title: String) {
     }
 }
 
-/** No lock-screen surface is enabled merely because Android's own notification list is hidden. */
-fun shouldShowLockCards(optedIn: Boolean, nativeNotificationsShown: Boolean, locked: Boolean, ready: Boolean): Boolean =
-    optedIn && !nativeNotificationsShown && locked && ready
+/**
+ * No lock-screen surface is enabled merely because Android's own notification list is hidden. While a
+ * call rings or is live the dialer's own screen owns the lock screen: cards drawn over it covered the
+ * caller and slid under Answer/Decline.
+ */
+fun shouldShowLockCards(optedIn: Boolean, nativeNotificationsShown: Boolean, locked: Boolean, ready: Boolean, callActive: Boolean = false): Boolean =
+    optedIn && !nativeNotificationsShown && locked && ready && !callActive
 
 /** Preserve the most private valid setting; VISIBILITY_NO_OVERRIDE is not a visibility value. */
 fun effectiveLockScreenVisibility(notification: Int, rankingOverride: Int?, channel: Int?): Int =

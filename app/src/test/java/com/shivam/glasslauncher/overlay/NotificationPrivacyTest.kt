@@ -59,6 +59,8 @@ class NotificationPrivacyTest {
         assertFalse(shouldShowLockCards(true, true, true, true))
         assertFalse(shouldShowLockCards(true, false, false, true))
         assertFalse(shouldShowLockCards(true, false, true, false))
+        // A ringing or live call owns the lock screen.
+        assertFalse(shouldShowLockCards(true, false, true, true, callActive = true))
     }
 
     @Test fun channelAndRankingPrivacyOverridesCannotBeRelaxedByNotification() {

@@ -166,7 +166,10 @@ class IslandWindow(
             null, IslandKind.Music -> idleW
             // Narrow enough to leave HyperOS's status bar icons (speed, VoLTE) uncovered.
             IslandKind.Navigation, IslandKind.Peek -> h * 5.0f
-            IslandKind.Charging, IslandKind.Ringer -> h * 4.2f
+            // HyperOS plays its own charging pill (SystemUI's DynamicIslandWindow, ~6.2h wide) on every
+            // plug-in whatever support_dynamic_island says; ours sits above it and must cover it whole.
+            IslandKind.Charging -> h * 6.5f
+            IslandKind.Ringer -> h * 4.2f
             else -> h * 4.6f
         }
         val margin = dp(10f)
@@ -183,7 +186,8 @@ class IslandWindow(
             }
             IslandPresentation.Compact -> {
                 val left = (cx - compactW / 2f).coerceIn(margin, screenW - margin - compactW)
-                Rect(left, cy - h / 2f, left + compactW, cy + h / 2f)
+                val grow = if (primary?.kind == IslandKind.Charging) dp(3f) else 0f
+                Rect(left, cy - h / 2f - grow, left + compactW, cy + h / 2f + grow)
             }
             else -> Rect(cx - idleW / 2f, cy - h / 2f, cx + idleW / 2f, cy + h / 2f)
         }
