@@ -192,5 +192,7 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+        <!-- Lets adb/perfetto profile the release build (frame traces); no debugging access. -->
+        <profileable android:shell="true" />
     </application>
 </manifest>

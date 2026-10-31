@@ -49,7 +49,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -352,9 +354,12 @@ fun GlassTextField(
             }
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                 if (value.isEmpty()) GlassText(placeholder, style = GlassType.Body, color = color.copy(alpha = 0.5f), maxLines = 1)
+                // Text set from outside (a tapped recent search) puts the cursor at its end, not the start.
+                var field by remember { mutableStateOf(TextFieldValue(value, TextRange(value.length))) }
+                if (field.text != value) field = TextFieldValue(value, TextRange(value.length))
                 BasicTextField(
-                    value = value,
-                    onValueChange = onValueChange,
+                    value = field,
+                    onValueChange = { field = it; if (it.text != value) onValueChange(it.text) },
                     singleLine = true,
                     textStyle = GlassType.Body.copy(color = color),
                     cursorBrush = SolidColor(currentAccent()),
@@ -381,6 +386,8 @@ fun GlassListGroup(
     modifier: Modifier = Modifier,
     title: String? = null,
     footer: String? = null,
+    shape: GlassShape = GlassShape.Card,
+    kind: SurfaceKind = SurfaceKind.Cards,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val screenColor = LocalScreenContentColor.current
@@ -393,7 +400,7 @@ fun GlassListGroup(
                 color = screenColor.copy(alpha = 0.8f),
             )
         }
-        GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.Card, role = null, kind = SurfaceKind.Cards, variant = GlassVariant.Regular) {
+        GlassSurface(Modifier.fillMaxWidth(), shape = shape, role = null, kind = kind, variant = GlassVariant.Regular) {
             Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                 val scope = this
                 DividedColumn(LocalGlassContentColor.current.copy(alpha = 0.09f), inset = 18.dp) { scope.content() }

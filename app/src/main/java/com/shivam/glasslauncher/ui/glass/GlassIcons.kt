@@ -56,4 +56,11 @@ object GlassIcons {
     val Palette = icon("palette", "M12,3C7,3 3,6.8 3,11.5C3,15.5 6,18 9,18C10.5,18 11,19 11,20C11,20.6 11.5,21 12,21C17,21 21,17 21,12C21,7 17,3 12,3Z", "M7.5,11L7.5,11.1", "M10,7.5L10,7.6", "M14.5,7.5L14.5,7.6", "M17,11L17,11.1")
     val Bell = icon("bell", "M6,16V11a6,6 0 0,1 12,0V16L19.5,18H4.5Z", "M10,20.5a2,2 0 0,0 4,0")
     val Home = icon("home", "M4,11L12,4L20,11", "M6,9.5V20H18V9.5")
+    val Doc = icon("doc", "M6,3H14L19,8V21H6Z", "M14,3V8H19", "M9,13H16", "M9,17H14")
+    val Image = icon("image", "M4,5H20V19H4Z", "M4,16L9,11L13,15L15,13L20,18", "M15.5,8.5L15.5,8.6")
+    val Play = icon("play", "M4,5H20V19H4Z", "M10,9L15,12L10,15Z")
+    val Music = icon("music", "M9,18V6L19,4V16", "M6.5,15.5a2.5,2.5 0 1,0 0,5a2.5,2.5 0 1,0 0,-5z", "M16.5,13.5a2.5,2.5 0 1,0 0,5a2.5,2.5 0 1,0 0,-5z")
+    val Calendar = icon("calendar", "M4,6H20V20H4Z", "M4,10H20", "M8,3V7", "M16,3V7")
+    val Clock = icon("clock", "M12,3a9,9 0 1,0 0,18a9,9 0 1,0 0,-18z", "M12,7V12L15,14")
+    val Bag = icon("bag", "M5,8H19L18,21H6Z", "M9,8V6a3,3 0 0,1 6,0V8")
 }

@@ -165,7 +165,7 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                     Row(Modifier.fillMaxWidth().padding(start = 9.dp, end = 0.dp, top = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         GlassText("Notification Centre", Modifier.weight(1f), style = GlassType.Title.copy(fontSize = 24.sp, fontWeight = FontWeight.Medium), color = Color.White, maxLines = 1)
                         // Include dismissible summaries so a cleared group cannot return as an empty pile.
-                        val clear = filtered.filter { !it.isMedia && it.isClearable }.map { it.key }
+                        val clear = filtered.filter { !it.isMedia && it.canDismiss }.map { it.key }
                         if (clear.isNotEmpty()) GlassIconButton(GlassIcons.Close, onClick = { NotificationHub.dismissAll(clear) }, size = 33.dp, contentDescription = "Clear all notifications")
                     }
                 }
@@ -181,7 +181,7 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                         }
                         items(stack.items, key = { it.key }) { e ->
                             Box(Modifier.animateItem().scrollStack(listState, e.key)) {
-                                SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(listOf(e.key)) }, enabled = e.isClearable) {
+                                SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(listOf(e.key)) }, enabled = e.canDismiss) {
                                     NotificationCard(e, host, showActions = true, onClick = { if (NotificationHub.open(context, e.key)) host.close() }, kind = SurfaceKind.Panel)
                                 }
                             }
@@ -562,7 +562,7 @@ private fun relativeTime(t: Long): String {
 }
 
 /** Every non-media notification of [pkg], group summaries included (see Clear All). */
-private fun appKeys(entries: List<NotifEntry>, pkg: String) = entries.filter { it.packageName == pkg && !it.isMedia && it.isClearable }.map { it.key }
+private fun appKeys(entries: List<NotifEntry>, pkg: String) = entries.filter { it.packageName == pkg && !it.isMedia && it.canDismiss }.map { it.key }
 
 
 /**

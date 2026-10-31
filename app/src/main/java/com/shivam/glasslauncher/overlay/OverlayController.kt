@@ -141,6 +141,8 @@ class OverlayController(
         lockWindow?.destroy()
         lockWindow = null
         closePanel(immediate = true)
+        panelWindow?.destroy()
+        panelWindow = null
         try { service.unregisterComponentCallbacks(configCallbacks) } catch (_: Exception) { }
         removeCorners()
         probe?.let { try { wm.removeViewImmediate(it) } catch (_: Exception) { } }
@@ -412,6 +414,8 @@ class OverlayController(
     // --- panels ---
 
     private var panelKind by mutableStateOf<PanelKind?>(null)
+    /** What the panel window composes; outlives [panelKind] so a hidden panel reopens without recomposing. */
+    private var shownKind by mutableStateOf<PanelKind?>(null)
     private var panelProgress by mutableFloatStateOf(0f)
     private var panelWindow: ComposeOverlayWindow? = null
     private val progressAnim = Animatable(0f)
@@ -458,7 +462,9 @@ class OverlayController(
         if (kind == PanelKind.ControlCenter && !s.controlCenter) return
         if (kind == PanelKind.NotificationCenter && !s.notificationCenter) return
         panelKind = kind
+        shownKind = kind
         updateHidden()
+        panelWindow?.let { w -> if (w.root.visibility != android.view.View.VISIBLE) setPanelShown(w, true) }
         if (panelWindow == null) {
             val params = ComposeOverlayWindow.params(
                 windowType,
@@ -474,7 +480,7 @@ class OverlayController(
             val c = controls ?: SystemControls(service).also { controls = it }
             val w = ComposeOverlayWindow(service, params, onBack = { closePanel() }) {
                 OverlayTheme {
-                    when (panelKind) {
+                    when (shownKind) {
                         PanelKind.ControlCenter -> ControlCenterPanel(host, c, panelProgress)
                         PanelKind.NotificationCenter -> NotificationCenterPanel(host, panelProgress)
                         null -> Unit
@@ -490,18 +496,29 @@ class OverlayController(
     }
 
     fun closePanel(immediate: Boolean = false) {
-        if (panelWindow == null) return
+        if (panelWindow == null || panelKind == null) return
         if (immediate) {
             panelJob?.cancel()
-            destroyPanel()
+            hidePanel()
             return
         }
         animatePanel(0f)
     }
 
-    private fun destroyPanel() {
-        panelWindow?.destroy()
-        panelWindow = null
+    /**
+     * Closing hides the panel window instead of removing it: re-adding it and composing the panel
+     * from scratch made the first frame of every pull 90–180 ms (a visible hitch). While hidden it
+     * is GONE (no surface or buffers), untouchable and unfocusable, and its composition stays warm.
+     */
+    private fun setPanelShown(w: ComposeOverlayWindow, shown: Boolean) {
+        val off = WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+        w.params.flags = if (shown) w.params.flags and off.inv() else w.params.flags or off
+        w.update()
+        w.setVisible(shown)
+    }
+
+    private fun hidePanel() {
+        panelWindow?.let { setPanelShown(it, false) }
         panelKind = null
         panelProgress = 0f
         scope.launch(AndroidUiDispatcher.Main) { progressAnim.snapTo(0f) }
@@ -533,7 +550,7 @@ class OverlayController(
                     panelProgress = value
                 }
             }
-            if (target == 0f) destroyPanel()
+            if (target == 0f) hidePanel()
         }
     }
 }

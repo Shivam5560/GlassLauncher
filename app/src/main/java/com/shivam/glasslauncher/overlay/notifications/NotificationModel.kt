@@ -44,11 +44,15 @@ data class NotifEntry(
     val publicText: String = "",
 ) {
     /**
-     * Sticky system status (USB debugging, charging, "running in background") that the user can't
-     * clear: never listed. Calls, timers, progress and navigation are live activities and stay.
+     * Sticky system status (USB debugging, charging, "running in background") that Android won't let
+     * anyone cancel. Listed like the system shade, but Glass can hide it. Calls, timers, progress and
+     * navigation are live activities and are never treated as status.
      */
     val isSystemStatus: Boolean get() = isSystem && !isClearable && !usesChronometer &&
         progressMax == 0 && !progressIndeterminate && category != "call" && category != "navigation" && template != "CallStyle"
+
+    /** Swipe and Clear All remove it: cancelled if Android allows, else hidden until reposted. */
+    val canDismiss: Boolean get() = isClearable || isSystemStatus
 }
 
 data class NotifAction(val index: Int, val title: String, val hasRemoteInput: Boolean)
@@ -67,7 +71,7 @@ data class NotifStack(
     val visibleLayers: Int get() = if (expanded) items.size else minOf(items.size, NotificationGrouping.MAX_PILE_LAYERS)
     /** Notifications hidden behind the front card while collapsed. */
     val hiddenCount: Int get() = if (expanded) 0 else items.size - 1
-    val clearableKeys: List<String> get() = items.filter { it.isClearable }.map { it.key }
+    val clearableKeys: List<String> get() = items.filter { it.canDismiss }.map { it.key }
 }
 
 object NotificationGrouping {
@@ -100,7 +104,7 @@ object NotificationGrouping {
             .sortedWith(compareByDescending<NotifStack> { it.latest.postTime }.thenBy { it.packageName })
 
     /** Keys removed by "Clear All": every clearable notification that is listed. */
-    fun clearAllKeys(entries: List<NotifEntry>): List<String> = visible(entries).filter { it.isClearable }.map { it.key }
+    fun clearAllKeys(entries: List<NotifEntry>): List<String> = visible(entries).filter { it.canDismiss }.map { it.key }
 }
 
 /** Android's lock-screen rules: a phone without a PIN has nothing to hide; "sensitive content" decides the rest. */

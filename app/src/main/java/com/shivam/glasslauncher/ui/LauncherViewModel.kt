@@ -39,6 +39,9 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -116,14 +119,45 @@ class LauncherViewModel(application: Application) : AndroidViewModel(application
     val query = MutableStateFlow("")
     private val contactsPermissionTick = MutableStateFlow(0)
 
+    // Declared before [results]: its eager collector may run during construction.
+    @Volatile private var lastResults = SpotlightResults()
+
+    /**
+     * Two passes per query: apps, shortcuts, contacts and settings land at once; files and calendar
+     * events (disk-backed) follow once typing pauses, and a newer query cancels the older one's queries.
+     */
     val results: StateFlow<SpotlightResults> = combine(query, contactsPermissionTick) { q, _ -> q }
         .debounce { if (it.isEmpty()) 0L else 45L }
-        .mapLatest { q ->
-            kotlinx.coroutines.withContext(Dispatchers.Default) {
-                g.search.search(q, visibleApps.value) { key -> g.usage.scoreBoost(key) }
+        .transformLatest { q ->
+            val fast = kotlinx.coroutines.withContext(Dispatchers.Default) {
+                g.search.search(q, visibleApps.value, settings.value?.locked.orEmpty()) { key -> g.usage.scoreBoost(key) }
+            }
+            val previous = lastResults
+            emit(g.search.carryOver(previous, fast))
+            if (fast.query.length < 2 || fast.calculation != null || fast.conversion != null) return@transformLatest
+            kotlinx.coroutines.delay(110)
+            val cancel = android.os.CancellationSignal()
+            val job = currentCoroutineContext()[kotlinx.coroutines.Job]
+            val handle = job?.invokeOnCompletion { cancel.cancel() }
+            try {
+                emit(kotlinx.coroutines.withContext(Dispatchers.IO) { g.search.searchStorage(fast, cancel) })
+            } finally {
+                handle?.dispose()
             }
         }
+        .onEach { lastResults = it }
         .stateIn(viewModelScope, SharingStarted.Eagerly, SpotlightResults())
+
+    val recentSearches: StateFlow<List<String>> = g.searchHistory.recent
+
+    fun recordSearch(q: String) = g.searchHistory.record(q)
+    fun forgetSearch(q: String) = g.searchHistory.remove(q)
+    fun clearSearches() = g.searchHistory.clear()
+
+    /** Re-reads app shortcuts as Spotlight opens, so new or changed shortcuts are searchable right away. */
+    fun onSpotlightOpened() {
+        viewModelScope.launch(Dispatchers.IO) { g.search.refreshShortcuts(visibleApps.value) }
+    }
 
     fun onContactsPermissionChanged() { contactsPermissionTick.value++ }
 

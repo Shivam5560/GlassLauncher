@@ -33,6 +33,9 @@ object CalendarRepository {
         context.checkSelfPermission(Manifest.permission.READ_CALENDAR) == PackageManager.PERMISSION_GRANTED
 
     /** Events that have not ended yet, within the next [days] days, soonest first. */
+    /** The widget's last 7-day list, kept for the process so a recreated widget draws it at once. */
+    @Volatile var lastWeek: List<CalendarEvent>? = null
+
     suspend fun upcoming(context: Context, days: Int = 7, limit: Int = 12): List<CalendarEvent> = withContext(Dispatchers.IO) {
         if (!hasPermission(context)) return@withContext emptyList()
         val now = System.currentTimeMillis()
@@ -41,50 +44,88 @@ object CalendarRepository {
             ContentUris.appendId(it, now + days * 24 * 3600_000L)
             it.build()
         }
-        val projection = arrayOf(
-            CalendarContract.Instances.EVENT_ID,
-            CalendarContract.Instances.TITLE,
-            CalendarContract.Instances.BEGIN,
-            CalendarContract.Instances.END,
-            CalendarContract.Instances.ALL_DAY,
-            CalendarContract.Instances.DISPLAY_COLOR,
-            CalendarContract.Instances.EVENT_LOCATION,
-        )
-        val out = ArrayList<CalendarEvent>()
-        try {
-            context.contentResolver.query(
-                uri, projection,
-                "${CalendarContract.Instances.VISIBLE} = 1",
-                null,
-                "${CalendarContract.Instances.BEGIN} ASC",
-            )?.use { c ->
-                while (c.moveToNext()) {
-                    val allDay = c.getInt(4) == 1
-                    var begin = c.getLong(2)
-                    var end = c.getLong(3)
-                    if (allDay) {
-                        // All-day instances are UTC midnights; shift them to local midnights.
-                        val tz = java.util.TimeZone.getDefault()
-                        begin -= tz.getOffset(begin)
-                        end -= tz.getOffset(end)
-                    }
-                    if (end <= now) continue
-                    out += CalendarEvent(
-                        eventId = c.getLong(0),
-                        title = c.getString(1)?.ifBlank { null } ?: "(No title)",
-                        begin = begin,
-                        end = end,
-                        allDay = allDay,
-                        color = c.getInt(5),
-                        location = c.getString(6)?.ifBlank { null },
-                    )
-                }
-            }
+        val out = try {
+            context.contentResolver.query(uri, PROJECTION, "${CalendarContract.Instances.VISIBLE} = 1", null, "${CalendarContract.Instances.BEGIN} ASC")
+                ?.use { readEvents(it) }.orEmpty().filter { it.end > now }
         } catch (e: Exception) {
             return@withContext emptyList()
         }
         // Ongoing (and today's all-day) events first, then by start time.
         out.sortedBy { it.begin.coerceAtLeast(now) }.take(limit)
+    }
+
+    /**
+     * Spotlight: events from the last 30 days and the next year whose title (or place) matches every
+     * word of [query]. A repeating meeting appears once, at its next (or latest) occurrence; upcoming
+     * events come first, soonest first, then past ones, most recent first.
+     */
+    fun search(context: Context, query: String, limit: Int = 3): List<CalendarEvent> {
+        if (!hasPermission(context)) return emptyList()
+        val words = query.trim().split(Regex("\\s+")).filter { it.isNotEmpty() }
+        if (words.isEmpty()) return emptyList()
+        val now = System.currentTimeMillis()
+        val uri = CalendarContract.Instances.CONTENT_SEARCH_URI.buildUpon().let {
+            ContentUris.appendId(it, now - 30 * 24 * 3600_000L)
+            ContentUris.appendId(it, now + 365 * 24 * 3600_000L)
+            it.appendPath(query.trim())
+            it.build()
+        }
+        // The provider also matches descriptions and attendees; keep only events whose title or place matches.
+        val events = try {
+            context.contentResolver.query(uri, PROJECTION, "${CalendarContract.Instances.VISIBLE} = 1", null, null)
+                ?.use { readEvents(it) }.orEmpty()
+        } catch (e: Exception) {
+            return emptyList()
+        }
+        val norm = com.shivam.glasslauncher.search.FuzzyMatcher::normalize
+        val needles = words.map(norm)
+        fun matches(e: CalendarEvent): Boolean {
+            val hay = norm(e.title + " " + e.location.orEmpty())
+            return needles.all { it in hay }
+        }
+        val (upcoming, past) = events.filter(::matches).partition { it.end > now }
+        // Synced calendars often store each occurrence of a meeting as its own event, so the same
+        // title + place also counts as one meeting.
+        fun same(e: CalendarEvent) = norm(e.title + "|" + e.location.orEmpty())
+        return (upcoming.sortedBy { it.begin } + past.sortedByDescending { it.begin })
+            .distinctBy { it.eventId }
+            .distinctBy(::same)
+            .take(limit)
+    }
+
+    private val PROJECTION = arrayOf(
+        CalendarContract.Instances.EVENT_ID,
+        CalendarContract.Instances.TITLE,
+        CalendarContract.Instances.BEGIN,
+        CalendarContract.Instances.END,
+        CalendarContract.Instances.ALL_DAY,
+        CalendarContract.Instances.DISPLAY_COLOR,
+        CalendarContract.Instances.EVENT_LOCATION,
+    )
+
+    private fun readEvents(c: android.database.Cursor): List<CalendarEvent> {
+        val out = ArrayList<CalendarEvent>()
+        val tz = java.util.TimeZone.getDefault()
+        while (c.moveToNext()) {
+            val allDay = c.getInt(4) == 1
+            var begin = c.getLong(2)
+            var end = c.getLong(3)
+            if (allDay) {
+                // All-day instances are UTC midnights; shift them to local midnights.
+                begin -= tz.getOffset(begin)
+                end -= tz.getOffset(end)
+            }
+            out += CalendarEvent(
+                eventId = c.getLong(0),
+                title = c.getString(1)?.ifBlank { null } ?: "(No title)",
+                begin = begin,
+                end = end,
+                allDay = allDay,
+                color = c.getInt(5),
+                location = c.getString(6)?.ifBlank { null },
+            )
+        }
+        return out
     }
 
     /** Emits whenever the calendar provider changes. */

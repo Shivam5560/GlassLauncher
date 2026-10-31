@@ -119,7 +119,7 @@ class NotificationGroupingTest {
     }
 
     @Test
-    fun stickySystemStatusIsNotListedButLiveActivitiesAre() {
+    fun stickySystemStatusIsListedAndDismissibleButLiveActivitiesAreNot() {
         val usb = n("usb", "android", 1, clearable = false).copy(isSystem = true, isOngoing = true)
         assertTrue(usb.isSystemStatus)
         assertFalse(usb.copy(usesChronometer = true).isSystemStatus)
@@ -128,5 +128,9 @@ class NotificationGroupingTest {
         assertFalse(usb.copy(isClearable = true).isSystemStatus)
         // HyperOS foreground services are NO_CLEAR without ONGOING_EVENT.
         assertTrue(usb.copy(isOngoing = false).isSystemStatus)
+        // Listed and clearable from Glass; a sticky call or app upload is not.
+        val call = usb.copy(key = "call", category = "call")
+        val upload = n("upload", "com.drive", 2, clearable = false)
+        assertEquals(listOf("usb"), NotificationGrouping.clearAllKeys(listOf(usb, call, upload)))
     }
 }
