@@ -12,14 +12,23 @@ android {
         applicationId = "com.shivam.glasslauncher"
         minSdk = 31
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "1.1"
     }
 
     // Fixed key so CI-built APKs install over each other (and over local builds).
     signingConfigs {
         getByName("debug") {
             storeFile = file("debug.keystore")
+        }
+        // Private key lives outside the repo; CI restores it from secrets.
+        System.getenv("RELEASE_KEYSTORE")?.let { path ->
+            create("release") {
+                storeFile = file(path)
+                storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = "glasslauncher"
+                keyPassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+            }
         }
     }
 
@@ -28,6 +37,8 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Without the private key (forks, PRs) fall back to the debug key so the build still installs.
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
     compileOptions {
