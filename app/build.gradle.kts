@@ -16,6 +16,13 @@ android {
         versionName = "0.1.0"
     }
 
+    // Fixed key so CI-built APKs install over each other (and over local builds).
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
