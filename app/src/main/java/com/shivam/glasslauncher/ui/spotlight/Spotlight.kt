@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.imeAnimationTarget
 import android.Manifest
 import android.app.Activity
 import androidx.activity.compose.BackHandler
@@ -22,7 +23,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -51,6 +51,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.shivam.glasslauncher.data.AppEntry
 import com.shivam.glasslauncher.search.ContactResult
+import com.shivam.glasslauncher.search.FileResult
+import com.shivam.glasslauncher.search.FileSearch
+import com.shivam.glasslauncher.search.ShortcutResult
+import com.shivam.glasslauncher.widgets.CalendarEvent
 import com.shivam.glasslauncher.search.SpotlightResults
 import com.shivam.glasslauncher.ui.LauncherViewModel
 import com.shivam.glasslauncher.ui.glass.GlassColors
@@ -94,6 +98,7 @@ fun SpotlightOverlay(
         PremiumDim.alphaFor(wallpaper.luminance(0f, 0f, wallpaper.screenWidth.toFloat(), wallpaper.screenHeight.toFloat()))
     }
     val suggestions by vm.suggestions.collectAsState()
+    val recent by vm.recentSearches.collectAsState()
     val focus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
     val activity = androidx.activity.compose.LocalActivity.current ?: return
@@ -108,9 +113,17 @@ fun SpotlightOverlay(
         ui.spotlightOpen = false
     }
 
+    /** A result was chosen: remember the query, close, then act. */
+    fun pick(action: () -> Unit) {
+        vm.recordSearch(query)
+        close()
+        action()
+    }
+
     LaunchedEffect(visible) {
         if (visible) {
             vm.query.value = ""
+            vm.onSpotlightOpened()
             // the field only exists once GlassMorph has composed it, so retry until focus sticks
             var focused = false
             repeat(20) {
@@ -141,7 +154,9 @@ fun SpotlightOverlay(
         GlassMorph(
             visible = visible,
             origin = origin,
-            modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility).imePadding(),
+            // The keyboard's final height, applied once: following it frame by frame re-measured the
+            // whole sheet (~20 ms) and resized its glass layers on every frame of the slide-in.
+            modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility).windowInsetsPadding(WindowInsets.imeAnimationTarget),
             contentAlignment = Alignment.TopCenter,
             onProgress = { progress = it },
         ) {
@@ -155,8 +170,8 @@ fun SpotlightOverlay(
                     focus = focus,
                     onGo = {
                         val top = results.apps.firstOrNull()
-                        if (top != null) { close(); onLaunch(top, null) }
-                        else if (query.isNotBlank()) { close(); vm.actions.webSearch(activity, query) }
+                        if (top != null) pick { onLaunch(top, null) }
+                        else if (query.isNotBlank()) pick { vm.actions.webSearch(activity, query) }
                     },
                     onClose = { close() },
                     onVoice = {
@@ -167,52 +182,77 @@ fun SpotlightOverlay(
                     },
                 )
                 Spacer(Modifier.height(12.dp))
-                // Dark frosted results, as on iOS 27, so they read over the blurred home.
-                val base = com.shivam.glasslauncher.ui.glass.LocalGlassStyle.current
-                androidx.compose.runtime.CompositionLocalProvider(
-                    com.shivam.glasslauncher.ui.glass.LocalGlassStyle provides base.copy(
-                        tone = com.shivam.glasslauncher.ui.glass.GlassTone.Dark,
-                        tintColor = 0xFF1C1C1E.toInt(),
-                        tintOpacity = maxOf(base.tintOpacity, 0.62f),
-                        // Saved per-role colours (e.g. light Cards) would otherwise win over the dark look.
-                        roles = emptyMap(),
-                    ),
-                ) {
                 SpotlightResultsList(
                     query = query,
                     results = results,
                     suggestions = suggestions,
+                    recent = recent,
                     label = label,
-                    onLaunch = { e, b -> close(); onLaunch(e, b) },
-                    onCall = { c -> c.number?.let { close(); vm.actions.call(activity, it) } },
-                    onWhatsApp = { c -> c.number?.let { close(); vm.actions.whatsApp(activity, it) } },
-                    onSetting = { s -> close(); if (!vm.actions.startIntent(activity, s.intent())) ui.toast.show("Not available on this phone") },
-                    onWeb = { close(); vm.actions.webSearch(activity, query) },
+                    onLaunch = { e, b -> pick { onLaunch(e, b) } },
+                    onShortcut = { r, b ->
+                        pick { if (!vm.actions.startShortcut(r.info.`package`, r.info.id, r.info.userHandle, b)) ui.toast.show("This shortcut isn't available") }
+                    },
+                    loadShortcutIcon = { r -> vm.icons.renderShortcut(vm.actions.shortcutIcon(r.info), 96) },
+                    onCall = { c -> c.number?.let { pick { vm.actions.call(activity, it) } } },
+                    onWhatsApp = { c -> c.number?.let { pick { vm.actions.whatsApp(activity, it) } } },
+                    onSetting = { s -> pick { if (!vm.actions.startIntent(activity, s.intent())) ui.toast.show("Not available on this phone") } },
+                    onEvent = { e -> pick { com.shivam.glasslauncher.widgets.CalendarRepository.openEvent(activity, e) } },
+                    onFile = { f ->
+                        pick {
+                            // No viewer for the exact type: let any app that opens files try.
+                            if (!vm.actions.startIntent(activity, FileSearch.openIntent(f)) &&
+                                !vm.actions.startIntent(activity, FileSearch.openIntent(f, anyType = true))
+                            ) ui.toast.show("No app can open this file")
+                        }
+                    },
+                    onWeb = { pick { vm.actions.webSearch(activity, query) } },
+                    onPlayStore = { pick { vm.actions.playStoreSearch(activity, query) } },
+                    onRecent = { vm.query.value = it },
+                    onForgetRecent = { vm.forgetSearch(it) },
                     onAllowContacts = {
                         permissionLauncher.launch(arrayOf(Manifest.permission.READ_CONTACTS, Manifest.permission.CALL_PHONE))
                     },
+                    onAllowFiles = { close(); vm.actions.startIntent(activity, FileSearch.accessIntent(activity)) },
                     onOpenSettings = { close(); onOpenSettings() },
                 )
-                }
             }
         }
     }
 }
+
+/** Spotlight sections use the Notification Centre's card glass: frosted widget material, 28 dp corners. */
+private val SectionShape = GlassShape.rounded(28.dp)
+private val SectionKind = com.shivam.glasslauncher.ui.glass.SurfaceKind.Widget
+
+@Composable
+private fun Section(title: String? = null, footer: String? = null, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) =
+    GlassListGroup(title = title, footer = footer, shape = SectionShape, kind = SectionKind, content = content)
 
 @Composable
 private fun SpotlightResultsList(
     query: String,
     results: SpotlightResults,
     suggestions: List<AppEntry>,
+    recent: List<String>,
     label: (AppEntry) -> String,
     onLaunch: (AppEntry, android.graphics.Rect?) -> Unit,
+    onShortcut: (ShortcutResult, android.graphics.Rect?) -> Unit,
+    loadShortcutIcon: (ShortcutResult) -> androidx.compose.ui.graphics.ImageBitmap?,
     onCall: (ContactResult) -> Unit,
     onWhatsApp: (ContactResult) -> Unit,
     onSetting: (com.shivam.glasslauncher.search.SettingsShortcut) -> Unit,
+    onEvent: (CalendarEvent) -> Unit,
+    onFile: (FileResult) -> Unit,
     onWeb: () -> Unit,
+    onPlayStore: () -> Unit,
+    onRecent: (String) -> Unit,
+    onForgetRecent: (String) -> Unit,
     onAllowContacts: () -> Unit,
+    onAllowFiles: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
+    // The query the results were computed for; stale rows never pair with a newer query's text.
+    val shown = results.query
     LazyColumn(
         Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -220,21 +260,33 @@ private fun SpotlightResultsList(
     ) {
         if (suggestions.isNotEmpty() && query.isBlank()) {
             item("suggestions") {
-                GlassListGroup(title = "Suggested for you") {
+                Section(title = "Suggested for you") {
                     AppIconRow(suggestions, label, onLaunch)
+                }
+            }
+        }
+        if (recent.isNotEmpty() && query.isBlank()) {
+            item("recent") {
+                Section(title = "Recent") {
+                    recent.forEach { q ->
+                        GlassRow(q, icon = GlassIcons.Clock, iconTint = Color(0xFF8E8E93), onClick = { onRecent(q) }, showChevron = false) {
+                            GlassIconButton(GlassIcons.Close, onClick = { onForgetRecent(q) }, size = 32.dp, contentDescription = "Remove “$q” from recent searches")
+                        }
+                    }
                 }
             }
         }
         if (query.isBlank()) {
             item("hint") {
-                GlassListGroup(footer = "Find an app, a contact or a setting. You can also try 12 × 7 or 5 km to mi.") {
+                Section(footer = "Find apps, shortcuts, contacts, events, files and settings. You can also try 12 × 7 or 5 km to mi.") {
                     GlassRow("Glass Settings", icon = GlassIcons.Gear, iconTint = Color(0xFF8E8E93), onClick = onOpenSettings)
                 }
             }
         }
+        if (query.isBlank()) return@LazyColumn
         results.calculation?.let { value ->
             item("calc") {
-                GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.Card, role = null) {
+                GlassSurface(Modifier.fillMaxWidth(), shape = SectionShape, role = null, kind = SectionKind) {
                     Column(Modifier.padding(18.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             com.shivam.glasslauncher.ui.glass.GlassIcon(GlassIcons.Calculator, size = 18.dp)
@@ -249,7 +301,7 @@ private fun SpotlightResultsList(
         }
         results.conversion?.let { c ->
             item("convert") {
-                GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.Card, role = null) {
+                GlassSurface(Modifier.fillMaxWidth(), shape = SectionShape, role = null, kind = SectionKind) {
                     Column(Modifier.padding(18.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             com.shivam.glasslauncher.ui.glass.GlassIcon(GlassIcons.Ruler, size = 18.dp)
@@ -264,7 +316,7 @@ private fun SpotlightResultsList(
         }
         if (results.apps.isNotEmpty()) {
             item("apps") {
-                GlassListGroup(title = "Apps") {
+                Section(title = "Apps") {
                     AppIconRow(results.apps.take(4), label, onLaunch)
                     results.apps.drop(4).forEach { e ->
                         AppResultRow(e, label(e), onLaunch)
@@ -272,9 +324,16 @@ private fun SpotlightResultsList(
                 }
             }
         }
+        if (results.shortcuts.isNotEmpty()) {
+            item("shortcuts") {
+                Section(title = "Shortcuts") {
+                    results.shortcuts.forEach { r -> ShortcutResultRow(r, label(r.app), loadShortcutIcon, onShortcut) }
+                }
+            }
+        }
         if (results.contacts.isNotEmpty()) {
             item("contacts") {
-                GlassListGroup(title = "Contacts") {
+                Section(title = "Contacts") {
                     results.contacts.forEach { c ->
                         GlassRow(
                             title = c.name,
@@ -297,27 +356,122 @@ private fun SpotlightResultsList(
         }
         if (results.needsContactsPermission) {
             item("contactsPerm") {
-                GlassListGroup(footer = "Contacts stay on your phone; Glass only reads them to show matches here.") {
+                Section(footer = "Contacts stay on your phone; Glass only reads them to show matches here.") {
                     GlassRow("Search your contacts too", icon = GlassIcons.Person, onClick = onAllowContacts)
                 }
             }
         }
         if (results.settings.isNotEmpty()) {
             item("settings") {
-                GlassListGroup(title = "Settings") {
+                Section(title = "Settings") {
                     results.settings.forEach { s ->
                         GlassRow(s.title, icon = GlassIcons.Gear, iconTint = Color(0xFF8E8E93), onClick = { onSetting(s) })
                     }
                 }
             }
         }
-        if (query.isNotBlank()) {
-            item("web") {
-                GlassListGroup {
-                    GlassRow("Search Google for “$query”", icon = GlassIcons.Globe, onClick = onWeb)
+        if (results.events.isNotEmpty()) {
+            item("events") {
+                val context = LocalContext.current
+                Section(title = "Calendar") {
+                    results.events.forEach { e ->
+                        GlassRow(
+                            e.title,
+                            subtitle = listOfNotNull(eventWhen(context, e), e.location).joinToString(" · "),
+                            icon = GlassIcons.Calendar,
+                            iconTint = Color(e.color or 0xFF000000.toInt()),
+                            onClick = { onEvent(e) },
+                        )
+                    }
                 }
             }
         }
+        if (results.files.isNotEmpty()) {
+            item("files") {
+                val context = LocalContext.current
+                Section(title = "Files") {
+                    results.files.forEach { f ->
+                        GlassRow(
+                            f.name,
+                            subtitle = fileDetails(context, f),
+                            icon = fileIcon(f.mime),
+                            iconTint = Color(0xFF0A84FF),
+                            onClick = { onFile(f) },
+                        )
+                    }
+                }
+            }
+        }
+        if (results.needsFilesPermission) {
+            item("filesPerm") {
+                Section(footer = "Turn on All files access for Glass. Files are searched on your phone; nothing leaves it.") {
+                    GlassRow("Search your files too", icon = GlassIcons.Doc, onClick = onAllowFiles)
+                }
+            }
+        }
+        if (shown.isNotBlank()) {
+            item("web") {
+                Section {
+                    GlassRow("Search Google for “$shown”", icon = GlassIcons.Globe, onClick = onWeb)
+                    GlassRow("Search Play Store for “$shown”", icon = GlassIcons.Bag, iconTint = GlassColors.Green, onClick = onPlayStore)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ShortcutResultRow(
+    r: ShortcutResult,
+    appLabel: String,
+    loadIcon: (ShortcutResult) -> androidx.compose.ui.graphics.ImageBitmap?,
+    onShortcut: (ShortcutResult, android.graphics.Rect?) -> Unit,
+) {
+    val icon by androidx.compose.runtime.produceState<androidx.compose.ui.graphics.ImageBitmap?>(null, r.info.id, r.info.`package`) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { loadIcon(r) }
+    }
+    val coords = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    Box(
+        Modifier.fillMaxWidth().onGloballyPositioned { coords[0] = it }
+            .clickable { onShortcut(r, coords[0]?.boundsInWindow()?.toAndroid()) },
+    ) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 11.dp), verticalAlignment = Alignment.CenterVertically) {
+            val bmp = icon
+            if (bmp != null) androidx.compose.foundation.Image(bmp, null, Modifier.size(34.dp))
+            else AppIconImage(r.app, 34.dp)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                GlassText(r.label, style = GlassType.Body, maxLines = 1)
+                GlassText(appLabel, style = GlassType.Footnote, secondary = true, maxLines = 1)
+            }
+        }
+    }
+}
+
+private fun fileIcon(mime: String?) = when {
+    mime == null -> GlassIcons.Doc
+    mime.startsWith("image/") -> GlassIcons.Image
+    mime.startsWith("video/") -> GlassIcons.Play
+    mime.startsWith("audio/") -> GlassIcons.Music
+    else -> GlassIcons.Doc
+}
+
+/** "Download · 2.4 MB · 12 Oct" */
+private fun fileDetails(context: android.content.Context, f: FileResult): String = listOf(
+    f.folder.trimEnd('/').ifEmpty { "Internal storage" },
+    android.text.format.Formatter.formatShortFileSize(context, f.size),
+    android.text.format.DateUtils.formatDateTime(context, f.modified, android.text.format.DateUtils.FORMAT_SHOW_DATE or android.text.format.DateUtils.FORMAT_ABBREV_MONTH),
+).joinToString(" · ")
+
+/** "Sat, 2 Nov, 10:00–11:00", or just the day(s) for all-day events. */
+private fun eventWhen(context: android.content.Context, e: CalendarEvent): String {
+    val base = android.text.format.DateUtils.FORMAT_SHOW_DATE or android.text.format.DateUtils.FORMAT_SHOW_WEEKDAY or
+        android.text.format.DateUtils.FORMAT_ABBREV_ALL
+    return if (e.allDay) {
+        // All-day ends are exclusive midnights: show the last day the event covers.
+        android.text.format.DateUtils.formatDateRange(context, e.begin, maxOf(e.begin, e.end - 1), base)
+    } else {
+        android.text.format.DateUtils.formatDateRange(context, e.begin, e.end, base or android.text.format.DateUtils.FORMAT_SHOW_TIME)
     }
 }
 
@@ -369,7 +523,7 @@ private fun SpotlightSearchField(
     onClose: () -> Unit,
 ) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        GlassTextField(query, onQuery, Modifier.weight(1f), placeholder = "Apps, contacts & more", focusRequester = focus,
+        GlassTextField(query, onQuery, Modifier.weight(1f), placeholder = "Apps, files, contacts & more", focusRequester = focus,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go), keyboardActions = KeyboardActions(onGo = { onGo() }))
         if (query.isBlank()) GlassIconButton(com.shivam.glasslauncher.overlay.OverlayIcons.Mic,
             onClick = onVoice, size = 44.dp, contentDescription = "Voice search")

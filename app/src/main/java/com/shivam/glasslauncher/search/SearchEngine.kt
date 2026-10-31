@@ -3,17 +3,28 @@ package com.shivam.glasslauncher.search
 import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.LauncherApps
 import android.content.pm.PackageManager
+import android.content.pm.ShortcutInfo
 import android.net.Uri
 import android.provider.ContactsContract
 import android.provider.Settings
 import com.shivam.glasslauncher.data.AppEntry
+import com.shivam.glasslauncher.widgets.CalendarEvent
+import com.shivam.glasslauncher.widgets.CalendarRepository
 
 data class ContactResult(val id: Long, val name: String, val number: String?, val photo: Uri?)
 
 data class SettingsShortcut(val title: String, val keywords: List<String>, val action: String) {
     val target = FuzzyMatcher.Target(title)
     fun intent(): Intent = Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+}
+
+/** An app shortcut ("New chat", "Scan") offered by an app that is visible and not locked. */
+data class ShortcutResult(val app: AppEntry, val info: ShortcutInfo) {
+    val label: String = (info.shortLabel ?: info.longLabel ?: "").toString()
+    internal val target = FuzzyMatcher.Target(label)
+    internal val combined = FuzzyMatcher.Target(app.label + " " + label)
 }
 
 data class SpotlightResults(
@@ -24,7 +35,12 @@ data class SpotlightResults(
     val apps: List<AppEntry> = emptyList(),
     val contacts: List<ContactResult> = emptyList(),
     val settings: List<SettingsShortcut> = emptyList(),
+    val shortcuts: List<ShortcutResult> = emptyList(),
+    /** Filled by the second, storage-backed pass ([SearchEngine.searchStorage]). */
+    val events: List<CalendarEvent> = emptyList(),
+    val files: List<FileResult> = emptyList(),
     val needsContactsPermission: Boolean = false,
+    val needsFilesPermission: Boolean = false,
     /** The WhatsApp button is only offered when WhatsApp (or WhatsApp Business) is installed. */
     val whatsAppInstalled: Boolean = false,
 )
@@ -32,7 +48,97 @@ data class SpotlightResults(
 /** Spotlight backend. All methods are blocking and must run off the main thread. */
 class SearchEngine(private val context: Context) {
 
-    fun search(query: String, apps: List<AppEntry>, boost: (String) -> Int): SpotlightResults {
+    /**
+     * Every visible app's shortcuts with their search targets, built once per Spotlight opening
+     * ([refreshShortcuts]) so typing never waits on LauncherApps or label parsing.
+     */
+    @Volatile private var shortcutIndex: List<ShortcutResult> = emptyList()
+
+    /**
+     * One request per profile for every app's manifest, dynamic and pinned shortcuts. Only works while
+     * Glass is the default Home app; otherwise the index is empty. [apps] are the visible (not hidden) apps.
+     */
+    fun refreshShortcuts(apps: List<AppEntry>) {
+        val la = context.getSystemService(LauncherApps::class.java) ?: return
+        shortcutIndex = try {
+            if (!la.hasShortcutHostPermission()) emptyList() else {
+                val query = LauncherApps.ShortcutQuery().setQueryFlags(
+                    LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or
+                        LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST or
+                        LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED,
+                )
+                val byComponent = apps.associateBy { it.component to it.user }
+                val byPackage = apps.groupBy { it.packageName to it.user }
+                la.profiles.asSequence()
+                    .flatMap { la.getShortcuts(query, it).orEmpty() }
+                    .filter { it.isEnabled }
+                    .distinctBy { Triple(it.`package`, it.id, it.userHandle) }
+                    .mapNotNull { info ->
+                        val app = info.activity?.let { byComponent[it to info.userHandle] }
+                            ?: byPackage[info.`package` to info.userHandle]?.firstOrNull()
+                        app?.let { ShortcutResult(it, info) }?.takeIf { it.label.isNotBlank() }
+                    }
+                    .toList()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    /**
+     * Shortcuts whose own label matches, or "app + label" for multi-word queries ("whatsapp new").
+     * Shortcuts of locked apps never show: they would open the app around its lock.
+     */
+    fun matchShortcuts(q: String, locked: Set<String>, boost: (String) -> Int): List<ShortcutResult> {
+        if (q.length < 2) return emptyList()
+        val multiWord = q.contains(' ')
+        return shortcutIndex.asSequence()
+            .filter { it.app.key !in locked }
+            .mapNotNull { r ->
+                val score = maxOf(
+                    FuzzyMatcher.score(q, r.target).takeIf { it >= 500 } ?: 0,
+                    if (multiWord) FuzzyMatcher.score(q, r.combined).takeIf { it >= 600 } ?: 0 else 0,
+                )
+                if (score == 0) null else r to score + boost(r.app.key)
+            }
+            .sortedByDescending { it.second }
+            .map { it.first }
+            .take(4)
+            .toList()
+    }
+
+    /**
+     * Second pass, run once typing pauses: calendar events and files. Skipped for sums and unit
+     * conversions, and for single characters, where nearly every file name would match.
+     */
+    fun searchStorage(fast: SpotlightResults, cancel: android.os.CancellationSignal): SpotlightResults {
+        val q = fast.query
+        if (q.length < 2 || fast.calculation != null || fast.conversion != null) return fast
+        val files = FileSearch.query(context, q, cancel = cancel)
+        return fast.copy(
+            events = CalendarRepository.search(context, q),
+            files = files,
+            needsFilesPermission = !FileSearch.hasAccess() && q.any { it.isLetter() },
+        )
+    }
+
+    /**
+     * While the storage pass for a new query runs, keep the previous files and events that still
+     * match every word, so rows don't blink out and back on each keystroke.
+     */
+    fun carryOver(previous: SpotlightResults, fast: SpotlightResults): SpotlightResults {
+        if (previous.files.isEmpty() && previous.events.isEmpty()) return fast
+        if (fast.query.length < 2 || fast.calculation != null || fast.conversion != null) return fast
+        val words = fast.query.split(Regex("\\s+")).filter { it.isNotEmpty() }.map(FuzzyMatcher::normalize)
+        fun keeps(text: String) = FuzzyMatcher.normalize(text).let { t -> words.all { it in t } }
+        return fast.copy(
+            files = previous.files.filter { keeps(it.name) },
+            events = previous.events.filter { keeps(it.title + " " + it.location.orEmpty()) },
+            needsFilesPermission = previous.needsFilesPermission,
+        )
+    }
+
+    fun search(query: String, apps: List<AppEntry>, locked: Set<String>, boost: (String) -> Int): SpotlightResults {
         val q = query.trim()
         if (q.isEmpty()) return SpotlightResults()
 
@@ -67,6 +173,7 @@ class SearchEngine(private val context: Context) {
             apps = scoredApps,
             contacts = contacts,
             settings = settings,
+            shortcuts = if (calc == null && conversion == null) matchShortcuts(q, locked, boost) else emptyList(),
             needsContactsPermission = !hasContacts && q.any { it.isLetter() },
             whatsAppInstalled = contacts.isNotEmpty() && whatsAppInstalled(),
         )

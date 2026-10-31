@@ -30,6 +30,7 @@ class GlassApp : Application() {
     val icons by lazy { IconRenderer(this, scope) }
     val wallpaper by lazy { WallpaperSource(this, scope) }
     val search by lazy { SearchEngine(this) }
+    val searchHistory by lazy { com.shivam.glasslauncher.search.SearchHistory(this, scope) }
     val actions by lazy { AppActions(this) }
     /** Phase 4: theme, fonts, icon style and per-app icons, wallpapers, pinned shortcuts. */
     val polish by lazy { com.shivam.glasslauncher.polish.Polish(this) }
@@ -61,8 +62,9 @@ class GlassApp : Application() {
 
     override fun onTrimMemory(level: Int) {
         super.onTrimMemory(level)
-        // Background or worse: drop most icon bitmaps (they re-render from the same sources on demand).
-        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_UI_HIDDEN) icons.trimCache()
+        // Only under real pressure: a launcher is "UI hidden" whenever any app opens, and trimming then
+        // made home icons blank-and-pop on every return.
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND) icons.trimCache()
     }
 
     companion object {

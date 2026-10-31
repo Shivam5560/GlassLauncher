@@ -6,9 +6,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.draw.blur
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
@@ -80,9 +77,11 @@ fun WallpaperBackdropLayer(
     parallax: (() -> Offset)? = null,
     /** Black dim alpha baked into the recorded copy, so glass refracts the dimmed picture, not a brighter one. */
     dim: (() -> Float)? = null,
+    /** Records this (e.g. a pre-blurred copy of the wallpaper) instead, never drawn on screen. */
+    still: androidx.compose.ui.graphics.ImageBitmap? = null,
 ) {
-    val image = snapshot.image
-    Canvas(Modifier.fillMaxSize().recordBackdrop(layer, drawToScreen = parallax != null)) {
+    val image = still ?: snapshot.image
+    Canvas(Modifier.fillMaxSize().recordBackdrop(layer, drawToScreen = parallax != null && still == null)) {
         if (enabled && image != null) {
             if (parallax == null) {
                 drawImage(
@@ -129,13 +128,14 @@ fun SnapshotBackdropLayer(image: androidx.compose.ui.graphics.ImageBitmap?, laye
 
 /**
  * Records the wallpaper under an overlay window. Lock cards keep the system background visible;
- * full-screen panels can draw a softly blurred copy, excluding underlying app UI from the backdrop.
+ * full-screen panels ([drawToScreen]) also draw it sharp on screen. Glass refracts a copy blurred
+ * once off the main thread: each card live-blurring the wallpaper cost ~7 ms of render thread per
+ * frame while Notification Centre moved (Turbo 5 trace).
  */
 @Composable
 fun OverlayWallpaperBackdrop(
     snapshot: WallpaperSource.Snapshot,
     drawToScreen: Boolean = false,
-    blurRadius: Dp = 0.dp,
     dimAlpha: Float = 0f,
     content: @Composable () -> Unit,
 ) {
@@ -143,23 +143,27 @@ fun OverlayWallpaperBackdrop(
     if (image == null) { content(); return }
     val layer = androidx.compose.ui.graphics.rememberGraphicsLayer()
     val view = androidx.compose.ui.platform.LocalView.current
-    val backdrop = androidx.compose.runtime.remember(snapshot, blurRadius) {
-        Backdrop(listOf(layer), snapshot, preBlurred = blurRadius > 0.dp)
+    val blurred = rememberBlurredCopy(image, LocalGlassStyle.current.blurRadius)
+    val backdrop = androidx.compose.runtime.remember(snapshot, blurred) {
+        Backdrop(listOf(layer), snapshot, preBlurred = blurred != null)
+    }
+    // The window's share of the screen-sized [img] (any resolution), dimmed like the visible copy.
+    fun DrawScope.wallpaper(img: androidx.compose.ui.graphics.ImageBitmap) {
+        val loc = IntArray(2).also(view::getLocationOnScreen)
+        val sx = img.width.toFloat() / snapshot.screenWidth
+        val sy = img.height.toFloat() / snapshot.screenHeight
+        drawImage(
+            image = img,
+            srcOffset = IntOffset((loc[0] * sx).toInt(), (loc[1] * sy).toInt()),
+            srcSize = IntSize((size.width * sx).toInt().coerceAtLeast(1), (size.height * sy).toInt().coerceAtLeast(1)),
+            dstOffset = IntOffset.Zero,
+            dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+        )
+        if (dimAlpha > 0f) drawRect(Color.Black.copy(alpha = dimAlpha.coerceIn(0f, 1f)))
     }
     androidx.compose.foundation.layout.Box {
-        Canvas(Modifier.matchParentSize().recordBackdrop(layer, drawToScreen = drawToScreen).blur(blurRadius)) {
-            val loc = IntArray(2).also(view::getLocationOnScreen)
-            val sx = image.width.toFloat() / snapshot.screenWidth
-            val sy = image.height.toFloat() / snapshot.screenHeight
-            drawImage(
-                image = image,
-                srcOffset = IntOffset((loc[0] * sx).toInt(), (loc[1] * sy).toInt()),
-                srcSize = IntSize((size.width * sx).toInt().coerceAtLeast(1), (size.height * sy).toInt().coerceAtLeast(1)),
-                dstOffset = IntOffset.Zero,
-                dstSize = IntSize(size.width.toInt(), size.height.toInt()),
-            )
-            if (dimAlpha > 0f) drawRect(Color.Black.copy(alpha = dimAlpha.coerceIn(0f, 1f)))
-        }
+        if (drawToScreen) Canvas(Modifier.matchParentSize()) { wallpaper(image) }
+        Canvas(Modifier.matchParentSize().recordBackdrop(layer, drawToScreen = false)) { wallpaper(blurred ?: image) }
         androidx.compose.runtime.CompositionLocalProvider(LocalBackdrop provides backdrop, content = content)
     }
 }

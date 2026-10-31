@@ -21,7 +21,12 @@ import kotlin.coroutines.CoroutineContext
  * Null until ready. Blurs a copy at 1/[SCALE] size, which is smooth when stretched back up.
  */
 @Composable
-fun rememberBlurredCopy(image: ImageBitmap?, radiusDp: Float): ImageBitmap? {
+fun rememberBlurredCopy(
+    image: ImageBitmap?,
+    radiusDp: Float,
+    /** Size of [image] relative to the screen, e.g. 0.25 for a quarter-size capture. */
+    imageScale: Float = 1f,
+): ImageBitmap? {
     val density = LocalDensity.current.density
     // produceState keeps its last value when keys change. A fresh holder prevents a previous
     // wallpaper / frozen home from flashing through the new overlay while its blur is prepared.
@@ -29,7 +34,9 @@ fun rememberBlurredCopy(image: ImageBitmap?, radiusDp: Float): ImageBitmap? {
     LaunchedEffect(image, radiusDp, density) {
         blurred.value = image?.let {
             if (radiusDp <= 0f) it else withContext(Dispatchers.Default) {
-                blurSmall(it.asAndroidBitmap(), radiusDp * density).asImageBitmap()
+                // A smaller input is shrunk less, so the result has the same size and softness.
+                val shrink = (SCALE * imageScale).toInt().coerceAtLeast(1)
+                blurSmall(it.asAndroidBitmap(), radiusDp * density * imageScale, shrink).asImageBitmap()
             }
         }
     }
@@ -38,11 +45,11 @@ fun rememberBlurredCopy(image: ImageBitmap?, radiusDp: Float): ImageBitmap? {
 
 private const val SCALE = 8
 
-private suspend fun blurSmall(src: Bitmap, radiusPx: Float): Bitmap {
+private suspend fun blurSmall(src: Bitmap, radiusPx: Float, shrink: Int): Bitmap {
     val context = currentCoroutineContext()
     context.ensureActive()
-    val w = (src.width / SCALE).coerceAtLeast(2)
-    val h = (src.height / SCALE).coerceAtLeast(2)
+    val w = (src.width / shrink).coerceAtLeast(2)
+    val h = (src.height / shrink).coerceAtLeast(2)
     // Convert hardware inputs explicitly: createScaledBitmap(HARDWARE) itself performs a
     // full software readback and then copies its result back to hardware. Avoid that extra
     // roundtrip, and release our owned temporaries as soon as the pixels have been extracted.
@@ -61,7 +68,7 @@ private suspend fun blurSmall(src: Bitmap, radiusPx: Float): Bitmap {
         // The original image belongs to the recorded backdrop and must never be recycled here.
         if (readable !== src) readable.recycle()
     }
-    val r = (radiusPx / SCALE).toInt().coerceAtLeast(1)
+    val r = (radiusPx / shrink).toInt().coerceAtLeast(1)
     // All six passes can share one line buffer; no per-pass allocations.
     val line = IntArray(maxOf(w, h))
     repeat(3) {

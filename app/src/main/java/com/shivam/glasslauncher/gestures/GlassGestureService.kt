@@ -50,7 +50,17 @@ class GlassGestureService : AccessibilityService() {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private lateinit var wm: WindowManager
-    private var config = GestureSettings()
+    @Volatile private var config = GestureSettings()
+
+    /**
+     * The touch zones, pill and bubbles live on their own thread. On the main thread their
+     * window-manager calls (four on every keyboard show/hide, 5-18 ms each) froze home and
+     * Spotlight frames while the keyboard slid in, and a busy home delayed every swipe.
+     * Their views are only touched on this thread; state like [paused] stays on the main thread.
+     */
+    private val gestureThread = android.os.HandlerThread("GlassGestures", android.os.Process.THREAD_PRIORITY_DISPLAY).apply { start() }
+    private val gesture = Handler(gestureThread.looper)
+    private val main = Handler(Looper.getMainLooper())
 
     private var bottomZone: View? = null
     private var leftZone: View? = null
@@ -168,18 +178,29 @@ class GlassGestureService : AccessibilityService() {
         val pauseEdges = keyboard || excluded
         if (keyboard != paused) {
             paused = keyboard
-            pill?.visibility = if (keyboard) View.GONE else View.VISIBLE
-            bottomZone?.let { v ->
-                val p = v.layoutParams as? WindowManager.LayoutParams ?: return@let
-                // ponytail: fixed 10 dp sliver; read the IME window's bottom gap if a keyboard still loses taps.
-                p.height = dp(if (keyboard) minOf(c.bottomZoneHeight, 10f) else c.bottomZoneHeight).toInt()
-                try { wm.updateViewLayout(v, p) } catch (_: Exception) { }
+            // ponytail: fixed 10 dp sliver; read the IME window's bottom gap if a keyboard still loses taps.
+            val height = dp(if (keyboard) minOf(c.bottomZoneHeight, 10f) else c.bottomZoneHeight).toInt()
+            gesture.post {
+                // Alpha, not visibility: hiding a window makes the system play a fade on it every time.
+                pill?.alpha = if (keyboard) 0f else 1f
+                bottomZone?.let { v ->
+                    val p = v.layoutParams as? WindowManager.LayoutParams ?: return@let
+                    p.height = height
+                    try { wm.updateViewLayout(v, p) } catch (_: Exception) { }
+                }
             }
         }
         if (pauseEdges != edgesPaused) {
             edgesPaused = pauseEdges
-            val vis = if (pauseEdges) View.GONE else View.VISIBLE
-            listOf(leftZone, rightZone).forEach { it?.visibility = vis }
+            // Touches pass through instead of the window hiding: no system show/hide fade on each keyboard.
+            gesture.post {
+                listOf(leftZone, rightZone).forEach { v ->
+                    val p = v?.layoutParams as? WindowManager.LayoutParams ?: return@forEach
+                    p.flags = if (pauseEdges) p.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+                        else p.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE.inv()
+                    try { wm.updateViewLayout(v, p) } catch (_: Exception) { }
+                }
+            }
         }
     }
     override fun onInterrupt() = Unit
@@ -190,7 +211,8 @@ class GlassGestureService : AccessibilityService() {
         contentResolver.unregisterContentObserver(navObserver)
         OverlayRuntime.detachAccessibility(this)
         overlays = null
-        removeAll()
+        gesture.post { removeAll() }
+        gestureThread.quitSafely()
         scope.cancel()
         if (instance === this) instance = null
         super.onDestroy()
@@ -228,10 +250,18 @@ class GlassGestureService : AccessibilityService() {
     }
 
     private fun rebuild() {
+        val c = config
+        paused = false
+        edgesPaused = false
+        gesture.post { build(c) }
+        updatePause()
+    }
+
+    /** Gesture thread only. */
+    private fun build(c: GestureSettings) {
         removeAll()
         val screenW = resources.displayMetrics.widthPixels
         val screenH = resources.displayMetrics.heightPixels
-        val c = config
         val zoneH = dp(c.bottomZoneHeight).toInt()
         if (c.bottomEnabled) {
             val v = View(this)
@@ -266,9 +296,6 @@ class GlassGestureService : AccessibilityService() {
             safeAdd(v, overlayParams(edgeW, edgeH, Gravity.END or Gravity.BOTTOM, true).apply { y = zoneH })
             rightZone = v
         }
-        paused = false
-        edgesPaused = false
-        updatePause()
     }
 
     private fun haptic(v: View) {
@@ -279,7 +306,7 @@ class GlassGestureService : AccessibilityService() {
     private fun threshold(baseDp: Float) = dp(baseDp) / config.sensitivity.coerceIn(0.4f, 2.5f)
 
     private inner class BottomSwipe : View.OnTouchListener {
-        private val handler = Handler(Looper.getMainLooper())
+        private val handler = gesture
         private var downY = 0f
         private var downX = 0f
         private var armed = false
@@ -340,7 +367,7 @@ class GlassGestureService : AccessibilityService() {
                         performGlobalAction(GLOBAL_ACTION_RECENTS)
                     } else if (!fired && (armed || flung)) {
                         haptic(v)
-                        overlays?.closePanel(immediate = true)
+                        main.post { overlays?.closePanel(immediate = true) }
                         if (!com.shivam.glasslauncher.ui.home.HomeNavigation.requestWhileResumed()) {
                             performGlobalAction(GLOBAL_ACTION_HOME)
                         }
@@ -401,7 +428,8 @@ class GlassGestureService : AccessibilityService() {
 
         /**
          * UPI and bank apps refuse to open while a screen-reading accessibility service is on, so the
-         * service switches itself off for them and HyperOS's own buttons come back meanwhile.
+         * service switches itself off for them and HyperOS's own buttons come back meanwhile. (Its own
+         * gestures stay dead while a third-party home is default, so the buttons are the only way out.)
          * [resumeAfterPaymentApp] (Glass home resuming) switches it on again. Needs WRITE_SECURE_SETTINGS.
          */
         fun pauseForPaymentApp(context: Context): Boolean {
@@ -409,6 +437,8 @@ class GlassGestureService : AccessibilityService() {
             pauseAdBlocking(context)
             val service = instance ?: return false
             context.getSharedPreferences(PAUSE_PREFS, Context.MODE_PRIVATE).edit().putBoolean("paused", true).commit()
+            // Else navObserver sees the 0 and hides the buttons again before disableSelf lands: no navigation at all.
+            service.contentResolver.unregisterContentObserver(service.navObserver)
             try { Settings.Global.putInt(context.contentResolver, "force_fsg_nav_bar", 0) } catch (_: RuntimeException) { }
             service.disableSelf()
             GestureGuard.watchPaymentExit(context)

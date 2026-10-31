@@ -67,8 +67,8 @@ object NotificationHub {
         val isNew = !raw.containsKey(sbn.key)
         raw[sbn.key] = sbn
         val entry = parse(service, sbn, ranking)
-        _entries.value = _entries.value.filterNot { it.key == sbn.key } + listOfNotNull(entry.takeUnless { it.isSystemStatus })
-        if (isNew && !entry.isSystemStatus) _posted.tryEmit(entry)
+        _entries.value = _entries.value.filterNot { it.key == sbn.key } + entry
+        if (isNew) _posted.tryEmit(entry)
     }
 
     fun onRemoved(sbn: StatusBarNotification) {
@@ -79,7 +79,7 @@ object NotificationHub {
     /** Channel/privacy changes can arrive without a new notification being posted. */
     fun onRankingUpdated(service: NotificationListenerService, ranking: NotificationListenerService.RankingMap) {
         if (listener !== service) return
-        _entries.value = raw.values.toList().map { parse(service, it, ranking) }.filterNot { it.isSystemStatus }
+        _entries.value = raw.values.toList().map { parse(service, it, ranking) }
     }
 
     fun onInterruptionFilterChanged(filter: Int) { _interruptionFilter.value = filter }
@@ -89,7 +89,7 @@ object NotificationHub {
         val ranking = try { service.currentRanking } catch (e: Exception) { null }
         raw.clear()
         active.forEach { raw[it.key] = it }
-        _entries.value = active.map { parse(service, it, ranking) }.filterNot { it.isSystemStatus }
+        _entries.value = active.map { parse(service, it, ranking) }
     }
 
     private val systemApps = ConcurrentHashMap<String, Boolean>()

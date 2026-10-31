@@ -26,6 +26,7 @@ class MainActivity : ComponentActivity() {
             navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
         )
         super.onCreate(savedInstanceState)
+        if (savedInstanceState != null) holdFirstFrames()
         setContent {
             LauncherScreen(
                 vm = vm,
@@ -33,6 +34,24 @@ class MainActivity : ComponentActivity() {
                 openSettings = { screen -> startActivity(SettingsActivity.intent(this, screen)) },
             )
         }
+    }
+
+    /**
+     * A recreated home (HyperOS swaps a system overlay when the navigation mode flips, e.g. around
+     * payment apps) drew a few half-laid-out frames: clock shifted, icons and dock empty. Measure and
+     * layout still run while the draw is held, so the first frame shown is the settled one.
+     */
+    private fun holdFirstFrames() {
+        val v = window.decorView
+        val until = android.os.SystemClock.uptimeMillis() + 300
+        var passes = 0
+        v.viewTreeObserver.addOnPreDrawListener(object : android.view.ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                if (++passes < 4 && android.os.SystemClock.uptimeMillis() < until) return false
+                v.viewTreeObserver.removeOnPreDrawListener(this)
+                return true
+            }
+        })
     }
 
     override fun onAttachedToWindow() {

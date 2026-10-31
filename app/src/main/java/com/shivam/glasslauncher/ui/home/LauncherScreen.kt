@@ -2,6 +2,8 @@
 
 package com.shivam.glasslauncher.ui.home
 
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.layer.drawLayer
 import android.app.Activity
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateFloatAsState
@@ -204,14 +206,26 @@ fun LauncherScreen(
     val showBlurFallback by remember(crossWindowBlur) {
         androidx.compose.runtime.derivedStateOf { !crossWindowBlur && overlayAnimState.value > 0.01f }
     }
+    // Captured at a quarter size: it is only ever shown blurred, and reading a full-screen capture
+    // back for the blurs blocked the render thread ~24 ms (twice) as Spotlight opened.
+    val captureLayer = rememberGraphicsLayer()
+    val captureDensity = LocalDensity.current
+    val captureDirection = androidx.compose.ui.platform.LocalLayoutDirection.current
     LaunchedEffect(overlayOpen) {
-        if (overlayOpen) frozenHome = runCatching { homeLayer.toImageBitmap() }.getOrNull()
+        if (overlayOpen) frozenHome = runCatching {
+            val full = homeLayer.size
+            val small = androidx.compose.ui.unit.IntSize((full.width * FROZEN_SCALE).toInt().coerceAtLeast(1), (full.height * FROZEN_SCALE).toInt().coerceAtLeast(1))
+            captureLayer.record(captureDensity, captureDirection, small) {
+                scale(FROZEN_SCALE, FROZEN_SCALE, pivot = androidx.compose.ui.geometry.Offset.Zero) { drawLayer(homeLayer) }
+            }
+            captureLayer.toImageBitmap()
+        }.getOrNull()
     }
     LaunchedEffect(overlayGone) { if (overlayGone) frozenHome = null }
     val frozen = frozenHome != null
     // Once the overlay has finished opening, the blurred home is one still texture: the live full-screen
     // blur would otherwise re-run on every drawer/Spotlight frame (~4 ms GPU on a Redmi Turbo 5).
-    val frozenBlurred = rememberBlurredCopy(frozenHome, OverlayHomeBlur.value)
+    val frozenBlurred = rememberBlurredCopy(frozenHome, OverlayHomeBlur.value, FROZEN_SCALE)
     val showFrozenBlur by remember(frozenBlurred, overlayOpen) {
         androidx.compose.runtime.derivedStateOf { frozenBlurred != null && overlayOpen && overlayAnimState.value > 0.97f && appDepth.value < 0.01f }
     }
@@ -219,8 +233,16 @@ fun LauncherScreen(
     val panelWallLayer = rememberGraphicsLayer()
     val panelHomeLayer = rememberGraphicsLayer()
     val panelWall = rememberBlurredCopy(snapshot.image, glass.blurRadius)
-    val panelHome = rememberBlurredCopy(frozenHome, glass.blurRadius)
+    val panelHome = rememberBlurredCopy(frozenHome, glass.blurRadius, FROZEN_SCALE)
     val stills = hasWallpaper && panelWall != null && panelHome != null
+    // Glass on the pages refracts the blurred wallpaper still, not the live copy: every widget, folder
+    // and App Library panel otherwise re-blurred the wallpaper on every frame of a swipe.
+    // Blurred at the real radius (the wallpaper copy is smaller than the screen), so widgets look as before.
+    val pagesWallLayer = rememberGraphicsLayer()
+    val pagesWall = rememberBlurredCopy(snapshot.image, glass.blurRadius, snapshot.image?.let { it.width.toFloat() / snapshot.screenWidth.coerceAtLeast(1) } ?: 1f)
+    val pagesBackdrop = remember(wallpaperOnly, pagesWall != null) {
+        if (hasWallpaper && pagesWall != null) Backdrop(listOf(pagesWallLayer), snapshot, preBlurred = true) else wallpaperOnly
+    }
     val overlayBackdrop = remember(hasWallpaper, snapshot, frozen, stills) {
         if (stills) Backdrop(listOf(panelWallLayer, panelHomeLayer), snapshot, preBlurred = true)
         else Backdrop(if (frozen) base + frozenHomeLayer else base, snapshot)
@@ -489,6 +511,7 @@ fun LauncherScreen(
                 }
                 val parallaxOn = settings.wallpaperParallax && hasWallpaper && !reduced
                 WallpaperBackdropLayer(snapshot, wallpaperLayer, hasWallpaper, parallax = if (parallaxOn) ({ tilt.value }) else null, dim = { dimFraction() * pageDimAlpha })
+                if (pagesWall != null) WallpaperBackdropLayer(snapshot, pagesWallLayer, hasWallpaper, parallax = if (parallaxOn) ({ tilt.value }) else null, dim = { dimFraction() * pageDimAlpha }, still = pagesWall)
 
                 // As on iOS the wallpaper blurs behind the App Library and Today view (HyperOS's window blur
                 // skips the system wallpaper, so this is our own blurred copy, faded in with the swipe).
@@ -596,7 +619,7 @@ fun LauncherScreen(
                                         translationY += editShift.value
                                     }
                                 }) {
-                                CompositionLocalProvider(LocalBackdrop provides wallpaperOnly) {
+                                CompositionLocalProvider(LocalBackdrop provides pagesBackdrop) {
                                     if (page < 0) {
                                         // The dim keeps white text at AA for any wallpaper, so Today always uses light text.
                                         TodayView(widgetUi, ui.editMode, { ui.editMode = it }, lightWallpaper = false)
@@ -791,3 +814,4 @@ private fun androidx.compose.ui.graphics.GraphicsLayerScope.homePageTransition(a
 /** Wallpaper blur under the home pages ("Blur wallpaper on Home"). */
 private val HomeBlur = 14.dp
 private val OverlayHomeBlur = 16.dp
+private const val FROZEN_SCALE = 0.25f

@@ -69,8 +69,10 @@ fun CalendarWidget(size: WidgetSize, modifier: Modifier = Modifier) {
     }
     LaunchedEffect(Unit) { CalendarRepository.changes(context).collect { tick.intValue++ } }
     val granted = remember(tick.intValue) { CalendarRepository.hasPermission(context) }
-    val events by produceState<List<CalendarEvent>?>(null, tick.intValue, granted) {
-        value = if (granted) CalendarRepository.upcoming(context, days = 7, limit = 30) else emptyList()
+    // Starts from the last result so a recreated home (nav-mode switch, theme change) doesn't flash "Nothing planned".
+    val events by produceState(CalendarRepository.lastWeek, tick.intValue, granted) {
+        value = (if (granted) CalendarRepository.upcoming(context, days = 7, limit = 30) else emptyList())
+            .also { CalendarRepository.lastWeek = it }
     }
 
     if (!granted) {
