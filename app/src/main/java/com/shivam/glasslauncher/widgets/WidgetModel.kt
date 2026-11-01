@@ -61,6 +61,8 @@ object WidgetKeys {
     const val QUOTE_AUTHOR = "quoteAuthor"
     /** Coloured runs of the quote, see [QuoteSpans]. */
     const val QUOTE_COLORS = "quoteColors"
+    /** Quote text size: "auto" (largest that fits, default) or a [QuoteSize] name. */
+    const val QUOTE_SIZE = "quoteSize"
     const val PROVIDER_GLASS = "providerGlass"
     const val PROVIDER_BACKGROUND = "providerBackground"
     const val FOCUS_MINUTES = "focusMinutes"

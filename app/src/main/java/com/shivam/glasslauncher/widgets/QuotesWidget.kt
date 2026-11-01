@@ -25,38 +25,101 @@ object QuoteDefaults {
     const val MAX_AUTHOR = 80
 }
 
+/** Fixed quote sizes in sp (longer quotes scroll). Auto picks the largest size that fits. */
+enum class QuoteSize(val label: String, val sp: Float?) {
+    AUTO("Auto", null), S("S", 18f), M("M", 24f), L("L", 30f), XL("XL", 36f), XXL("XXL", 44f);
+    companion object { fun of(v: String?) = entries.firstOrNull { it.name == v } ?: AUTO }
+}
+
+/** A Devanagari serif with Latin too; falls back to the bundled sans if Google Fonts can't load. */
+@Composable
+private fun quoteFamily(): androidx.compose.ui.text.font.FontFamily {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    return remember { com.shivam.glasslauncher.polish.Fonts.family(context, "gf:Tiro Devanagari Hindi") }
+}
+
 @Composable
 fun QuotesWidget(inst: WidgetInstance, size: WidgetSize, modifier: Modifier = Modifier) {
     val env = LocalWidgetEnv.current
     val text = inst[WidgetKeys.QUOTE_TEXT]?.takeIf { it.isNotBlank() } ?: QuoteDefaults.TEXT
     val author = inst[WidgetKeys.QUOTE_AUTHOR].orEmpty()
     val editable = !inst.id.startsWith(PREVIEW_PREFIX) && env?.editMode != true
-    WidgetFrame(modifier, padding = 18.dp, onClick = if (editable) ({ env?.editWidget?.invoke(inst.id) }) else null) {
-        Column(Modifier.fillMaxSize()) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                GlassIcon(WidgetGlyphs.Quote, size = 20.dp, tint = currentAccent())
-                Spacer(Modifier.width(8.dp))
-                GlassText("A little perspective", style = GlassType.Caption.copy(letterSpacing = 0.3.sp), secondary = true)
-            }
-            Spacer(Modifier.height(if (size == WidgetSize.LARGE) 20.dp else 8.dp))
-            val spans = remember(text, inst[WidgetKeys.QUOTE_COLORS]) { QuoteSpans.clip(QuoteSpans.decode(inst[WidgetKeys.QUOTE_COLORS]), text.length) }
-            val ink = LocalGlassContentColor.current
-            Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), contentAlignment = Alignment.CenterStart) {
-                androidx.compose.material3.Text(
-                    quoteText(text, spans),
-                    style = GlassType.Body.copy(
-                        fontSize = if (size == WidgetSize.LARGE) 26.sp else 18.sp,
-                        lineHeight = if (size == WidgetSize.LARGE) 38.sp else 28.sp,
-                        fontWeight = FontWeight.Medium,
+    val large = size == WidgetSize.LARGE
+    val accent = currentAccent()
+    val ink = LocalGlassContentColor.current
+    val family = quoteFamily()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val markFamily = remember { com.shivam.glasslauncher.polish.Fonts.family(context, "lora") }
+    WidgetFrame(modifier, padding = 20.dp, onClick = if (editable) ({ env?.editWidget?.invoke(inst.id) }) else null) {
+        Box(Modifier.fillMaxSize()) {
+            // A big serif opening mark, faint, sets the tone without competing with the words.
+            androidx.compose.material3.Text(
+                "\u201C",
+                Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-22).dp),
+                style = androidx.compose.ui.text.TextStyle(
+                    fontFamily = markFamily,
+                    fontSize = if (large) 150.sp else 110.sp,
+                    color = accent.copy(alpha = 0.22f),
+                ),
+            )
+            Column(Modifier.fillMaxSize()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    GlassIcon(WidgetGlyphs.Quote, size = 16.dp, tint = accent)
+                    Spacer(Modifier.width(8.dp))
+                    GlassText("A LITTLE PERSPECTIVE", style = GlassType.Caption.copy(fontSize = 11.sp, letterSpacing = 1.6.sp, fontWeight = FontWeight.SemiBold), secondary = true)
+                }
+                Spacer(Modifier.height(if (large) 14.dp else 8.dp))
+                val spans = remember(text, inst[WidgetKeys.QUOTE_COLORS]) { QuoteSpans.clip(QuoteSpans.decode(inst[WidgetKeys.QUOTE_COLORS]), text.length) }
+                val annotated = remember(text, spans) { quoteText(text, spans) }
+                val choice = QuoteSize.of(inst[WidgetKeys.QUOTE_SIZE])
+                val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+                BoxWithConstraints(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                    fun style(sp: Float) = androidx.compose.ui.text.TextStyle(
+                        fontFamily = family,
+                        fontSize = sp.sp,
+                        lineHeight = (sp * 1.5f).sp,
+                        // Devanagari vowel marks (ि े ै ों) rise above the line box: keep the font's
+                        // padding and the full first-line height, or the top of line one is cut off.
+                        platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = true),
+                        lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                            androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                            androidx.compose.ui.text.style.LineHeightStyle.Trim.None,
+                        ),
                         color = ink,
-                    ),
-                )
-            }
-            if (author.isNotBlank()) {
-                Spacer(Modifier.height(10.dp))
-                GlassText("— $author", style = GlassType.Caption, secondary = true, maxLines = 2)
+                        shadow = androidx.compose.ui.graphics.Shadow(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.25f), blurRadius = 10f),
+                    )
+                    val w = constraints.maxWidth
+                    val h = constraints.maxHeight
+                    val sp = remember(annotated, choice, large, w, h, family) {
+                        choice.sp
+                            ?: QuoteFit.largest(if (large) 52f else 40f, 13f) { s ->
+                                measurer.measure(annotated, style(s), constraints = androidx.compose.ui.unit.Constraints(maxWidth = w)).size.height <= h
+                            }
+                    }
+                    // Fixed sizes can overflow: scroll so every word stays readable.
+                    Box(Modifier.fillMaxWidth().heightIn(max = maxHeight).verticalScroll(rememberScrollState())) {
+                        androidx.compose.material3.Text(annotated, style = style(sp))
+                    }
+                }
+                if (author.isNotBlank()) {
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.width(22.dp).height(2.dp).background(accent.copy(alpha = 0.8f), GlassShape.Capsule))
+                        Spacer(Modifier.width(10.dp))
+                        GlassText(author, style = GlassType.Caption.copy(fontFamily = family, fontSize = 14.sp), secondary = true, maxLines = 2)
+                    }
+                }
             }
         }
+    }
+}
+
+/** Largest font size in [max] down to [min] (1 sp steps) for which [fits] holds; [min] if none does. */
+internal object QuoteFit {
+    fun largest(max: Float, min: Float, fits: (Float) -> Boolean): Float {
+        var s = max
+        while (s > min && !fits(s)) s -= 1f
+        return s
     }
 }
 
@@ -66,6 +129,7 @@ fun QuotesSettings(widgets: WidgetUiState, inst: WidgetInstance) {
     var value by remember(inst.id) { mutableStateOf(androidx.compose.ui.text.input.TextFieldValue(initial)) }
     var spans by remember(inst.id) { mutableStateOf(QuoteSpans.clip(QuoteSpans.decode(inst[WidgetKeys.QUOTE_COLORS]), initial.length)) }
     var author by rememberSaveable(inst.id) { mutableStateOf(inst[WidgetKeys.QUOTE_AUTHOR].orEmpty()) }
+    var sizeChoice by remember(inst.id) { mutableStateOf(QuoteSize.of(inst[WidgetKeys.QUOTE_SIZE])) }
     val text = value.text
     val accent = currentAccent()
     // Colours the selection, or the whole quote when nothing is selected.
@@ -105,6 +169,9 @@ fun QuotesSettings(widgets: WidgetUiState, inst: WidgetInstance) {
             )
         }
         GlassText("${text.length} / ${QuoteDefaults.MAX_TEXT}", style = GlassType.Caption, secondary = true)
+        GlassText("Text size", style = GlassType.Subhead)
+        GlassSegmented(QuoteSize.entries.map { it.label }, selected = sizeChoice.ordinal, onSelect = { sizeChoice = QuoteSize.entries[it] }, modifier = Modifier.fillMaxWidth())
+        GlassText("Auto uses the largest size that fits the widget.", style = GlassType.Caption, secondary = true)
         GlassTextField(author, { author = it.take(QuoteDefaults.MAX_AUTHOR) }, placeholder = "Author or source (optional)", leadingIcon = null)
         GlassButton("Save quote", onClick = {
             val t = text.trim()
@@ -114,6 +181,7 @@ fun QuotesSettings(widgets: WidgetUiState, inst: WidgetInstance) {
             widgets.repo.setConfig(inst.id, WidgetKeys.QUOTE_TEXT, t)
             widgets.repo.setConfig(inst.id, WidgetKeys.QUOTE_COLORS, QuoteSpans.encode(saved))
             widgets.repo.setConfig(inst.id, WidgetKeys.QUOTE_AUTHOR, author.trim())
+            widgets.repo.setConfig(inst.id, WidgetKeys.QUOTE_SIZE, sizeChoice.name)
             widgets.editing = null
         }, prominent = true, enabled = text.isNotBlank(), modifier = Modifier.fillMaxWidth())
         GlassButton("Use Hindi quote", onClick = { value = androidx.compose.ui.text.input.TextFieldValue(QuoteDefaults.TEXT); spans = emptyList(); author = "" })

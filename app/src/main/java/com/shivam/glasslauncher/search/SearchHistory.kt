@@ -11,10 +11,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-/** Spotlight's recent searches: queries that led somewhere, newest first, one entry per wording. */
+/** Spotlight's recent searches: the last [MAX] queries sent to Google, newest first, one per wording. */
 class SearchHistory(private val context: Context, private val scope: CoroutineScope) {
 
-    private val key = stringPreferencesKey("search_history")
+    // New key: the old list mixed in half-typed app searches ("se", "boo").
+    private val key = stringPreferencesKey("search_history_web")
 
     val recent: StateFlow<List<String>> = context.settingsStore.data
         .map { decode(it[key].orEmpty()) }
@@ -37,7 +38,7 @@ class SearchHistory(private val context: Context, private val scope: CoroutineSc
     }
 
     companion object {
-        const val MAX = 8
+        const val MAX = 3
 
         fun add(query: String, list: List<String>): List<String> =
             (listOf(query) + list.filterNot { it.equals(query, ignoreCase = true) }).take(MAX)

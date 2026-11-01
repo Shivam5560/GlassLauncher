@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -113,11 +114,16 @@ fun SpotlightOverlay(
         ui.spotlightOpen = false
     }
 
-    /** A result was chosen: remember the query, close, then act. */
+    /** A result was chosen: close, then act. Only Google searches go into Recent (see [webSearch]). */
     fun pick(action: () -> Unit) {
-        vm.recordSearch(query)
         close()
         action()
+    }
+
+    /** A Google search: the only thing Recent remembers. */
+    fun webSearch() {
+        vm.recordSearch(query)
+        pick { vm.actions.webSearch(activity, query) }
     }
 
     LaunchedEffect(visible) {
@@ -171,7 +177,7 @@ fun SpotlightOverlay(
                     onGo = {
                         val top = results.apps.firstOrNull()
                         if (top != null) pick { onLaunch(top, null) }
-                        else if (query.isNotBlank()) pick { vm.actions.webSearch(activity, query) }
+                        else if (query.isNotBlank()) webSearch()
                     },
                     onClose = { close() },
                     onVoice = {
@@ -205,7 +211,7 @@ fun SpotlightOverlay(
                             ) ui.toast.show("No app can open this file")
                         }
                     },
-                    onWeb = { pick { vm.actions.webSearch(activity, query) } },
+                    onWeb = { webSearch() },
                     onPlayStore = { pick { vm.actions.playStoreSearch(activity, query) } },
                     onRecent = { vm.query.value = it },
                     onForgetRecent = { vm.forgetSearch(it) },
@@ -253,8 +259,14 @@ private fun SpotlightResultsList(
 ) {
     // The query the results were computed for; stale rows never pair with a newer query's text.
     val shown = results.query
+    // Dragging the list puts the keyboard away so every recent search is reachable, as on iOS.
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(listState.isScrollInProgress) { if (listState.isScrollInProgress) keyboard?.hide() }
     LazyColumn(
-        Modifier.fillMaxSize(),
+        // Ends at the keyboard's top edge, so the rows it would cover can be scrolled into view.
+        Modifier.fillMaxSize().imePadding(),
+        state = listState,
         verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(bottom = 24.dp),
     ) {
