@@ -327,7 +327,7 @@ fun LockScreenNotifications(host: PanelHost, maxHeight: androidx.compose.ui.unit
                 Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     GlassText("${stacks.sumOf { it.count }} notifications", Modifier.weight(1f), style = GlassType.Subhead)
                     if (entries.any { it.text == LOCK_REDACTED_TEXT }) GlassText("Unlock to view", style = GlassType.Caption, secondary = true)
-                    // One tap clears the lot, as on iOS: swiping each card on the lock screen was unreliable.
+                    // One tap clears the lot, as on iOS; a swipe clears one card or app stack.
                     val clear = entries.filter { !it.isMedia && it.canDismiss }.map { it.key }
                     if (clear.isNotEmpty()) {
                         Spacer(Modifier.width(10.dp))
@@ -343,11 +343,15 @@ fun LockScreenNotifications(host: PanelHost, maxHeight: androidx.compose.ui.unit
                 }
                 items(stack.items, key = { "lock:" + it.key }) { e ->
                     // Expanded cards open their notification after unlock; "Show less" collapses.
-                    NotificationCard(e, host, showActions = false, onClick = { UnlockAndOpenActivity.start(host.context, e.key) }, kind = SurfaceKind.Panel)
+                    SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(listOf(e.key)) }, enabled = e.canDismiss) {
+                        NotificationCard(e, host, showActions = false, onClick = { UnlockAndOpenActivity.start(host.context, e.key) }, kind = SurfaceKind.Panel)
+                    }
                 }
             } else {
                 item("lock-stack:" + stack.packageName) {
-                    CollapsedStack(stack, host, onExpand = { expanded = expanded + stack.packageName }, kind = SurfaceKind.Panel, locked = true)
+                    SwipeToDismiss(onDismiss = { NotificationHub.dismissAll(appKeys(entries, stack.packageName)) }, enabled = stack.clearableKeys.isNotEmpty()) {
+                        CollapsedStack(stack, host, onExpand = { expanded = expanded + stack.packageName }, kind = SurfaceKind.Panel, locked = true)
+                    }
                 }
             }
         }
