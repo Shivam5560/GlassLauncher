@@ -21,6 +21,8 @@
     <!-- Phase 3: island fallback window, Control Center toggles and Wi-Fi/data state. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <!-- Payment-app pause: sees when the payment app leaves the front (granted with appops over adb or in Settings). -->
+    <!-- Steps widget: the phone's step counter sensor. -->
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.WRITE_SETTINGS"
