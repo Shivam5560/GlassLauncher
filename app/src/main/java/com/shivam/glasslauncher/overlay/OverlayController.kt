@@ -266,6 +266,8 @@ class OverlayController(
      * Privacy-safe glass cards supplement the lock screen only when its native list is off.
      */
     private var wasLocked = false
+    /** The lock cards have nothing to show (see LockScreenNotifications). */
+    private var lockEmpty = false
     /** A call is ringing or live (same classification as the island's call activities). */
     private var callActive = false
 
@@ -303,11 +305,14 @@ class OverlayController(
             // Below HyperOS's lock clock, which grows to ~45% of the screen once its own list is off.
             y = (bounds.height() * 0.495f).toInt()
         }
+        lockEmpty = false
         val maxHeight = with(androidx.compose.ui.unit.Density(density)) { (bounds.height() * 0.355f).toDp() }
         val w = ComposeOverlayWindow(service, params) {
             OverlayTheme {
                 val snap by com.shivam.glasslauncher.GlassApp.from(service).wallpaper.snapshot.collectAsState()
-                OverlayWallpaperBackdrop(snap) { LockScreenNotifications(lockHost, maxHeight) }
+                OverlayWallpaperBackdrop(snap) {
+                    LockScreenNotifications(lockHost, maxHeight) { empty -> lockEmpty = empty; lockWindow?.setVisible(!empty && !isBouncerUp()) }
+                }
             }
         }
         if (!w.show()) return
@@ -319,7 +324,7 @@ class OverlayController(
                 kotlinx.coroutines.delay(300)
                 engine.signals.updateLocked()
                 // The pattern/PIN pad needs the whole lock screen: hide the cards while it is up.
-                lockWindow?.setVisible(!isBouncerUp())
+                lockWindow?.setVisible(!lockEmpty && !isBouncerUp())
             }
         }
     }

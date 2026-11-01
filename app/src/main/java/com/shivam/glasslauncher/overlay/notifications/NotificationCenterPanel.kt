@@ -298,7 +298,7 @@ private fun QuickButtons(host: PanelHost, modifier: Modifier) {
  * Message text, media and actions remain private; the system keyguard still owns authentication.
  */
 @Composable
-fun LockScreenNotifications(host: PanelHost, maxHeight: androidx.compose.ui.unit.Dp) {
+fun LockScreenNotifications(host: PanelHost, maxHeight: androidx.compose.ui.unit.Dp, onEmpty: (Boolean) -> Unit = {}) {
     val all by NotificationHub.entries.collectAsState()
     // Read once per lock: the window is rebuilt every time the phone locks.
     val privacy = remember {
@@ -312,7 +312,11 @@ fun LockScreenNotifications(host: PanelHost, maxHeight: androidx.compose.ui.unit
     val entries = remember(all, privacy) { lockScreenEntries(all, privacy) }
     var expanded by remember { mutableStateOf(emptySet<String>()) }
     val stacks = remember(entries, expanded) { NotificationGrouping.stacks(entries, expanded) }
-    if (stacks.isEmpty()) return
+    // The window wraps its content: emptied to zero height it never draws again and the cleared
+    // cards stay frozen on screen until the next lock. The owner hides the window instead.
+    val empty = stacks.isEmpty()
+    LaunchedEffect(empty) { onEmpty(empty) }
+    if (empty) return
     LazyColumn(
         Modifier.fillMaxWidth().heightIn(max = maxHeight),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
@@ -323,6 +327,12 @@ fun LockScreenNotifications(host: PanelHost, maxHeight: androidx.compose.ui.unit
                 Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                     GlassText("${stacks.sumOf { it.count }} notifications", Modifier.weight(1f), style = GlassType.Subhead)
                     if (entries.any { it.text == LOCK_REDACTED_TEXT }) GlassText("Unlock to view", style = GlassType.Caption, secondary = true)
+                    // One tap clears the lot, as on iOS: swiping each card on the lock screen was unreliable.
+                    val clear = entries.filter { !it.isMedia && it.canDismiss }.map { it.key }
+                    if (clear.isNotEmpty()) {
+                        Spacer(Modifier.width(10.dp))
+                        GlassIconButton(GlassIcons.Close, onClick = { NotificationHub.dismissAll(clear) }, size = 30.dp, contentDescription = "Clear all notifications")
+                    }
                 }
             }
         }

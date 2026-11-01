@@ -147,15 +147,19 @@ fun OverlayWallpaperBackdrop(
     val backdrop = androidx.compose.runtime.remember(snapshot, blurred) {
         Backdrop(listOf(layer), snapshot, preBlurred = blurred != null)
     }
-    // The window's share of the screen-sized [img] (any resolution), dimmed like the visible copy.
+    // The window's share of [img] (any resolution), dimmed like the visible copy. The image is
+    // center-cropped to cover the *current* screen: over a landscape app the portrait wallpaper
+    // used to fill only a portrait-width strip, leaving the video showing through.
     fun DrawScope.wallpaper(img: androidx.compose.ui.graphics.ImageBitmap) {
         val loc = IntArray(2).also(view::getLocationOnScreen)
-        val sx = img.width.toFloat() / snapshot.screenWidth
-        val sy = img.height.toFloat() / snapshot.screenHeight
+        val screen = view.context.getSystemService(android.view.WindowManager::class.java).maximumWindowMetrics.bounds
+        val s = minOf(img.width.toFloat() / screen.width(), img.height.toFloat() / screen.height())
+        val ox = (img.width - screen.width() * s) / 2f
+        val oy = (img.height - screen.height() * s) / 2f
         drawImage(
             image = img,
-            srcOffset = IntOffset((loc[0] * sx).toInt(), (loc[1] * sy).toInt()),
-            srcSize = IntSize((size.width * sx).toInt().coerceAtLeast(1), (size.height * sy).toInt().coerceAtLeast(1)),
+            srcOffset = IntOffset((ox + loc[0] * s).toInt(), (oy + loc[1] * s).toInt()),
+            srcSize = IntSize((size.width * s).toInt().coerceAtLeast(1), (size.height * s).toInt().coerceAtLeast(1)),
             dstOffset = IntOffset.Zero,
             dstSize = IntSize(size.width.toInt(), size.height.toInt()),
         )
