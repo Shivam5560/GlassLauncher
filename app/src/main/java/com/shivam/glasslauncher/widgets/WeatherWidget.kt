@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
@@ -25,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -123,8 +125,13 @@ fun WeatherWidget(inst: WidgetInstance, size: WidgetSize, modifier: Modifier = M
                 GlassText(WeatherCodes.description(c.code), style = GlassType.Subhead, maxLines = 1)
                 today?.let { GlassText("H:${WeatherCodes.display(it.maxC, fahrenheit)}° L:${WeatherCodes.display(it.minC, fahrenheit)}°", style = GlassType.Subhead, maxLines = 1) }
             } else {
-                Spacer(Modifier.weight(1f))
-                HourlyStrip(data, fahrenheit)
+                if (inst[WidgetKeys.WEATHER_STYLE] == "classic") {
+                    Spacer(Modifier.weight(1f))
+                    HourlyStrip(data, fahrenheit)
+                } else {
+                    // The wave takes whatever room the card has left (more in a tall stack).
+                    HourlyWave(data, fahrenheit, Modifier.weight(if (size == WidgetSize.LARGE) 2f else 1f).heightIn(min = 60.dp))
+                }
                 if (size == WidgetSize.LARGE) {
                     Spacer(Modifier.height(10.dp))
                     DailyList(data, fahrenheit, Modifier.weight(3f))
@@ -134,6 +141,65 @@ fun WeatherWidget(inst: WidgetInstance, size: WidgetSize, modifier: Modifier = M
                 GlassText(state.error ?: "", style = GlassType.Caption, secondary = true, maxLines = 1)
             }
         }
+    }
+}
+
+/**
+ * Weather 3, the hourly wave: the next ten hours of temperature as a liquid surface in the
+ * theme's colour, warmest and coolest hours labelled, a glowing dot for now.
+ */
+@Composable
+private fun HourlyWave(data: WeatherData, fahrenheit: Boolean, modifier: Modifier) {
+    val hours = OpenMeteo.upcomingHours(data, 10)
+    if (hours.size < 2) return HourlyStrip(data, fahrenheit)
+    val accent = com.shivam.glasslauncher.ui.glass.currentAccent()
+    val measurer = androidx.compose.ui.text.rememberTextMeasurer()
+    val temps = hours.map { WeatherCodes.display(it.tempC, fahrenheit) }
+    // The curve follows the exact forecast; whole degrees would turn it into flat steps.
+    val exact = hours.map { (if (fahrenheit) it.tempC * 9 / 5 + 32 else it.tempC).toFloat() }
+    val hi = exact.indices.maxBy { exact[it] }
+    val lo = exact.indices.minBy { exact[it] }
+    Canvas(modifier.fillMaxWidth()) {
+        val labelH = 14.dp.toPx()
+        val top = labelH + 4.dp.toPx()
+        val bottom = size.height - labelH - 2.dp.toPx()
+        val pad = 10.dp.toPx()
+        val tMin = exact.min()
+        // At least 4° of range, so a one-degree drift stays a gentle swell.
+        val span = (exact.max() - tMin).coerceAtLeast(4f)
+        val pts = exact.mapIndexed { i, t ->
+            // The coolest hour still sits a quarter up, so there's always a body of liquid under the curve.
+            Offset(pad + (size.width - 2 * pad) * i / (temps.size - 1), bottom - (bottom - top) * (0.25f + 0.62f * (t - tMin) / span))
+        }
+        val curve = androidx.compose.ui.graphics.Path().apply {
+            moveTo(pts[0].x, pts[0].y)
+            for (i in 1 until pts.size) {
+                val mx = (pts[i - 1].x + pts[i].x) / 2
+                cubicTo(mx, pts[i - 1].y, mx, pts[i].y, pts[i].x, pts[i].y)
+            }
+        }
+        val fill = androidx.compose.ui.graphics.Path().apply {
+            addPath(curve)
+            lineTo(pts.last().x, bottom)
+            lineTo(pts[0].x, bottom)
+            close()
+        }
+        drawPath(fill, Brush.verticalGradient(listOf(accent.copy(alpha = 0.75f), accent.copy(alpha = 0.06f)), startY = top, endY = bottom))
+        drawPath(fill, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.18f), Color.Transparent), startY = top, endY = top + 26.dp.toPx()))
+        drawPath(curve, Color.White.copy(alpha = 0.85f), style = androidx.compose.ui.graphics.drawscope.Stroke(1.6.dp.toPx(), cap = StrokeCap.Round))
+        pts.forEachIndexed { i, p ->
+            // Hours along the bottom (every other one), temperatures above the warmest, coolest and now.
+            if (i % 2 == 0) {
+                val t = measurer.measure(if (i == 0) "Now" else hourLabel(hours[i].time), androidx.compose.ui.text.TextStyle(fontSize = 10.sp, fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.6f)))
+                drawText(t, topLeft = Offset((p.x - t.size.width / 2f).coerceIn(0f, size.width - t.size.width), size.height - labelH))
+            }
+            if (i == 0 || i == hi || i == lo) {
+                val t = measurer.measure("${temps[i]}°", androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White))
+                drawText(t, topLeft = Offset((p.x - t.size.width / 2f).coerceIn(0f, size.width - t.size.width), p.y - t.size.height - 4.dp.toPx()))
+            }
+        }
+        drawCircle(accent.copy(alpha = 0.45f), 9.dp.toPx(), pts[0])
+        drawCircle(Color.White, 4.dp.toPx(), pts[0])
     }
 }
 

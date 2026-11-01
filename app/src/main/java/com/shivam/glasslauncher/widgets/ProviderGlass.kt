@@ -27,7 +27,46 @@ class GlassAppWidgetHostView(context: Context) : AppWidgetHostView(context) {
     private val paints = IdentityHashMap<View, Paint>()
     private var blend = false
     private var backgroundOpacity = 0.25f
-    private val refreshPaint = Runnable { applyBackgrounds() }
+    private val refreshPaint = Runnable { applyBackgrounds(); reportTexts() }
+
+    /** Receives the widget's visible texts, in layout order, after every update (see [ClaudeUsage]). */
+    var onTexts: ((List<String>) -> Unit)? = null
+        set(value) { field = value; reportTexts() }
+
+    private fun reportTexts() {
+        val cb = onTexts ?: return
+        val out = ArrayList<String>()
+        fun visit(v: View, depth: Int) {
+            if (depth > 12) return
+            if (v is android.widget.TextView) v.text?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let(out::add)
+            if (v is ViewGroup) for (i in 0 until v.childCount.coerceAtMost(64)) visit(v.getChildAt(i), depth + 1)
+        }
+        visit(this, 0)
+        if (out.isNotEmpty()) cb(out)
+    }
+
+    /**
+     * Presses the provider's own refresh control: the top-most small tappable element that shows
+     * no text (u.sage's refresh icon; Glance puts the tap on a box around the image). Returns
+     * false when there is none. The provider's PendingIntent does the actual work.
+     */
+    fun clickRefresh(): Boolean {
+        fun hasText(v: View): Boolean = when (v) {
+            is android.widget.TextView -> !v.text.isNullOrBlank()
+            is ViewGroup -> (0 until v.childCount).any { hasText(v.getChildAt(it)) }
+            else -> false
+        }
+        val found = ArrayList<View>()
+        fun visit(v: View, depth: Int) {
+            if (depth > 14) return
+            if (v !== this && v.hasOnClickListeners() && v.width in 1..(width / 3) && v.height in 1..(height / 3) && !hasText(v)) found += v
+            if (v is ViewGroup) for (i in 0 until v.childCount) visit(v.getChildAt(i), depth + 1)
+        }
+        visit(this, 0)
+        val loc = IntArray(2)
+        val target = found.minByOrNull { v -> v.getLocationInWindow(loc); loc[1] * 4 - loc[0] } ?: return false
+        return target.performClick()
+    }
 
     fun setGlassBlend(enabled: Boolean, opacity: Float) {
         if (blend == enabled && backgroundOpacity == opacity) return

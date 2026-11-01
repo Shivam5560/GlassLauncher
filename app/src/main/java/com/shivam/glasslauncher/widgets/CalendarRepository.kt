@@ -54,6 +54,22 @@ object CalendarRepository {
         out.sortedBy { it.begin.coerceAtLeast(now) }.take(limit)
     }
 
+    /** Every visible event overlapping [from, to) (ms), by start time: the day stream's window. */
+    suspend fun between(context: Context, from: Long, to: Long): List<CalendarEvent> = withContext(Dispatchers.IO) {
+        if (!hasPermission(context)) return@withContext emptyList()
+        val uri = CalendarContract.Instances.CONTENT_URI.buildUpon().let {
+            ContentUris.appendId(it, from - 24 * 3600_000L) // all-day events are stored in UTC
+            ContentUris.appendId(it, to + 24 * 3600_000L)
+            it.build()
+        }
+        try {
+            context.contentResolver.query(uri, PROJECTION, "${CalendarContract.Instances.VISIBLE} = 1", null, "${CalendarContract.Instances.BEGIN} ASC")
+                ?.use { readEvents(it) }.orEmpty()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
     /**
      * Spotlight: events from the last 30 days and the next year whose title (or place) matches every
      * word of [query]. A repeating meeting appears once, at its next (or latest) occurrence; upcoming

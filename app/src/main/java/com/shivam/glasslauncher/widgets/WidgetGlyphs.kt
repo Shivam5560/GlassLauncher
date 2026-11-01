@@ -115,6 +115,9 @@ object WidgetGlyphs {
         WidgetKind.FOCUS -> Clock
         WidgetKind.QUICK_ACTIONS -> Sliders
         WidgetKind.QUOTES -> Quote
+        WidgetKind.SCREEN_TIME -> Glance
+        WidgetKind.STEPS -> Compass
+        WidgetKind.ALARM -> Clock
         WidgetKind.APP_WIDGET -> Widgets
     }
 }

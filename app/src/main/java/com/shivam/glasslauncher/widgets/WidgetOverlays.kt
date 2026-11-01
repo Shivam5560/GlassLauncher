@@ -136,7 +136,10 @@ private fun WidgetEditSheet(widgets: WidgetUiState, layout: HomeLayout) {
                     GlassListGroup { GlassRow(inst.kind.description) }
                 }
                 WidgetKind.CLOCK -> clockSettings(widgets, inst)
-                WidgetKind.WEATHER -> item("weather") { WeatherLocationSettings() }
+                WidgetKind.WEATHER -> {
+                    item("weatherStyle") { StyleChoice(widgets, inst, WidgetKeys.WEATHER_STYLE, listOf("wave" to "Hourly wave", "classic" to "Classic")) }
+                    item("weather") { WeatherLocationSettings() }
+                }
                 WidgetKind.PHOTOS -> item("photos") { PhotoSettings(widgets, inst) }
                 WidgetKind.SMART_STACK -> item("stack") { StackSettings(widgets, inst) }
                 WidgetKind.NOTES -> item("notes") {
@@ -145,10 +148,13 @@ private fun WidgetEditSheet(widgets: WidgetUiState, layout: HomeLayout) {
                     }
                 }
                 WidgetKind.MUSIC -> item("music") { AccessRow() }
-                WidgetKind.CALENDAR -> item("calendar") { CalendarSettings() }
+                WidgetKind.CALENDAR -> {
+                    item("calendarStyle") { StyleChoice(widgets, inst, WidgetKeys.CALENDAR_STYLE, listOf("stream" to "Day stream", "list" to "List"), footer = "Day stream: swipe sideways through any day. Small widgets always use the list.") }
+                    item("calendar") { CalendarSettings() }
+                }
                 WidgetKind.BATTERY -> item("battery") { BluetoothSettings() }
                 WidgetKind.APP_WIDGET -> item("app") { AppWidgetSettings(widgets, inst, layout) }
-                WidgetKind.SEARCH, WidgetKind.GLANCE, WidgetKind.COMPASS -> Unit
+                WidgetKind.SEARCH, WidgetKind.GLANCE, WidgetKind.COMPASS, WidgetKind.SCREEN_TIME, WidgetKind.STEPS, WidgetKind.ALARM -> Unit
                 WidgetKind.ICON_GROUP -> item("group") { IconGroupSettings(widgets, inst) }
             }
             item("remove") {
@@ -156,6 +162,19 @@ private fun WidgetEditSheet(widgets: WidgetUiState, layout: HomeLayout) {
                     GlassButton("Remove Widget", onClick = { widgets.remove(inst.id) }, destructive = true, icon = GlassIcons.Trash)
                 }
             }
+        }
+    }
+}
+
+/** A segmented style picker stored in [key]; the first option is the default. */
+@Composable
+private fun StyleChoice(widgets: WidgetUiState, inst: WidgetInstance, key: String, options: List<Pair<String, String>>, footer: String? = null) {
+    val current = inst[key] ?: options.first().first
+    GlassListGroup(title = "Style", footer = footer) {
+        Box(Modifier.padding(12.dp)) {
+            GlassSegmented(options.map { it.second }, options.indexOfFirst { it.first == current }.coerceAtLeast(0), { i ->
+                widgets.repo.setConfig(inst.id, key, options[i].first)
+            })
         }
     }
 }

@@ -4,7 +4,9 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -41,7 +43,16 @@ fun AppWidgetContent(inst: WidgetInstance, modifier: Modifier = Modifier) {
     }
     val blend = ProviderGlass.enabled(inst)
     val backgroundOpacity = ProviderGlass.backgroundOpacity(inst)
-    WidgetFrame(modifier, padding = 4.dp) {
+    // u.sage's Claude usage gets Glass's own Liquid Tank; its widget stays underneath, invisible,
+    // so it keeps receiving updates. Unrecognised layouts fall back to u.sage's widget.
+    val claude = info.provider.packageName == ClaudeUsage.PACKAGE
+    var usage by androidx.compose.runtime.remember(id) { androidx.compose.runtime.mutableStateOf<ClaudeUsage?>(null) }
+    // The session countdown starts from when u.sage's text last changed, not from every redraw.
+    var lastTexts by androidx.compose.runtime.remember(id) { androidx.compose.runtime.mutableStateOf<List<String>>(emptyList()) }
+    var readAt by androidx.compose.runtime.remember(id) { androidx.compose.runtime.mutableLongStateOf(0L) }
+    val hostView = androidx.compose.runtime.remember(id) { arrayOfNulls<GlassAppWidgetHostView>(1) }
+    androidx.compose.foundation.layout.Box(modifier) {
+    WidgetFrame(Modifier.matchParentSize().alpha(if (usage != null) 0f else 1f), padding = 4.dp) {
         BoxWithConstraints(Modifier.fillMaxSize().clip(GlassShape.rounded(
             (com.shivam.glasslauncher.ui.glass.LocalGlassStyle.current.widgetCornerRadius - 4f).coerceAtLeast(0f).dp,
         ))) {
@@ -54,11 +65,23 @@ fun AppWidgetContent(inst: WidgetInstance, modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxSize().alpha(if (blend) 1f else com.shivam.glasslauncher.ui.glass.LocalGlassStyle.current.appWidgetOpacity),
                     update = { view ->
                         (view as? GlassAppWidgetHostView)?.setGlassBlend(blend, backgroundOpacity)
+                        if (claude) (view as? GlassAppWidgetHostView)?.let { v ->
+                            hostView[0] = v
+                            v.onTexts = { texts ->
+                                if (texts != lastTexts) { lastTexts = texts; readAt = System.currentTimeMillis(); usage = ClaudeUsage.parse(texts) }
+                            }
+                        }
                         host.updateSize(view, w, h)
                     },
                 )
             }
         }
+    }
+    usage?.let { u ->
+        // Any tap only refreshes; it never opens u.sage.
+        val refresh = if (env?.editMode == true) null else ({ hostView[0]?.clickRefresh(); Unit })
+        ClaudeLiquidTank(u, Modifier.matchParentSize(), readAt = readAt, onRefresh = refresh, onClick = refresh)
+    }
     }
 }
 

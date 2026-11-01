@@ -521,7 +521,9 @@ fun LauncherScreen(
                 if (img != null) {
                     val sideFraction = {
                         val pos = ringState.value.of(pagerState.currentPage) + pagerState.currentPageOffsetFraction
-                        maxOf((pos - (homePageCount - 1 + TODAY_PAGES)).coerceIn(0f, 1f), (TODAY_PAGES - pos).coerceIn(0f, 1f))
+                        // Live page count: these lambdas sit in remembered derivedStateOf, which kept the count from
+                        // when Home was first drawn, so a newly added page read as the App Library (no dock).
+                        maxOf((pos - (homeCountState.value - 1 + TODAY_PAGES)).coerceIn(0f, 1f), (TODAY_PAGES - pos).coerceIn(0f, 1f))
                     }
                     val homeBlur = settings.homeBlur
                     val showSideBlur by remember { androidx.compose.runtime.derivedStateOf { sideFraction() > 0.01f } }
@@ -657,7 +659,9 @@ fun LauncherScreen(
                         // 0 on home pages, 1 on the App Library or the Today view: the dock and dots fade out.
                         val libraryFraction = {
                             val pos = ringState.value.of(pagerState.currentPage) + pagerState.currentPageOffsetFraction
-                            maxOf((pos - (homePageCount - 1 + TODAY_PAGES)).coerceIn(0f, 1f), (TODAY_PAGES - pos).coerceIn(0f, 1f))
+                            // Live page count: these lambdas sit in remembered derivedStateOf, which kept the count from
+                        // when Home was first drawn, so a newly added page read as the App Library (no dock).
+                        maxOf((pos - (homeCountState.value - 1 + TODAY_PAGES)).coerceIn(0f, 1f), (TODAY_PAGES - pos).coerceIn(0f, 1f))
                         }
                         // Fully on the Library/Today: drop the chrome so it can't catch their touches (its height is kept).
                         val chromeGone by remember { androidx.compose.runtime.derivedStateOf { libraryFraction() > 0.99f } }

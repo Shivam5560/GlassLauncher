@@ -88,7 +88,7 @@ fun WidgetContent(inst: WidgetInstance, modifier: Modifier = Modifier, size: Wid
         WidgetKind.SMART_STACK -> SmartStackWidget(inst, size, modifier)
         WidgetKind.MUSIC -> MusicWidget(size, modifier)
         WidgetKind.WEATHER -> WeatherWidget(inst, size, modifier)
-        WidgetKind.CALENDAR -> CalendarWidget(size, modifier)
+        WidgetKind.CALENDAR -> if (inst[WidgetKeys.CALENDAR_STYLE] == "list" || size == WidgetSize.SMALL) CalendarWidget(size, modifier) else CalendarStreamWidget(size, modifier)
         WidgetKind.CLOCK -> ClockWidget(inst, size, modifier)
         WidgetKind.BATTERY -> BatteryWidget(size, modifier)
         WidgetKind.PHOTOS -> PhotosWidget(inst, size, modifier)
@@ -101,6 +101,9 @@ fun WidgetContent(inst: WidgetInstance, modifier: Modifier = Modifier, size: Wid
         WidgetKind.FOCUS -> FocusWidget(inst, modifier)
         WidgetKind.QUICK_ACTIONS -> QuickActionsWidget(inst, modifier)
         WidgetKind.QUOTES -> QuotesWidget(inst, size, modifier)
+        WidgetKind.SCREEN_TIME -> ScreenTimeWidget(size, modifier)
+        WidgetKind.STEPS -> StepsWidget(modifier)
+        WidgetKind.ALARM -> AlarmWidget(size, modifier)
         WidgetKind.APP_WIDGET -> AppWidgetContent(inst, modifier)
     }
 }
