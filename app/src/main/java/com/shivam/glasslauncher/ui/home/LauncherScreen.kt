@@ -554,11 +554,11 @@ fun LauncherScreen(
                             sideBlurImg,
                             contentDescription = null,
                             contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = overlayAnimState.value },
+                            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = overlayAnimState.value; compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha },
                         )
                     } else {
                         GlassSurface(
-                            Modifier.fillMaxSize().graphicsLayer { alpha = overlayAnimState.value },
+                            Modifier.fillMaxSize().graphicsLayer { alpha = overlayAnimState.value; compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha },
                             shape = GlassShape.rounded(0.dp),
                             backdrop = null,
                             role = null,

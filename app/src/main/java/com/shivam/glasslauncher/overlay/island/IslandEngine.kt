@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** Everything the island window renders. */
@@ -50,6 +49,9 @@ class IslandEngine private constructor(context: Context) {
     private val peeks = ArrayList<Pair<IslandActivity, Long>>()
     /** A demo activity shown from settings so the user can see and calibrate the island. */
     private var demoUntil = 0L
+
+    /** Next elapsedRealtime at which something on the island expires or needs a refresh; MAX = nothing timed. */
+    private val deadline = MutableStateFlow(Long.MAX_VALUE)
 
     private var users = 0
     private var jobs: List<Job> = emptyList()
@@ -82,18 +84,15 @@ class IslandEngine private constructor(context: Context) {
                     }
                 }
             },
-            // Ticker: expires transient activities, paused music and refreshes the charging watts.
+            // Ticker: wakes only at the next expiry (peek, ringer, charging, paused music, demo) instead
+            // of every second; with nothing timed on the island it doesn't run at all.
+            scope.launch { combine(settings, signals.interactive, signals.locked) { p, i, l -> Triple(p.island.showsGlass, i, l) }.distinctUntilChanged().collect { recompute() } },
             scope.launch {
-                combine(settings, signals.interactive) { prefs, interactive ->
-                    prefs.island.showsGlass && interactive
-                }.distinctUntilChanged().collectLatest { enabled ->
+                deadline.collectLatest { at ->
+                    if (at == Long.MAX_VALUE) return@collectLatest
+                    delay((at - SystemClock.elapsedRealtime() + 1).coerceAtLeast(1))
+                    if (chargingVisible(SystemClock.elapsedRealtime())) signals.refreshBattery()
                     recompute()
-                    if (enabled) while (isActive) {
-                        delay(1000)
-                        val now = SystemClock.elapsedRealtime()
-                        if (chargingVisible(now)) signals.refreshBattery()
-                        recompute()
-                    }
                 }
             },
         )
@@ -138,6 +137,7 @@ class IslandEngine private constructor(context: Context) {
         val island = settings.island
         if (!island.showsGlass || !signals.interactive.value) {
             peeks.clear()
+            deadline.value = Long.MAX_VALUE
             _ui.value = IslandUi(battery = signals.batteryInfo.value)
             return
         }
@@ -173,6 +173,16 @@ class IslandEngine private constructor(context: Context) {
             list.add(IslandActivity("demo", IslandKind.Charging, now, IslandContent.Charging(battery.level, battery.watts)))
         }
 
+        deadline.value = nextDeadline(
+            now = now,
+            peekExpiries = peeks.map { it.second },
+            ringerAt = signals.ringer.value?.second,
+            chargingVisible = chargingVisible(now),
+            pluggedAt = signals.pluggedAt.value,
+            pausedMusicAt = media?.takeIf { !it.playing && it.lastPlayingAt > 0 }?.lastPlayingAt,
+            demoUntil = demoUntil,
+        )
+
         val state = IslandReducer.reduce(IslandState(dismissed = dismissed), IslandEvent.Sync(list))
         dismissed = state.dismissed
         val slots = if (island.showsGlass) {
@@ -188,9 +198,19 @@ class IslandEngine private constructor(context: Context) {
     }
 
     companion object {
-        private const val RINGER_MS = 2200L
-        private const val CHARGING_MS = 6000L
-        private const val PAUSED_MUSIC_MS = 60_000L
+        const val RINGER_MS = 2200L
+        const val CHARGING_MS = 6000L
+        const val PAUSED_MUSIC_MS = 60_000L
+
+        /** Earliest future moment the island must recompute; charging refreshes its watts every second. */
+        fun nextDeadline(now: Long, peekExpiries: List<Long>, ringerAt: Long?, chargingVisible: Boolean, pluggedAt: Long, pausedMusicAt: Long?, demoUntil: Long): Long =
+            listOfNotNull(
+                peekExpiries.minOrNull(),
+                ringerAt?.plus(RINGER_MS),
+                if (chargingVisible) minOf(now + 1000, pluggedAt + CHARGING_MS) else null,
+                pausedMusicAt?.plus(PAUSED_MUSIC_MS),
+                demoUntil,
+            ).filter { it > now }.minOrNull() ?: Long.MAX_VALUE
 
         @Volatile private var instance: IslandEngine? = null
 

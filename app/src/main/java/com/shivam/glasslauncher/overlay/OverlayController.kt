@@ -100,9 +100,18 @@ class OverlayController(
         if (accessibility != null) {
             scope.launch {
                 com.shivam.glasslauncher.overlay.notifications.NotificationHub.entries
-                    .map { es -> es.any { com.shivam.glasslauncher.overlay.island.IslandClassifier.classify(it)?.kind.let { k -> k == IslandKind.IncomingCall || k == IslandKind.OngoingCall } } }
+                    .map { es ->
+                        val kinds = es.mapNotNull { com.shivam.glasslauncher.overlay.island.IslandClassifier.classify(it)?.kind }
+                        (IslandKind.IncomingCall in kinds) to (IslandKind.IncomingCall in kinds || IslandKind.OngoingCall in kinds)
+                    }
                     .distinctUntilChanged()
-                    .collect { callActive = it; updateLockScreen() }
+                    .collect { (ringing, active) ->
+                        // A pulled-down panel is an overlay above every app, so it would cover the
+                        // dialer's answer/decline buttons: close it when a call starts ringing.
+                        if (ringing) closePanel(immediate = true)
+                        callActive = active
+                        updateLockScreen()
+                    }
             }
             scope.launch {
                 settingsFlow.map { listOf(it.loaded, it.controlCenter, it.notificationCenter, it.lockScreenCards, it.cornerWidth, it.cornerHeight) }

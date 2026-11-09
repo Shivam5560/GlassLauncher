@@ -134,6 +134,7 @@ fun ControlCenterPanel(host: PanelHost, controls: SystemControls, progress: Floa
                 .fillMaxSize()
                 .graphicsLayer {
                     alpha = progress.coerceIn(0f, 1f)
+                    compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha
                     val s = 0.9f + 0.1f * progress
                     scaleX = s
                     scaleY = s

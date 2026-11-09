@@ -145,7 +145,9 @@ object BatteryRepository {
         publish()
         awaitClose {
             try { context.unregisterReceiver(receiver) } catch (_: Exception) { }
-            proxies.forEach { (p, proxy) -> try { adapter.closeProfileProxy(p, proxy) } catch (_: Exception) { } }
+            // closeProfileProxy calls onServiceDisconnected synchronously, which removes from
+            // `proxies`: iterate a copy or HashMap throws ConcurrentModificationException.
+            proxies.entries.toList().forEach { (p, proxy) -> try { adapter.closeProfileProxy(p, proxy) } catch (_: Exception) { } }
         }
     }
 
