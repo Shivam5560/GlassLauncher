@@ -134,6 +134,9 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                     .padding(bottom = 118.dp)
                     .graphicsLayer {
                         alpha = progress.coerceIn(0f, 1f)
+                        // Per-draw alpha: the default strategy rendered the whole list into a
+                        // full-screen offscreen buffer every frame of the fade (kept in the GPU cache).
+                        compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha
                         translationY = -(1f - progress) * 120.dp.toPx()
                         transformOrigin = TransformOrigin(0f, 0f)
                     },
@@ -200,7 +203,7 @@ fun NotificationCenterPanel(host: PanelHost, progress: Float) {
                     }
                 }
             }
-            QuickButtons(host, Modifier.align(Alignment.BottomCenter).padding(start = 48.dp, end = 48.dp, bottom = 36.dp).graphicsLayer { alpha = progress.coerceIn(0f, 1f) })
+            QuickButtons(host, Modifier.align(Alignment.BottomCenter).padding(start = 48.dp, end = 48.dp, bottom = 36.dp).graphicsLayer { alpha = progress.coerceIn(0f, 1f); compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha })
         }
     }
 }
@@ -586,6 +589,7 @@ private fun Modifier.cascade(progress: Float, index: Int): Modifier = graphicsLa
     val t = ((progress - delay) / (1f - delay)).coerceIn(0f, 1f)
     val eased = 1f - (1f - t) * (1f - t) * (1f - t)
     alpha = eased
+    compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.ModulateAlpha
     translationY = (1f - eased) * 28.dp.toPx()
 }
 
