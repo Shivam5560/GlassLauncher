@@ -14,6 +14,9 @@ import com.shivam.glasslauncher.icons.IconVariant
 import com.shivam.glasslauncher.shortcuts.PinnedShortcutStore
 import com.shivam.glasslauncher.ui.glass.GlassRuntimeTheme
 import com.shivam.glasslauncher.ui.glass.WallpaperSource
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -100,33 +103,48 @@ class Polish(private val app: GlassApp) {
 
         // Bundled wallpaper: follow the system light/dark theme.
         app.scope.launch {
-            combine(settings.state.filterNotNull(), _night) { s, n -> s to n }.collect { (s, n) -> syncWallpaper(s, n) }
+            combine(settings.state.filterNotNull(), _night) { s, n -> s to n }.collect { syncWallpaper() }
         }
     }
 
-    private suspend fun syncWallpaper(s: PolishSettings, night: Boolean) {
-        val id = s.wallpaperId ?: return
-        if (!s.wallpaperAutoDark) return
-        val want = if (night) "dark" else "light"
-        if (s.wallpaperApplied == want) return
+    private suspend fun syncWallpaper() = wallpaperLock.withLock {
+        // Read inside the lock: a user apply may have completed while this emission was queued.
+        val s = settings.flow.first()
+        val id = s.wallpaperId ?: return@withLock
+        if (!s.wallpaperAutoDark) return@withLock
+        val want = if (_night.value) "dark" else "light"
         val current = withContext(Dispatchers.IO) { app.wallpaper.currentWallpaperId() }
-        if (current != null && s.wallpaperSystemId != 0 && current != s.wallpaperSystemId) {
-            // The user set another wallpaper outside Glass: stop switching.
+        if (current != null && s.wallpaperSystemId > 0 && current != s.wallpaperSystemId) {
             settings.setWallpaperApplied(null, null, 0, false)
-            return
+        } else if (shouldSwitchWallpaper(s.wallpaperSystemId, current, s.wallpaperApplied, want)) {
+            applyWallpaperLocked(id, want, s.wallpaperLockToo, true, s.wallpaperEdit)
         }
-        applyWallpaper(id, want, s.wallpaperLockToo)
     }
 
-    /** Sets a bundled wallpaper through Glass (Path A, so refraction works). */
-    suspend fun applyWallpaper(id: String, mode: String, lockToo: Boolean): Result<Unit> = wallpaperLock.withLock {
-        withContext(Dispatchers.IO) {
-            runCatching {
-                val bmp = wallpapers.loadFull(id, mode) ?: error("Wallpaper $id missing")
-                // Full-size (about 18 MB) decode: free it as soon as WallpaperManager has it.
-                val systemId = try { app.wallpaper.setWallpaperBitmap(bmp, lockToo) } finally { bmp.recycle() }
-                settings.setWallpaperApplied(id, mode, systemId, lockToo)
-            }.onFailure { Log.w(TAG, "Could not set wallpaper $id", it) }
+    /** Serialized application; preferences commit only after WallpaperManager succeeds. */
+    suspend fun applyWallpaper(id: String, mode: String, lockToo: Boolean,
+        auto: Boolean = false, adjustment: WallpaperEdit = WallpaperEdit()): Result<Unit> = wallpaperLock.withLock {
+        applyWallpaperLocked(id, mode, lockToo, auto, adjustment)
+    }
+
+    private suspend fun applyWallpaperLocked(id: String, mode: String, lockToo: Boolean,
+        auto: Boolean, adjustment: WallpaperEdit): Result<Unit> = withContext(Dispatchers.IO + NonCancellable) {
+        // Once the system mutation starts, finish the local copy and preference transaction even
+        // if the user leaves Settings. This job retains no Activity or UI bitmap.
+        try {
+            require(mode == "light" || mode == "dark")
+            require(wallpapers.byId(id) != null) { "Wallpaper unavailable" }
+            val bmp = wallpapers.loadFull(id, mode) ?: error("Wallpaper unavailable")
+            val metrics = app.resources.displayMetrics
+            val (width, height) = wallpaperOutputSize(metrics.widthPixels, metrics.heightPixels)
+            val rendered = try { WallpaperRenderer.render(bmp, width, height, adjustment) } finally { bmp.recycle() }
+            val systemId = try { app.wallpaper.setWallpaperBitmap(rendered, lockToo) } finally { rendered.recycle() }
+            settings.setWallpaperApplied(id, mode, systemId, lockToo, auto, adjustment)
+            Result.success(Unit)
+        } catch (e: CancellationException) { throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not set wallpaper $id", e)
+            Result.failure(e)
         }
     }
 

@@ -20,4 +20,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "GlassLauncher"
-include(":app")
+include(":app", ":performance")

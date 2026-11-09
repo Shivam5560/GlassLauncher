@@ -64,7 +64,10 @@ class GlassApp : Application() {
         super.onTrimMemory(level)
         // Only under real pressure: a launcher is "UI hidden" whenever any app opens, and trimming then
         // made home icons blank-and-pop on every return.
-        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND) icons.trimCache()
+        if (level >= android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND) {
+            icons.trimCache()
+            polish.wallpapers.trimCache()
+        }
     }
 
     companion object {

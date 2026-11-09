@@ -1,67 +1,387 @@
 {
-  "version": 1,
+  "version": 2,
   "width": 1440,
   "height": 3200,
   "wallpapers": [
     {
       "id": "lagoon",
       "name": "Lagoon",
-      "category": "Caustics"
+      "category": "Caustics",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#6ac3f1",
+          "#54c1d6",
+          "#6ab5e1"
+        ],
+        "dark": [
+          "#0a507a",
+          "#075f6b",
+          "#083e56"
+        ]
+      }
     },
     {
       "id": "aurora",
       "name": "Aurora",
-      "category": "Ribbons"
+      "category": "Ribbons",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#b9dfde",
+          "#94b9d3",
+          "#d7ccf3"
+        ],
+        "dark": [
+          "#1a3e41",
+          "#3e6281",
+          "#1e1340"
+        ]
+      }
     },
     {
       "id": "ember",
       "name": "Ember",
-      "category": "Ribbons"
+      "category": "Ribbons",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#f7af83",
+          "#f0b4a7",
+          "#f48a79"
+        ],
+        "dark": [
+          "#4d160d",
+          "#9a503e",
+          "#4f1819"
+        ]
+      }
     },
     {
       "id": "orchid",
       "name": "Orchid",
-      "category": "Mesh"
+      "category": "Mesh",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#ddb8f5",
+          "#e29ee8",
+          "#eaaee3"
+        ],
+        "dark": [
+          "#381a57",
+          "#51185a",
+          "#47123e"
+        ]
+      }
     },
     {
       "id": "tide",
       "name": "Tide",
-      "category": "Ribbons"
+      "category": "Ribbons",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#dfebf7",
+          "#7cb3e3",
+          "#87c6e0"
+        ],
+        "dark": [
+          "#050c19",
+          "#336192",
+          "#164b64"
+        ]
+      }
     },
     {
       "id": "dune",
       "name": "Dune",
-      "category": "Ribbons"
+      "category": "Ribbons",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#f2e3cb",
+          "#eae4dc",
+          "#e5ceb8"
+        ],
+        "dark": [
+          "#443021",
+          "#9d7050",
+          "#6f4a32"
+        ]
+      }
     },
     {
       "id": "glacier",
       "name": "Glacier",
-      "category": "Caustics"
+      "category": "Caustics",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#e0edf7",
+          "#c3e2f4",
+          "#c3e0f0"
+        ],
+        "dark": [
+          "#152a3a",
+          "#112c3e",
+          "#0a1e2a"
+        ]
+      }
     },
     {
       "id": "nebula",
       "name": "Nebula",
-      "category": "Mesh"
+      "category": "Mesh",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#d6ccf5",
+          "#e0c5eb",
+          "#d4d7eb"
+        ],
+        "dark": [
+          "#1f183c",
+          "#3d294f",
+          "#1e2a44"
+        ]
+      }
     },
     {
       "id": "citrus",
       "name": "Citrus",
-      "category": "Mesh"
+      "category": "Mesh",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#f6de7c",
+          "#e4e2a2",
+          "#d1c85e"
+        ],
+        "dark": [
+          "#342b08",
+          "#7c7129",
+          "#34330a"
+        ]
+      }
     },
     {
       "id": "meadow",
       "name": "Meadow",
-      "category": "Caustics"
+      "category": "Caustics",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#b7eabb",
+          "#86d9a8",
+          "#88d5a7"
+        ],
+        "dark": [
+          "#092614",
+          "#0b3420",
+          "#092b1c"
+        ]
+      }
     },
     {
       "id": "prism",
       "name": "Prism",
-      "category": "Ribbons"
+      "category": "Ribbons",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#e9dad3",
+          "#abb3b6",
+          "#ced1e6"
+        ],
+        "dark": [
+          "#36261e",
+          "#676d70",
+          "#1e2134"
+        ]
+      }
     },
     {
       "id": "dusk",
       "name": "Dusk",
-      "category": "Mesh"
+      "category": "Mesh",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#ecb4b5",
+          "#cf9cd6",
+          "#8c83ec"
+        ],
+        "dark": [
+          "#321329",
+          "#3d1c3d",
+          "#130d32"
+        ]
+      }
+    },
+    {
+      "id": "graphite",
+      "name": "Graphite",
+      "category": "Obsidian",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#caced5",
+          "#c6ccd3",
+          "#cad0d7"
+        ],
+        "dark": [
+          "#0f141b",
+          "#26303b",
+          "#181e26"
+        ]
+      }
+    },
+    {
+      "id": "silverfold",
+      "name": "Silver Fold",
+      "category": "Obsidian",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#cbd0d6",
+          "#c3cad1",
+          "#cacfd6"
+        ],
+        "dark": [
+          "#11151d",
+          "#242d38",
+          "#181e26"
+        ]
+      }
+    },
+    {
+      "id": "silkflow",
+      "name": "Silk Flow",
+      "category": "Aurora Silk",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#cfe4e9",
+          "#98bbd8",
+          "#c4c3e4"
+        ],
+        "dark": [
+          "#0a192a",
+          "#365779",
+          "#252b4e"
+        ]
+      }
+    },
+    {
+      "id": "blueveil",
+      "name": "Blue Veil",
+      "category": "Aurora Silk",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#cbdde8",
+          "#90c4d4",
+          "#c4d5e3"
+        ],
+        "dark": [
+          "#111d33",
+          "#34667a",
+          "#142b3b"
+        ]
+      }
+    },
+    {
+      "id": "travertine",
+      "name": "Travertine",
+      "category": "Warm Stone",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#e3d6c3",
+          "#d2bda4",
+          "#cdb79e"
+        ],
+        "dark": [
+          "#302420",
+          "#523e33",
+          "#544134"
+        ]
+      }
+    },
+    {
+      "id": "clay",
+      "name": "Clay",
+      "category": "Warm Stone",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#decbc1",
+          "#ccab9b",
+          "#cca999"
+        ],
+        "dark": [
+          "#352725",
+          "#5b423c",
+          "#5e443e"
+        ]
+      }
+    },
+    {
+      "id": "mist",
+      "name": "Misty Ridges",
+      "category": "Quiet Landscape",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#c4d7de",
+          "#7e9ca8",
+          "#45697b"
+        ],
+        "dark": [
+          "#132331",
+          "#2a3d4a",
+          "#26353e"
+        ]
+      }
+    },
+    {
+      "id": "stilldunes",
+      "name": "Still Dunes",
+      "category": "Quiet Landscape",
+      "focusX": 0.5,
+      "focusY": 0.5,
+      "palette": {
+        "light": [
+          "#e3cdbd",
+          "#b89f98",
+          "#87737d"
+        ],
+        "dark": [
+          "#291e26",
+          "#4a393d",
+          "#493c40"
+        ]
+      }
     }
   ]
 }

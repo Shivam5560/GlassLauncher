@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -586,7 +587,7 @@ fun LauncherScreen(
                             scaleX = sc
                             scaleY = sc
                         }
-                        .recordBackdrop(homeLayer),
+                        .recordBackdrop(homeLayer).testTag("launcher-home"),
                 ) {
                     // Status bar space is kept even while immersive hides it (as on iOS); the dock keeps its own bottom margin.
                     // Pages run full height under the dots and dock (home pages pad for them), so the App Library

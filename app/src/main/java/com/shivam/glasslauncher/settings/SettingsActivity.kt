@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.shivam.glasslauncher.GlassApp
@@ -181,7 +182,7 @@ fun ScreenScaffold(title: String, nav: SettingsNav, subtitle: String? = null, co
             Spacer(Modifier.width(44.dp))
         }
         LazyColumn(
-            Modifier.fillMaxSize().imePadding(), state = scroll,
+            Modifier.fillMaxSize().imePadding().testTag("settings-list"), state = scroll,
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(22.dp),
         ) {

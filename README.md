@@ -67,7 +67,7 @@ and works on any Android 12+ phone (minSdk 31).
 - **Per-app icons:** long-press an app → Edit Icon, or Settings → Icon pack → Individual app icons.
   Search for an app and choose artwork from an installed pack, a photo, or Default.
 - **Pinned shortcuts:** "Add to Home screen" from other apps opens a glass confirmation sheet.
-- **Wallpapers:** 12 original abstract wallpapers (mesh gradients, flowing ribbons, soft caustics),
+- **Wallpapers:** 20 original wallpapers (mesh gradients, ribbons, caustics, stone and quiet landscapes),
   each a light and dark pair at 1440×3200, rendered by `tools/wallpapers/generate_wallpapers.py`.
   The glass picker has categories, previews with a live glass panel, auto light/dark switching, and
   sets them through Glass so refraction works (Path A).
@@ -196,3 +196,9 @@ system keyguard are not launcher features. The Focus handoff uses Android's
 [system panels](https://developer.android.com/reference/android/provider/Settings.Panel).
 
 Device checks and remaining limits for the widget and notification changes are recorded in [WIDGET_NOTIFICATION_VERIFICATION.md](docs/WIDGET_NOTIFICATION_VERIFICATION.md).
+
+## Wallpaper Studio (1.2)
+
+Favorites, crop positioning, zoom, dimming and warmth with a saved-home preview; eight new original
+light/dark designs. See [Wallpaper Studio](docs/WALLPAPER_STUDIO.md) for behavior, asset generation,
+tests and the device acceptance checklist.
