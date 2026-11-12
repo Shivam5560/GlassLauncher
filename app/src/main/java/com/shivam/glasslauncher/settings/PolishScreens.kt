@@ -121,7 +121,7 @@ private fun PolishHub(nav: SettingsNav) {
     ScreenScaffold("Customise", nav) {
         item {
             GlassListGroup(title = "Look") {
-                GlassRow("Wallpapers", subtitle = app.polish.wallpapers.byId(p.wallpaperId)?.name ?: "12 Glass wallpapers, light and dark", icon = GlassIcons.Home, iconTint = Color(0xFF64D2FF), onClick = { nav.push("wallpapers") })
+                GlassRow("Wallpapers", subtitle = app.polish.wallpapers.byId(p.wallpaperId)?.name ?: "${app.polish.wallpapers.all.size} wallpapers · Wallpaper Studio", icon = GlassIcons.Home, iconTint = Color(0xFF64D2FF), onClick = { nav.push("wallpapers") })
                 GlassRow("Theme", subtitle = when (p.themeSource) { ThemeSource.Default -> "Default"; ThemeSource.Wallpaper -> "From wallpaper"; ThemeSource.Manual -> "Custom colours" }, icon = GlassIcons.Palette, iconTint = GlassColors.Accent, onClick = { nav.push("theme") })
                 GlassRow("Font", subtitle = Fonts.entry(p.fontId).name, icon = GlassIcons.Pencil, iconTint = Color(0xFFFF9F0A), onClick = { nav.push("fonts") })
                 GlassRow("Icon style", subtitle = "${p.iconStyle.title} · ${settings.iconPack.ifEmpty { "System icons" }}", icon = GlassIcons.Grid, iconTint = Color(0xFF30D158), onClick = { nav.push("iconstyle") })
@@ -135,134 +135,6 @@ private fun PolishHub(nav: SettingsNav) {
         item {
             GlassListGroup(title = "Data") {
                 GlassRow("Backup & restore", subtitle = "Layout, settings, hidden and locked apps, custom icons", icon = GlassIcons.Check, iconTint = Color(0xFF8E8E93), onClick = { nav.push("backup") })
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------------- wallpapers
-
-@Composable
-private fun WallpaperThumb(w: GlassWallpaper, mode: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val app = GlassApp.from(LocalContext.current)
-    val thumb by produceState<ImageBitmap?>(null, w.id, mode) {
-        value = withContext(Dispatchers.IO) { app.polish.wallpapers.loadThumb(w.id, mode)?.asImageBitmap() }
-    }
-    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        GlassSurface(
-            Modifier.fillMaxWidth().aspectRatio(0.45f),
-            shape = GlassShape.rounded(18.dp),
-            variant = GlassVariant.Clear,
-            highlighted = selected,
-            onClick = onClick,
-        ) {
-            thumb?.let { Image(it, w.name, Modifier.fillMaxSize().padding(3.dp).clip(GlassShape.rounded(15.dp)), contentScale = ContentScale.Crop) }
-        }
-        Spacer(Modifier.height(6.dp))
-        GlassText(w.name, style = GlassType.Subhead, color = Color.White, maxLines = 1)
-    }
-}
-
-@Composable
-private fun WallpaperGalleryScreen(nav: SettingsNav) {
-    val app = GlassApp.from(LocalContext.current)
-    val p = app.polish.settings.state.collectAsState().value ?: return
-    val night by app.polish.night.collectAsState()
-    val all = app.polish.wallpapers.all
-    val categories = listOf("All") + app.polish.wallpapers.categories
-    var category by remember { mutableStateOf(0) }
-    var showDark by remember { mutableStateOf(night) }
-    val list = if (category == 0) all else all.filter { it.category == categories[category] }
-    ScreenScaffold("Wallpapers", nav) {
-        item {
-            GlassListGroup(footer = "Original Glass wallpapers. Setting one through Glass keeps a copy, so glass panels refract it (Path A). With Auto, Glass swaps the light and dark versions with the system theme.") {
-                Column(Modifier.padding(12.dp)) {
-                    GlassSegmented(categories, category, { category = it })
-                    Spacer(Modifier.height(10.dp))
-                    GlassSegmented(listOf("Light", "Dark"), if (showDark) 1 else 0, { showDark = it == 1 })
-                }
-            }
-        }
-        list.chunked(3).forEachIndexed { row, chunk ->
-            item("wp-row-$row-$category") {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    chunk.forEach { w ->
-                        WallpaperThumb(w, if (showDark) "dark" else "light", w.id == p.wallpaperId, Modifier.weight(1f)) { nav.push("wallpaper:${w.id}") }
-                    }
-                    repeat(3 - chunk.size) { Spacer(Modifier.weight(1f)) }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun WallpaperDetailScreen(nav: SettingsNav, id: String, toast: GlassToastState) {
-    val context = LocalContext.current
-    val app = GlassApp.from(context)
-    val w = app.polish.wallpapers.byId(id) ?: return
-    val p = app.polish.settings.state.collectAsState().value ?: return
-    val night by app.polish.night.collectAsState()
-    val scope = rememberCoroutineScope()
-    var dark by remember { mutableStateOf(night) }
-    var auto by remember { mutableStateOf(p.wallpaperAutoDark) }
-    var lockToo by remember { mutableStateOf(p.wallpaperLockToo) }
-    var busy by remember { mutableStateOf(false) }
-    val mode = if (dark) "dark" else "light"
-    val preview by produceState<ImageBitmap?>(null, id, mode) {
-        value = withContext(Dispatchers.IO) {
-            try {
-                context.assets.open("wallpapers/${id}_$mode.webp").use { s ->
-                    BitmapFactory.decodeStream(s, null, BitmapFactory.Options().apply { inSampleSize = 2 })?.asImageBitmap()
-                }
-            } catch (e: Exception) { null }
-        }
-    }
-    ScreenScaffold(w.name, nav) {
-        item { WallpaperPreview(preview) }
-        item {
-            GlassListGroup(title = w.category) {
-                Column(Modifier.padding(12.dp)) {
-                    GlassSegmented(listOf("Light", "Dark"), if (dark) 1 else 0, { dark = it == 1 })
-                }
-                GlassSwitchRow("Auto light/dark", auto, { auto = it }, subtitle = "Follow the system theme")
-                GlassSwitchRow("Also set lock screen", lockToo, { lockToo = it })
-            }
-        }
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                GlassButton(if (busy) "Setting…" else "Set", enabled = !busy, prominent = true, variant = GlassVariant.Regular, onClick = {
-                    busy = true
-                    app.polish.settings.setWallpaperAutoDark(auto)
-                    val target = if (auto) (if (night) "dark" else "light") else mode
-                    scope.launch {
-                        val r = app.polish.applyWallpaper(id, target, lockToo)
-                        busy = false
-                        toast.show(if (r.isSuccess) "${w.name} set — refraction enabled" else "Couldn't set wallpaper: ${r.exceptionOrNull()?.message}")
-                    }
-                })
-            }
-        }
-    }
-}
-
-/** The wallpaper with a small glass panel on top, so the refraction can be judged before setting it. */
-@Composable
-private fun WallpaperPreview(image: ImageBitmap?) {
-    val layer = rememberGraphicsLayer()
-    val origin = remember { mutableStateOf(Offset.Zero) }
-    val snapshot = GlassApp.from(LocalContext.current).wallpaper.snapshot.collectAsState().value
-    val backdrop = remember(snapshot) { Backdrop(listOf(layer), snapshot) { origin.value } }
-    Box(Modifier.fillMaxWidth().height(420.dp).onGloballyPositioned { origin.value = it.positionInWindow() }, contentAlignment = Alignment.Center) {
-        Box(Modifier.fillMaxSize().clip(GlassShape.rounded(28.dp)).recordBackdrop(layer)) {
-            image?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
-        }
-        CompositionLocalProvider(LocalBackdrop provides backdrop) {
-            GlassSurface(Modifier.fillMaxWidth(0.7f).height(120.dp), shape = GlassShape.Panel, role = null) {
-                Column(Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                    GlassText("Liquid Glass", style = GlassType.Headline)
-                    GlassText("Panels bend the wallpaper at their rim.", style = GlassType.Footnote, secondary = true)
-                }
             }
         }
     }

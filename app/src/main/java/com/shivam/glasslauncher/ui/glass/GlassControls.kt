@@ -8,6 +8,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -269,7 +270,7 @@ fun GlassSlider(
                 detectTapGestures { onChange(valueAt(it.x)); onValueChangeFinished() }
             }
             .pointerInput(valueRange) {
-                detectDragGestures(
+                detectHorizontalDragGestures(
                     onDragStart = { dragging = true; onChange(valueAt(it.x)) },
                     onDragEnd = { dragging = false; onValueChangeFinished() },
                     onDragCancel = { dragging = false },
@@ -522,7 +523,7 @@ fun GlassSliderRow(
             GlassText(title, Modifier.weight(1f), style = GlassType.Callout)
             GlassText(format(value), style = GlassType.Callout, secondary = true)
         }
-        GlassSlider(value, onValueChange, valueRange = valueRange)
+        GlassSlider(value, onValueChange, modifier = Modifier.semantics { contentDescription = title }, valueRange = valueRange)
     }
 }
 

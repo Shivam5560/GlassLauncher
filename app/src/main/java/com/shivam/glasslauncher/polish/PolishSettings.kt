@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -43,11 +45,19 @@ data class PolishSettings(
     val wallpaperApplied: String? = null,
     /** WallpaperManager id of the wallpaper we set; auto-switching stops if the user changes it elsewhere. */
     val wallpaperSystemId: Int = 0,
+    val wallpaperEdit: WallpaperEdit = WallpaperEdit(),
+    val wallpaperFavorites: Set<String> = emptySet(),
 )
 
 class PolishRepository(private val context: Context, private val scope: CoroutineScope) {
 
     private object K {
+        val favorites = stringSetPreferencesKey("wallpaper_favorites")
+        val zoom = floatPreferencesKey("wallpaper_zoom")
+        val x = floatPreferencesKey("wallpaper_focus_x")
+        val y = floatPreferencesKey("wallpaper_focus_y")
+        val dim = floatPreferencesKey("wallpaper_dim")
+        val warmth = floatPreferencesKey("wallpaper_warmth")
         val iconStyle = stringPreferencesKey("icon_style")
         val tintedColor = intPreferencesKey("tinted_icon_color")
         val themeSource = stringPreferencesKey("theme_source")
@@ -75,6 +85,8 @@ class PolishRepository(private val context: Context, private val scope: Coroutin
             wallpaperLockToo = p[K.wallpaperLock] ?: d.wallpaperLockToo,
             wallpaperApplied = p[K.wallpaperApplied],
             wallpaperSystemId = p[K.wallpaperSystemId] ?: 0,
+            wallpaperFavorites = p[K.favorites] ?: emptySet(),
+            wallpaperEdit = WallpaperEdit(p[K.zoom] ?: 1f, p[K.x] ?: 0.5f, p[K.y] ?: 0.5f, p[K.dim] ?: 0f, p[K.warmth] ?: 0f).normalized(),
         )
     }
 
@@ -92,14 +104,28 @@ class PolishRepository(private val context: Context, private val scope: Coroutin
     fun setFont(id: String) = edit { it[K.font] = id }
     fun setWallpaperAutoDark(v: Boolean) = edit { it[K.wallpaperAuto] = v }
 
-    fun setWallpaperApplied(id: String?, mode: String?, systemId: Int, lockToo: Boolean) = edit {
-        if (id == null) {
-            it.remove(K.wallpaper); it.remove(K.wallpaperApplied); it.remove(K.wallpaperSystemId)
-        } else {
-            it[K.wallpaper] = id
-            it[K.wallpaperApplied] = mode ?: "light"
-            it[K.wallpaperSystemId] = systemId
-            it[K.wallpaperLock] = lockToo
+    fun toggleWallpaperFavorite(id: String) = edit {
+        val favorites = it[K.favorites] ?: emptySet()
+        it[K.favorites] = if (id in favorites) favorites - id else favorites + id
+    }
+
+    /** Await one transaction: auto switching never observes a half-applied selection. */
+    suspend fun setWallpaperApplied(id: String?, mode: String?, systemId: Int, lockToo: Boolean,
+        auto: Boolean? = null, adjustment: WallpaperEdit? = null) {
+        context.polishStore.edit {
+            if (id == null) {
+                it.remove(K.wallpaper); it.remove(K.wallpaperApplied); it.remove(K.wallpaperSystemId)
+            } else {
+                it[K.wallpaper] = id
+                it[K.wallpaperApplied] = mode ?: "light"
+                it[K.wallpaperSystemId] = systemId
+                it[K.wallpaperLock] = lockToo
+            }
+            auto?.let { value -> it[K.wallpaperAuto] = value }
+            adjustment?.normalized()?.let { e ->
+                it[K.zoom] = e.zoom; it[K.x] = e.focusX; it[K.y] = e.focusY
+                it[K.dim] = e.dim; it[K.warmth] = e.warmth
+            }
         }
     }
 }

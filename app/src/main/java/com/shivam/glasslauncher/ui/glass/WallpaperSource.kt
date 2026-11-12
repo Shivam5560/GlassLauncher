@@ -88,8 +88,22 @@ class WallpaperSource(private val context: Context, private val scope: Coroutine
     /** True when the wallpaper pixels are readable (needed for refraction over the wallpaper). */
     fun canReadWallpaper(): Boolean = Environment.isExternalStorageManager()
 
+    private val refreshRequests = kotlinx.coroutines.channels.Channel<Unit>(kotlinx.coroutines.channels.Channel.CONFLATED)
+    private val refreshVersion = java.util.concurrent.atomic.AtomicLong()
+    private val copyLock = Any()
+    init {
+        scope.launch(Dispatchers.IO) {
+            for (request in refreshRequests) {
+                val version = refreshVersion.get()
+                val next = load()
+                if (version == refreshVersion.get()) _snapshot.value = next
+            }
+        }
+    }
+
     fun refresh() {
-        scope.launch(Dispatchers.Default) { _snapshot.value = load() }
+        refreshVersion.incrementAndGet()
+        refreshRequests.trySend(Unit)
     }
 
     @Suppress("DEPRECATION")
@@ -185,12 +199,12 @@ class WallpaperSource(private val context: Context, private val scope: Coroutine
     fun currentWallpaperId(): Int? = try { wm.getWallpaperId(WallpaperManager.FLAG_SYSTEM) } catch (e: Exception) { null }
 
     /** Our saved copy, if the system wallpaper is still the one we set. */
-    private fun ownCopy(): Bitmap? {
+    private fun ownCopy(): Bitmap? = synchronized(copyLock) {
         if (!copyFile.exists()) return null
         val savedId = try { idFile.readText().trim().toInt() } catch (e: Exception) { null }
         val current = currentWallpaperId()
-        if (savedId != null && current != null && savedId != current) return null
-        return try { android.graphics.BitmapFactory.decodeFile(copyFile.path) } catch (e: Exception) { null }
+        if (savedId == null || savedId <= 0 || current != savedId) return null
+        return try { android.util.AtomicFile(copyFile).openRead().use { android.graphics.BitmapFactory.decodeStream(it) } } catch (e: Exception) { null }
     }
 
     /**
@@ -205,7 +219,7 @@ class WallpaperSource(private val context: Context, private val scope: Coroutine
             val s = maxOf(sw.toFloat() / info.size.width, sh.toFloat() / info.size.height).coerceAtMost(1f)
             decoder.setTargetSize((info.size.width * s).toInt().coerceAtLeast(1), (info.size.height * s).toInt().coerceAtLeast(1))
         }
-        setWallpaperBitmap(full, alsoLockScreen)
+        try { setWallpaperBitmap(full, alsoLockScreen) } finally { full.recycle() }
         Unit
     }
 
@@ -213,15 +227,32 @@ class WallpaperSource(private val context: Context, private val scope: Coroutine
      * Path A for a bitmap we already have (the bundled Glass wallpapers): sets it as the home-screen
      * wallpaper and keeps a copy for refraction. Returns the system wallpaper id. Blocking.
      */
-    fun setWallpaperBitmap(full: Bitmap, alsoLockScreen: Boolean): Int {
+    fun setWallpaperBitmap(full: Bitmap, alsoLockScreen: Boolean): Int = synchronized(copyLock) {
         val flags = if (alsoLockScreen) WallpaperManager.FLAG_SYSTEM or WallpaperManager.FLAG_LOCK else WallpaperManager.FLAG_SYSTEM
-        val id = wm.setBitmap(full, null, true, flags)
+        // Prepare the owned copy before changing system state. AtomicFile prevents truncated PNGs.
+        val copy = android.util.AtomicFile(copyFile)
         val small = Bitmap.createScaledBitmap(full, (full.width / 2).coerceAtLeast(1), (full.height / 2).coerceAtLeast(1), true)
-        copyFile.outputStream().use { small.compress(Bitmap.CompressFormat.PNG, 100, it) }
-        val saved = if (id > 0) id else currentWallpaperId() ?: 0
-        idFile.writeText(saved.toString())
-        refresh()
-        return saved
+        var stream: java.io.FileOutputStream? = null
+        var committed = false
+        try {
+            stream = copy.startWrite()
+            check(small.compress(Bitmap.CompressFormat.PNG, 100, stream)) { "Could not save wallpaper" }
+            val id = wm.setBitmap(full, null, true, flags)
+            val saved = if (id > 0) id else currentWallpaperId() ?: 0
+            copy.finishWrite(stream)
+            committed = true
+            val ids = android.util.AtomicFile(idFile)
+            val out = ids.startWrite()
+            try { out.write(saved.toString().toByteArray()); ids.finishWrite(out) }
+            catch (e: Exception) { ids.failWrite(out); throw e }
+            refresh()
+            saved
+        } catch (e: Exception) {
+            if (!committed && stream != null) copy.failWrite(stream)
+            throw e
+        } finally {
+            if (small !== full) small.recycle()
+        }
     }
 
     private fun luminance(r: Float, g: Float, b: Float) = 0.2126f * r + 0.7152f * g + 0.0722f * b

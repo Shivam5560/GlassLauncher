@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Renders the Glass wallpapers: 12 original abstract designs, each as a light and a dark version.
+"""Renders the Glass wallpapers: 20 original designs, each as a light and a dark version.
 
 Everything is procedural (numpy + Pillow) and seeded, so re-running gives the same pixels:
 mesh gradients, flowing ribbons and soft caustics, with enough structure that Liquid Glass
@@ -10,7 +10,7 @@ Output (committed):
   app/src/main/assets/wallpapers/<id>_<light|dark>_thumb.webp  270x600, picker previews
   app/src/main/assets/wallpapers/index.json                    ids, names, categories
 
-Usage: python3 tools/wallpapers/generate_wallpapers.py [--scale 0.25]   (scale is for quick previews)
+Usage: python3 tools/wallpapers/generate_wallpapers.py [--studio-only] or [--scale 0.25 --output /tmp/glass-preview]
 Requires: numpy, Pillow (pip install numpy pillow)
 """
 import json
@@ -242,24 +242,43 @@ def render(fn, seed, mode, w, h):
 
 
 def main():
-    scale = 1.0
-    if "--scale" in sys.argv:
-        scale = float(sys.argv[sys.argv.index("--scale") + 1])
+    import argparse
+    from studio_designs import STUDIO_DESIGNS
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--scale", type=float, default=1.0)
+    parser.add_argument("--studio-only", action="store_true")
+    parser.add_argument("--output", default=APP_OUT)
+    args = parser.parse_args()
+    if not 0 < args.scale <= 1:
+        parser.error("scale must be in (0, 1]")
+    if args.scale != 1 and os.path.abspath(args.output) == APP_OUT:
+        parser.error("Scaled previews require --output so production assets are never overwritten")
+    out = args.output
+    designs = DESIGNS + STUDIO_DESIGNS
+    scale = args.scale
     w, h = int(W * scale), int(H * scale)
-    os.makedirs(APP_OUT, exist_ok=True)
+    os.makedirs(out, exist_ok=True)
     index = []
     total = 0
-    for i, (wid, name, cat, fn) in enumerate(DESIGNS):
+    for i, (wid, name, cat, fn) in enumerate(designs):
         for mode in ("light", "dark"):
+            if args.studio_only and i < len(DESIGNS):
+                continue
             img = render(fn, 1000 + i * 7 + (0 if mode == "light" else 3), mode, w, h)
-            path = os.path.join(APP_OUT, f"{wid}_{mode}.webp")
+            path = os.path.join(out, f"{wid}_{mode}.webp")
             img.save(path, "WEBP", quality=82, method=6)
-            img.resize((270, 600), Image.LANCZOS).save(os.path.join(APP_OUT, f"{wid}_{mode}_thumb.webp"), "WEBP", quality=80, method=6)
+            img.resize((270, 600), Image.LANCZOS).save(os.path.join(out, f"{wid}_{mode}_thumb.webp"), "WEBP", quality=80, method=6)
             total += os.path.getsize(path)
             print(f"{wid}_{mode}: {os.path.getsize(path) // 1024} KB", flush=True)
-        index.append({"id": wid, "name": name, "category": cat})
-    with open(os.path.join(APP_OUT, "index.json"), "w") as f:
-        json.dump({"version": 1, "width": w, "height": h, "wallpapers": index}, f, indent=2)
+        entry = {"id": wid, "name": name, "category": cat, "focusX": 0.5, "focusY": 0.5}
+        entry["palette"] = {}
+        for mode in ("light", "dark"):
+            with Image.open(os.path.join(out, f"{wid}_{mode}.webp")) as full:
+                sample = full.convert("RGB").resize((1, 3))
+                entry["palette"][mode] = ["#%02x%02x%02x" % sample.getpixel((0, y)) for y in range(3)]
+        index.append(entry)
+    with open(os.path.join(out, "index.json"), "w") as f:
+        json.dump({"version": 2, "width": w, "height": h, "wallpapers": index}, f, indent=2)
     print(f"total full-size: {total // 1024} KB")
 
 
