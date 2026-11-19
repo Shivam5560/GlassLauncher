@@ -69,8 +69,36 @@ private const val HOUR = 3600_000L
 private const val DAY = 24 * HOUR
 /** Hours visible across the widget. */
 private const val VISIBLE_HOURS = 18f
+/** Title capsules: the nearest row's lift above the track's middle, and the step between rows. */
+private val LABEL_LIFT = 20.dp
+private val LABEL_STEP = 24.dp
 
 /** Day-long blocks (true all-day events, or 12 am – 12 am "Out of office") are chips, not track blocks. */
+/** Where an event's title capsule goes: its row above the track (0 = nearest) and how wide it may grow. */
+internal data class LabelSlot(val lane: Int, val maxWidth: Float)
+
+/**
+ * Lays out title capsules so none overlap. [starts] are left edges in increasing order and
+ * [widths] the capsules' natural widths. Each goes in the first of [lanes] rows that is clear by
+ * [gap], else the row that frees up soonest; then every capsule is trimmed to end [gap] before
+ * the next one in its row. Too narrow to read (< [minWidth]) gives null: that title is hidden,
+ * its block on the track still shows.
+ */
+internal fun placeLabels(starts: List<Float>, widths: List<Float>, lanes: Int, gap: Float, minWidth: Float): List<LabelSlot?> {
+    val laneEnd = FloatArray(lanes) { Float.NEGATIVE_INFINITY }
+    val lane = IntArray(starts.size)
+    for (i in starts.indices) {
+        val l = (0 until lanes).firstOrNull { laneEnd[it] + gap <= starts[i] } ?: laneEnd.indices.minBy { laneEnd[it] }
+        lane[i] = l
+        laneEnd[l] = starts[i] + widths[i]
+    }
+    return starts.indices.map { i ->
+        val next = (i + 1 until starts.size).firstOrNull { lane[it] == lane[i] }
+        val room = if (next == null) widths[i] else minOf(widths[i], starts[next] - starts[i] - gap)
+        if (room < minWidth) null else LabelSlot(lane[i], room)
+    }
+}
+
 internal fun isAllDay(e: CalendarEvent) = e.allDay || e.end - e.begin >= 23 * HOUR
 
 /** The local days an all-day event covers (all-day times are stored in UTC). */
@@ -168,7 +196,10 @@ fun CalendarStreamWidget(widgetSize: WidgetSize, modifier: Modifier = Modifier) 
                 Spacer(Modifier.height(4.dp))
                 // The track grows with the widget: a slim rail on Medium, a deep one on Large.
                 val trackDp = (areaH * 0.17f).coerceIn(22.dp, 46.dp)
-                Box(Modifier.fillMaxWidth().weight(1f).heightIn(min = 70.dp)) {
+                BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).heightIn(min = 70.dp)) {
+                    // A second row of titles only when it clears the header above.
+                    val lanes = if (maxHeight / 2 >= trackDp / 2 + LABEL_LIFT + LABEL_STEP + 12.dp) 2 else 1
+                    val labelStyle = GlassType.Caption.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     LazyRow(Modifier.fillMaxSize(), state = list) {
                         items(count = TODAY_INDEX * 2) { i ->
                             val day = today.plusDays((i - TODAY_INDEX).toLong())
@@ -206,17 +237,30 @@ fun CalendarStreamWidget(widgetSize: WidgetSize, modifier: Modifier = Modifier) 
                                         drawLine(Color.White, Offset(px, top - 8.dp.toPx()), Offset(px, top + h + 2.dp.toPx()), 2.dp.toPx())
                                     }
                                 }
-                                // Capsules float above their block: tap to open the event.
-                                mine.filter { it.begin >= start }.forEach { e ->
+                                // Capsules float above their block, never over each other: tap to open the event.
+                                val titled = remember(mine, start) { mine.filter { it.begin >= start }.sortedBy { it.begin } }
+                                val slots = remember(titled, dayPx, lanes) {
+                                    with(density) {
+                                        placeLabels(
+                                            starts = titled.map { ((it.begin - start).toFloat() / DAY) * dayPx },
+                                            // Text, padding and border; capped like before.
+                                            widths = titled.map { minOf(measurer.measure(it.title, labelStyle).size.width + 18.dp.toPx(), 150.dp.toPx()) },
+                                            lanes = lanes, gap = 4.dp.toPx(), minWidth = 36.dp.toPx(),
+                                        )
+                                    }
+                                }
+                                titled.forEachIndexed { i, e ->
+                                    val slot = slots.getOrNull(i) ?: return@forEachIndexed
                                     val xDp = with(density) { (((e.begin - start).toFloat() / DAY) * dayPx).toDp() }
                                     Row(
-                                        Modifier.offset(x = xDp, y = -(trackDp / 2 + 20.dp)).widthIn(max = 150.dp).clip(GlassShape.Capsule)
+                                        Modifier.offset(x = xDp, y = -(trackDp / 2 + LABEL_LIFT + LABEL_STEP * slot.lane))
+                                            .widthIn(max = with(density) { slot.maxWidth.toDp() }).clip(GlassShape.Capsule)
                                             .background(Color.White.copy(alpha = 0.16f))
                                             .border(1.dp, Color.White.copy(alpha = 0.3f), GlassShape.Capsule)
                                             .glassPressable(onClick = { open(e) }, shape = GlassShape.Capsule)
                                             .padding(horizontal = 8.dp, vertical = 3.dp),
                                     ) {
-                                        GlassText(e.title, style = GlassType.Caption.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = Color.White, maxLines = 1)
+                                        GlassText(e.title, style = labelStyle, color = Color.White, maxLines = 1)
                                     }
                                 }
                             }
