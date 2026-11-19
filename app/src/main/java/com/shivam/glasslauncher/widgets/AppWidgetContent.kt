@@ -46,10 +46,11 @@ fun AppWidgetContent(inst: WidgetInstance, modifier: Modifier = Modifier) {
     // u.sage's Claude usage gets Glass's own Liquid Tank; its widget stays underneath, invisible,
     // so it keeps receiving updates. Unrecognised layouts fall back to u.sage's widget.
     val claude = info.provider.packageName == ClaudeUsage.PACKAGE
-    var usage by androidx.compose.runtime.remember(id) { androidx.compose.runtime.mutableStateOf<ClaudeUsage?>(null) }
+    val cached = ClaudeUsage.lastReading[id]
+    var usage by androidx.compose.runtime.remember(id) { androidx.compose.runtime.mutableStateOf(cached?.first) }
     // The session countdown starts from when u.sage's text last changed, not from every redraw.
     var lastTexts by androidx.compose.runtime.remember(id) { androidx.compose.runtime.mutableStateOf<List<String>>(emptyList()) }
-    var readAt by androidx.compose.runtime.remember(id) { androidx.compose.runtime.mutableLongStateOf(0L) }
+    var readAt by androidx.compose.runtime.remember(id) { androidx.compose.runtime.mutableLongStateOf(cached?.second ?: 0L) }
     val hostView = androidx.compose.runtime.remember(id) { arrayOfNulls<GlassAppWidgetHostView>(1) }
     androidx.compose.foundation.layout.Box(modifier) {
     WidgetFrame(Modifier.matchParentSize().alpha(if (usage != null) 0f else 1f), padding = 4.dp) {
@@ -68,7 +69,16 @@ fun AppWidgetContent(inst: WidgetInstance, modifier: Modifier = Modifier) {
                         if (claude) (view as? GlassAppWidgetHostView)?.let { v ->
                             hostView[0] = v
                             v.onTexts = { texts ->
-                                if (texts != lastTexts) { lastTexts = texts; readAt = System.currentTimeMillis(); usage = ClaudeUsage.parse(texts) }
+                                if (texts != lastTexts) {
+                                    lastTexts = texts
+                                    val next = ClaudeUsage.next(usage, texts)
+                                    if (next != null && next != usage) {
+                                        readAt = System.currentTimeMillis()
+                                        ClaudeUsage.lastReading[id] = next to readAt
+                                    }
+                                    if (next == null) ClaudeUsage.lastReading.remove(id)
+                                    usage = next
+                                }
                             }
                         }
                         host.updateSize(view, w, h)

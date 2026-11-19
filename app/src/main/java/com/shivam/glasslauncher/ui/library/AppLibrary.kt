@@ -1,7 +1,6 @@
 package com.shivam.glasslauncher.ui.library
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,6 +55,8 @@ import com.shivam.glasslauncher.ui.glass.GlassTextField
 import com.shivam.glasslauncher.ui.glass.GlassType
 import com.shivam.glasslauncher.ui.glass.GlassVariant
 import com.shivam.glasslauncher.ui.home.AppIconImage
+import com.shivam.glasslauncher.ui.home.HomeCallbacks
+import com.shivam.glasslauncher.ui.home.dragInGestures
 import com.shivam.glasslauncher.ui.home.IconLabel
 import com.shivam.glasslauncher.ui.home.MenuTarget
 import kotlinx.coroutines.launch
@@ -73,6 +74,8 @@ fun AppLibrary(
     onLaunch: (AppEntry, android.graphics.Rect?) -> Unit,
     onOpenGroup: (LibraryGroup, Rect) -> Unit,
     onMenu: (MenuTarget) -> Unit,
+    /** Drag an app out of a tile onto Home (long-press, then move), as on iOS. */
+    callbacks: HomeCallbacks,
 ) {
     var query by remember { mutableStateOf("") }
     var listMode by remember { mutableStateOf(false) }
@@ -105,7 +108,7 @@ fun AppLibrary(
                 contentPadding = PaddingValues(bottom = 40.dp),
             ) {
                 items(groups, key = { it.id }) { group ->
-                    LibraryTile(group, label, lightWallpaper, onLaunch, onOpenGroup, onMenu)
+                    LibraryTile(group, label, lightWallpaper, onLaunch, onOpenGroup, onMenu, callbacks)
                 }
                 item(span = { GridItemSpan(2) }) { Spacer(Modifier.height(24.dp)) }
             }
@@ -125,6 +128,7 @@ private fun LibraryTile(
     onLaunch: (AppEntry, android.graphics.Rect?) -> Unit,
     onOpenGroup: (LibraryGroup, Rect) -> Unit,
     onMenu: (MenuTarget) -> Unit,
+    callbacks: HomeCallbacks,
 ) {
     val tileCoords = remember { arrayOfNulls<LayoutCoordinates>(1) }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -148,7 +152,7 @@ private fun LibraryTile(
                                         tileCoords[0]?.boundsInWindow()?.let { onOpenGroup(group, it) }
                                     }
                                 } else {
-                                    group.apps.getOrNull(i)?.let { LibraryIcon(it, icon, onLaunch, onMenu) }
+                                    group.apps.getOrNull(i)?.let { LibraryIcon(it, icon, onLaunch, onMenu, callbacks) }
                                 }
                             }
                         }
@@ -183,24 +187,26 @@ private val TileGap = 10.dp
 private val TileSpacing = 18.dp
 private val TileIconMax = 68.dp
 
-@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
-private fun LibraryIcon(entry: AppEntry, size: Dp, onLaunch: (AppEntry, android.graphics.Rect?) -> Unit, onMenu: (MenuTarget) -> Unit) {
+private fun LibraryIcon(entry: AppEntry, size: Dp, onLaunch: (AppEntry, android.graphics.Rect?) -> Unit, onMenu: (MenuTarget) -> Unit, callbacks: HomeCallbacks) {
     val coords = remember { arrayOfNulls<LayoutCoordinates>(1) }
     val haptics = LocalHapticFeedback.current
+    val sizePx = with(androidx.compose.ui.platform.LocalDensity.current) { size.toPx() }
     // Just the icon, as on iOS (no glass behind it: the tile is the glass).
     Box(
         Modifier
             .size(size)
             .onGloballyPositioned { coords[0] = it }
-            .combinedClickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null,
-                onClick = {
+            .dragInGestures(
+                entry = entry,
+                iconSizePx = sizePx,
+                callbacks = callbacks,
+                coordinates = { coords[0] },
+                onTap = {
                     val b = coords[0]?.boundsInWindow()
                     onLaunch(entry, b?.let { android.graphics.Rect(it.left.toInt(), it.top.toInt(), it.right.toInt(), it.bottom.toInt()) })
                 },
-                onLongClick = {
+                onLongPress = {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     coords[0]?.boundsInWindow()?.let { onMenu(MenuTarget(entry, null, null, it)) }
                 },

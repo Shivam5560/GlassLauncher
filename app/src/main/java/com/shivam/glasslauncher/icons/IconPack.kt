@@ -19,7 +19,7 @@ data class IconPackInfo(val packageName: String, val label: String)
  * `name_tinted` is a white monochrome glyph on transparent that the launcher puts on its own tile
  * and tints. Packs without these drawables simply fall back to `name`.
  */
-enum class IconVariant(val suffix: String) { Light(""), Dark("_dark"), Tinted("_tinted") }
+enum class IconVariant(val suffix: String) { Light(""), Dark("_dark"), Clear("_clear"), Tinted("_tinted") }
 
 /** A drawable resolved from a pack, and which variant it actually is. */
 class PackDrawable(val drawable: Drawable, val variant: IconVariant)

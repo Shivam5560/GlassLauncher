@@ -49,6 +49,8 @@ and works on any Android 12+ phone (minSdk 31).
 - **Hidden and locked apps.** Locked apps need BiometricPrompt (or your screen lock) before launching.
 - **Icon packs.** ADW/Nova packs are detected and their `appfilter.xml` parsed. Unmapped icons are
   masked to a squircle using the pack's iconback, mask and upon.
+- **Drag and drop.** Long-press and drag icons between cells, pages (dwell at the edge), the dock and
+  folders. Long-press an app in the app drawer and keep moving to drag it onto Home.
 - **Glass Gestures.** An AccessibilityService with thin overlay zones:
   - swipe up = Home, swipe up and hold = Recents, edge swipe = Back (with a glass stretch bubble);
   - a glass home-indicator pill;
@@ -62,8 +64,10 @@ and works on any Android 12+ phone (minSdk 31).
 - **Installed icon packs:** standard ADW/Nova packs remain supported. The old standalone
   Glass Icons companion app and its generator have been retired. Unmapped apps retain their
   original logos, styled with the selected pack's background and mask when available.
-- **Icon variants:** Settings → Customise → Icon style: Auto (follows dark mode), Light, Dark or
-  Tinted (glyph in the accent or a chosen colour on a dark glass tile).
+- **Icon variants:** Settings → Customise → Icon style: Auto (follows dark mode), Default, Dark,
+  Clear or Tinted. Packs supply `_dark` / `_tinted` artwork where they have it; apps a pack doesn't
+  cover get Clear (white glyph on glass) or Tinted (one-colour glyph), from the app's Android 13
+  monochrome layer when it has one.
 - **Per-app icons:** long-press an app → Edit Icon, or Settings → Icon pack → Individual app icons.
   Search for an app and choose artwork from an installed pack, a photo, or Default.
 - **Pinned shortcuts:** "Add to Home screen" from other apps opens a glass confirmation sheet.
@@ -71,6 +75,9 @@ and works on any Android 12+ phone (minSdk 31).
   each a light and dark pair at 1440×3200, rendered by `tools/wallpapers/generate_wallpapers.py`.
   The glass picker has categories, previews with a live glass panel, auto light/dark switching, and
   sets them through Glass so refraction works (Path A).
+- **Your own wallpapers:** Wallpapers → Add from Photos takes one picture, or two as a light and
+  dark pair (the brighter becomes Light). They are stored privately in Glass, listed under My
+  Wallpapers, and can be renamed or removed; nothing is added to the app or the repo.
 - **Theme:** Default, From wallpaper (accent and glass tint from the wallpaper's colours) or Custom
   (theme editor).
 - **Font picker:** bundled OFL fonts plus downloadable Google Fonts via Google Play services, with a

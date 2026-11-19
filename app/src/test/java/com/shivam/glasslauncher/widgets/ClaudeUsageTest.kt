@@ -12,6 +12,16 @@ class ClaudeUsageTest {
 
     @Test fun unknownLayoutFallsBack() = assertNull(ClaudeUsage.parse(listOf("Claude", "Loading…")))
 
+    @Test fun keepsLastReadingWhileUsageReloads() {
+        val old = ClaudeUsage(10, null, 50, null, null)
+        // Header drawn before the ListView rows arrive: keep the tank, don't flash u.sage's widget.
+        assertEquals(old, ClaudeUsage.next(old, listOf("Claude", "Updated 2m ago")))
+        assertNull(ClaudeUsage.next(null, listOf("Claude")))
+    }
+
+    @Test fun signInStateShowsUsageWidget() =
+        assertNull(ClaudeUsage.next(ClaudeUsage(10, null, 50, null, null), listOf("Tap to sign in")))
+
     @Test fun readsSessionCountdown() {
         val u = ClaudeUsage.parse(listOf("Current session", "17%", "Resets in 4 hr 23 min", "Weekly limits", "80%", "Resets Mon, 10:30 pm", "85%"))!!
         assertEquals(263, u.sessionResetMinutes)

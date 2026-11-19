@@ -86,10 +86,16 @@ class GlassAppWidgetHostView(context: Context) : AppWidgetHostView(context) {
     override fun onLayout(changed: Boolean, left: Int, top: Int, right: Int, bottom: Int) {
         super.onLayout(changed, left, top, right, bottom)
         applyBackgrounds()
+        // Collection widgets (u.sage's ListView of limits) fill their rows from a RemoteViewsService
+        // after updateAppWidget; the rows' arrival relayouts this view, so read the texts again then.
+        if (onTexts != null) { removeCallbacks(rescanTexts); post(rescanTexts) }
     }
+
+    private val rescanTexts = Runnable { reportTexts() }
 
     override fun onDetachedFromWindow() {
         removeCallbacks(refreshPaint)
+        removeCallbacks(rescanTexts)
         super.onDetachedFromWindow()
     }
 

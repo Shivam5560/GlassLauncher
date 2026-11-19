@@ -15,7 +15,7 @@ internal object SettingsCatalog {
         SettingsDestination("wallpapers", "Wallpapers", "Find a new backdrop for your day", "Personalise", "background gallery light dark"),
         SettingsDestination("wallpaper", "Your wallpaper", "Choose a photo or manage wallpaper access", "Personalise", "image photos refraction files"),
         SettingsDestination("iconpack", "Icon packs", "Give your apps a consistent look", "Personalise", "system icons artwork"),
-        SettingsDestination("iconstyle", "Icon style", "Light, dark or tinted icons", "Personalise"),
+        SettingsDestination("iconstyle", "Icon style", "Default, dark, clear or tinted icons", "Personalise"),
         SettingsDestination("appicons", "Individual app icons", "Choose artwork for a single app", "Personalise", "edit photo custom"),
         SettingsDestination("fonts", "Fonts", "Find your type", "Personalise", "text typography inter manrope size"),
         SettingsDestination("theme", "Theme colours", "An accent that feels like you", "Personalise", "wallpaper palette custom"),

@@ -164,12 +164,14 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
         } else {
             val raw = try { entry.info.getIcon(density) } catch (e: Exception) { null }
                 ?: context.packageManager.defaultActivityIcon
-            if (p != null && p.hasBack) {
-                renderThemed(canvas, raw, p, entry.component.hashCode(), size, density)
-                maskToSquircle(out)
-            } else {
-                renderSquircle(canvas, raw, size)
-                drawGlassFinish(canvas, size)
+            when {
+                p != null && p.hasBack -> {
+                    renderThemed(canvas, raw, p, entry.component.hashCode(), size, density)
+                    maskToSquircle(out)
+                }
+                variant == IconVariant.Clear -> renderGlyph(canvas, raw, size, Color.WHITE, clear = true)
+                variant == IconVariant.Tinted -> renderGlyph(canvas, raw, size, tintColor, clear = false)
+                else -> { renderSquircle(canvas, raw, size); drawGlassFinish(canvas, size) }
             }
         }
         if (entry.isWorkProfile) {
@@ -224,6 +226,54 @@ class IconRenderer(private val context: Context, private val scope: CoroutineSco
         glyph.colorFilter = android.graphics.PorterDuffColorFilter(tintColor, PorterDuff.Mode.SRC_IN)
         drawDrawable(canvas, glyph, 0, 0, size, size)
         glyph.colorFilter = null
+    }
+
+    /**
+     * iOS Clear and Tinted for the app's own icon: its mark as a one-colour glyph on a glass or dark
+     * tile. Uses the Android 13 monochrome layer when the app ships one, otherwise the foreground (or
+     * the whole legacy icon) with its brightness kept as shading, so logos keep their inner detail.
+     */
+    private fun renderGlyph(canvas: Canvas, icon: Drawable, size: Int, color: Int, clear: Boolean) {
+        val s = size.toFloat()
+        val clip = shapePath(s)
+        canvas.save()
+        canvas.clipPath(clip)
+        canvas.drawPaint(Paint().apply {
+            shader = if (clear) android.graphics.LinearGradient(0f, 0f, 0f, s, 0x59FFFFFF, 0x26FFFFFF, android.graphics.Shader.TileMode.CLAMP)
+            else android.graphics.LinearGradient(0f, 0f, 0f, s, 0xFF2B2B2F.toInt(), 0xFF0F0F11.toInt(), android.graphics.Shader.TileMode.CLAMP)
+        })
+        val glyph = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val gc = Canvas(glyph)
+        val adaptive = icon as? AdaptiveIconDrawable
+        val mono = if (adaptive != null && android.os.Build.VERSION.SDK_INT >= 33) adaptive.monochrome else null
+        val inset = (size * 0.25f).toInt()
+        when {
+            mono != null -> drawDrawable(gc, mono, -inset, -inset, size + inset, size + inset)
+            adaptive?.foreground != null -> drawDrawable(gc, adaptive.foreground, -inset, -inset, size + inset, size + inset)
+            else -> { val pad = (size * 0.16f).toInt(); drawDrawable(gc, icon, pad, pad, size - pad, size - pad) }
+        }
+        toGlyph(glyph, color, shaded = mono == null)
+        canvas.drawBitmap(glyph, 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
+        canvas.restore()
+        if (clear) canvas.drawPath(Path(clip), Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE; strokeWidth = (s * 0.02f).coerceAtLeast(1f); this.color = 0x66FFFFFF
+        })
+    }
+
+    /** Paints every visible pixel [color]; when [shaded], darker pixels fade so detail survives. */
+    private fun toGlyph(bmp: Bitmap, color: Int, shaded: Boolean) {
+        val w = bmp.width; val h = bmp.height
+        val px = IntArray(w * h)
+        bmp.getPixels(px, 0, w, 0, 0, w, h)
+        val rgb = color and 0xFFFFFF
+        for (i in px.indices) {
+            val c = px[i]
+            val a = c ushr 24
+            if (a == 0) continue
+            val k = if (shaded) 0.3f + 0.7f * (0.2126f * Color.red(c) + 0.7152f * Color.green(c) + 0.0722f * Color.blue(c)) / 255f else 1f
+            px[i] = ((a * k).toInt() shl 24) or rgb
+        }
+        bmp.setPixels(px, 0, w, 0, 0, w, h)
     }
 
     /** Adaptive icons: background + foreground layers expanded so the 72/108 safe zone fills the squircle. */

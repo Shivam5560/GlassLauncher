@@ -88,6 +88,7 @@ class Polish(private val app: GlassApp) {
                     IconStyle.Auto -> if (n) IconVariant.Dark else IconVariant.Light
                     IconStyle.Light -> IconVariant.Light
                     IconStyle.Dark -> IconVariant.Dark
+                    IconStyle.Clear -> IconVariant.Clear
                     IconStyle.Tinted -> IconVariant.Tinted
                 }
                 app.icons.setStyle(variant, if (s.tintedIconColor != 0) s.tintedIconColor else accent)

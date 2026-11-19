@@ -113,6 +113,8 @@ import com.shivam.glasslauncher.ui.home.AppIconImage
 import com.shivam.glasslauncher.ui.home.BadgedIcon
 import com.shivam.glasslauncher.ui.home.FolderIcon
 import com.shivam.glasslauncher.ui.home.HomeCallbacks
+import com.shivam.glasslauncher.data.Slot
+import com.shivam.glasslauncher.ui.home.dragInGestures
 import com.shivam.glasslauncher.ui.home.HomeContext
 import com.shivam.glasslauncher.ui.home.IconLabel
 import com.shivam.glasslauncher.ui.home.LauncherUiState
@@ -197,6 +199,9 @@ fun AppDrawerOverlay(
     val visible = state.open
     val progress = remember { Animatable(0f) }
     var composed by remember { mutableStateOf(false) }
+    // Dragging an app onto Home closes the drawer at once; Home's root finishes the drag.
+    val draggingOut = ui.drag.info?.from is Slot.Outside
+    LaunchedEffect(draggingOut) { if (draggingOut) state.closeAll() }
     LaunchedEffect(visible) {
         if (visible) {
             composed = true
@@ -254,6 +259,7 @@ fun AppDrawerOverlay(
         }
     }
 
+
     val close = { state.open = false }
     val launch: (AppEntry, android.graphics.Rect?) -> Unit = { e, b -> callbacks.launch(e, b); state.closeAll() }
 
@@ -297,6 +303,7 @@ fun AppDrawerOverlay(
                             onMore = { r -> state.menuAnchor = r },
                             onApp = launch,
                             onAppLong = { e, r -> ui.menu = MenuTarget(e, null, null, r, fromDrawer = true) },
+                            callbacks = callbacks,
                             onFolder = { f, r -> state.folderOrigin = r; state.folder = f },
                             onShortcut = { s, b ->
                                 if (!vm.startDrawerShortcut(activity, s, b)) {
@@ -387,6 +394,7 @@ private fun CategoryPage(
     onMore: (Rect) -> Unit,
     onApp: (AppEntry, android.graphics.Rect?) -> Unit,
     onAppLong: (AppEntry, Rect) -> Unit,
+    callbacks: HomeCallbacks,
     onFolder: (DrawerFolder, Rect) -> Unit,
     onShortcut: (DrawerShortcut, android.graphics.Rect?) -> Unit,
     onShortcutLong: (DrawerShortcut) -> Unit,
@@ -401,7 +409,7 @@ private fun CategoryPage(
         CategoryHeader(category.title, items.size, textColor, onSearch, onStore, onMore)
     }
     val cell: @Composable (DrawerItem) -> Unit = { item ->
-        DrawerCell(item, ctx, iconSize, ap.drawerLabels, ap.labelSize, ap.twoLineLabels, textColor, onApp, onAppLong, onFolder, onShortcut, onShortcutLong)
+        DrawerCell(item, ctx, iconSize, ap.drawerLabels, ap.labelSize, ap.twoLineLabels, textColor, onApp, onAppLong, callbacks, onFolder, onShortcut, onShortcutLong)
     }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val rows = (items.size + 3) / 4
@@ -473,6 +481,7 @@ private fun DrawerCell(
     textColor: Color,
     onApp: (AppEntry, android.graphics.Rect?) -> Unit,
     onAppLong: (AppEntry, Rect) -> Unit,
+    callbacks: HomeCallbacks,
     onFolder: (DrawerFolder, Rect) -> Unit,
     onShortcut: (DrawerShortcut, android.graphics.Rect?) -> Unit,
     onShortcutLong: (DrawerShortcut) -> Unit,
@@ -529,15 +538,30 @@ private fun DrawerCell(
             Modifier
                 .size(iconSize)
                 .onGloballyPositioned { coords[0] = it }
-                .pointerInput(item.key) {
-                    detectTapGestures(
-                        onTap = { tap() },
-                        onLongPress = {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            longPress()
-                        },
-                    )
-                },
+                .then(
+                    if (item is DrawerItem.App) {
+                        // As on iOS: long-press shows the menu; keep moving to drag the app onto Home.
+                        val iconPx = with(LocalDensity.current) { iconSize.toPx() }
+                        Modifier.dragInGestures(
+                            entry = ctx.apps.getValue(item.key),
+                            iconSizePx = iconPx,
+                            callbacks = callbacks,
+                            coordinates = { coords[0] },
+                            onTap = tap,
+                            onLongPress = { haptics.performHapticFeedback(HapticFeedbackType.LongPress); longPress() },
+                        )
+                    } else {
+                        Modifier.pointerInput(item.key) {
+                            detectTapGestures(
+                                onTap = { tap() },
+                                onLongPress = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    longPress()
+                                },
+                            )
+                        }
+                    },
+                ),
         ) { iconContent() }
         if (labels) {
             Spacer(Modifier.height(5.dp))

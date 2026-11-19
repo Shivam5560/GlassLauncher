@@ -78,6 +78,21 @@ data class ClaudeUsage(
             return (h ?: 0) * 60 + (m ?: 0)
         }
 
+        /** u.sage states only the user can fix: Glass then shows u.sage's own widget, not old numbers. */
+        fun needsAction(texts: List<String>): Boolean = texts.any { t -> ACTION_TEXTS.any { t.contains(it, ignoreCase = true) } }
+        private val ACTION_TEXTS = listOf("sign in", "finish setup", "no longer available")
+
+        /**
+         * Next state for the Liquid Tank when u.sage redraws: a new reading when the texts parse; the
+         * previous one while u.sage is loading or between list updates (so it never flashes its own
+         * widget); null only when it needs the user.
+         */
+        fun next(previous: ClaudeUsage?, texts: List<String>): ClaudeUsage? =
+            parse(texts) ?: previous.takeUnless { needsAction(texts) }
+
+        /** Last reading per widget id, so a rebuilt Home page shows the tank at once. Main thread only. */
+        internal val lastReading = HashMap<Int, Pair<ClaudeUsage, Long>>(2)
+
         /** 263 -> "4h 23m", 45 -> "45m". */
         fun formatLeft(minutes: Int): String = if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes.coerceAtLeast(0)}m"
 

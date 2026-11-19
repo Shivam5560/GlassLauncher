@@ -411,6 +411,11 @@ fun LauncherScreen(
             override fun startDrag(info: DragInfo, at: Offset) {
                 ui.menu = null
                 ui.drag.start(info, at)
+                // Dragged out of the App Library: show the last Home page to drop on, as on iOS.
+                val page = ringState.value.of(pagerState.currentPage) - TODAY_PAGES
+                if (info.from is Slot.Outside && page !in 0 until homeCountState.value) {
+                    scope.launch { goTo(homeCountState.value - 1 + TODAY_PAGES) }
+                }
             }
             override fun drag(at: Offset) {
                 ui.drag.pointer = at
@@ -496,7 +501,7 @@ fun LauncherScreen(
     GlassTheme(style = glass, light = light, fallbackLuminance = snapshot.globalLuminance, backdrop = homeBackdrop) {
         CompositionLocalProvider(LocalIconRenderer provides vm.icons, LocalIconGeneration provides generation, LocalWidgetEnv provides widgetEnv) {
             WidgetHostLifecycle()
-            Box(Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize().outsideDragTracker(ui.drag, callbacks)) {
                 SnapshotBackdropLayer(frozenHome, frozenHomeLayer)
                 SnapshotBackdropLayer(panelWall, panelWallLayer)
                 SnapshotBackdropLayer(panelHome, panelHomeLayer)
@@ -651,6 +656,7 @@ fun LauncherScreen(
                                             onLaunch = { e, b -> callbacks.launch(e, b) },
                                             onOpenGroup = { g, r -> ui.folder = OpenFolder(null, g.id, r) },
                                             onMenu = { ui.menu = it },
+                                            callbacks = callbacks,
                                         )
                                     }
                                 }
@@ -706,6 +712,7 @@ fun LauncherScreen(
                     ) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             GlassButton("Settings", onClick = { openSettings(null) }, icon = GlassIcons.Gear)
+                            GlassIconButton(GlassIcons.Palette, onClick = { ui.customise = true })
                             GlassIconButton(WidgetGlyphs.Pages, onClick = { widgetUi.pageManager = true })
                             // Share your home screen: rendered from our own layers, never a screenshot.
                             GlassIconButton(com.shivam.glasslauncher.ui.drawer.DrawerGlyphs.Share, onClick = {
@@ -725,6 +732,8 @@ fun LauncherScreen(
                         }
                     }
                 }
+
+                CustomiseSheet(visible = ui.customise && ui.editMode, settings = settings, onDismiss = { ui.customise = false })
 
                 // Icon following the finger while dragging.
                 ui.drag.info?.let { info ->
