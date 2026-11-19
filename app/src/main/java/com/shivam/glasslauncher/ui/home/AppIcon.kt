@@ -30,10 +30,12 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerInputChange
 import androidx.compose.ui.input.pointer.changedToUpIgnoreConsumed
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -41,7 +43,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shivam.glasslauncher.data.AppEntry
+import com.shivam.glasslauncher.data.AppItem
 import com.shivam.glasslauncher.data.FolderItem
+import com.shivam.glasslauncher.data.Slot
 import com.shivam.glasslauncher.ui.glass.GlassColors
 import com.shivam.glasslauncher.ui.glass.GlassIconButton
 import com.shivam.glasslauncher.ui.glass.GlassIcons
@@ -228,6 +232,49 @@ fun Modifier.iconGestures(
                         onDrag(toWindow(ch.position))
                     }
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Gestures for an app that is not on Home yet (app drawer, App Library): tap, long-press menu, and
+ * a long-press-then-move that starts dragging it onto Home. Only the start happens here: the source
+ * closes or slides away mid-gesture, which cancels its own handler, so [outsideDragTracker] on
+ * Home's root follows the finger and drops the app.
+ */
+fun Modifier.dragInGestures(
+    entry: AppEntry,
+    iconSizePx: Float,
+    callbacks: HomeCallbacks,
+    coordinates: () -> LayoutCoordinates?,
+    onTap: () -> Unit,
+    onLongPress: () -> Unit,
+): Modifier = iconGestures(
+    key = entry.key,
+    editMode = false,
+    coordinates = coordinates,
+    onTap = onTap,
+    onLongPress = onLongPress,
+    onDragStart = { window, local ->
+        callbacks.startDrag(DragInfo(AppItem(entry.key), Slot.Outside(entry.key), entry, local, iconSizePx), window)
+    },
+    onDrag = {},
+    onDragEnd = {},
+    onDragCancel = {},
+)
+
+/** On Home's root: moves and drops drags begun by [dragInGestures]. Observes only, never consumes. */
+@Composable
+fun Modifier.outsideDragTracker(drag: DragController, callbacks: HomeCallbacks): Modifier {
+    val coords = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    return onGloballyPositioned { coords[0] = it }.pointerInput(drag, callbacks) {
+        awaitPointerEventScope {
+            while (true) {
+                val ev = awaitPointerEvent(PointerEventPass.Initial)
+                if (drag.info?.from !is Slot.Outside) continue
+                val ch = ev.changes.firstOrNull() ?: continue
+                if (ch.pressed) callbacks.drag(coords[0]?.localToWindow(ch.position) ?: ch.position) else callbacks.endDrag()
             }
         }
     }

@@ -80,6 +80,8 @@ class LauncherUiState {
     var folder by mutableStateOf<OpenFolder?>(null)
     var menu by mutableStateOf<MenuTarget?>(null)
     var editMode by mutableStateOf(false)
+    /** Edit mode's Customise sheet (icon size, names, appearance). */
+    var customise by mutableStateOf(false)
     var lockPrompt by mutableStateOf<LockPrompt?>(null)
     var rename by mutableStateOf<RenameTarget?>(null)
     val drag = DragController()
@@ -105,6 +107,7 @@ class LauncherUiState {
         spotlightOpen -> { spotlightOpen = false; true }
         folder != null -> { folder = null; true }
         drawer.closeTop() -> true
+        customise -> { customise = false; true }
         editMode -> { editMode = false; true }
         else -> false
     }
@@ -115,6 +118,7 @@ class LauncherUiState {
         menu = null
         spotlightOpen = false
         folder = null
+        customise = false
         editMode = false
         drawer.closeAll()
     }

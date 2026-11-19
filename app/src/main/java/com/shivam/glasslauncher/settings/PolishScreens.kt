@@ -263,7 +263,6 @@ private fun FontScreen(nav: SettingsNav) {
 private fun IconStyleScreen(nav: SettingsNav) {
     val context = LocalContext.current
     val app = GlassApp.from(context)
-    val p = app.polish.settings.state.collectAsState().value ?: return
     val settings = app.settings.state.collectAsState().value ?: return
     val apps by app.apps.apps.collectAsState()
     val packs by produceState<List<IconPackInfo>?>(null) { value = withContext(Dispatchers.IO) { IconPack.installed(context) } }
@@ -273,25 +272,7 @@ private fun IconStyleScreen(nav: SettingsNav) {
                 apps.filterNot { it.key in settings.hidden }.take(5).forEach { AppIconImage(it, 56.dp) }
             }
         }
-        item {
-            GlassListGroup(footer = "Packs that ship dark or tinted artwork use it. Apps a pack doesn't cover: Dark moves the logo onto a dark tile, Clear shows it in white on glass, Tinted in one colour. Auto follows the system dark mode.") {
-                Column(Modifier.padding(12.dp)) {
-                    GlassSegmented(IconStyle.entries.map { it.title }, p.iconStyle.ordinal, { app.polish.settings.setIconStyle(IconStyle.entries[it]) })
-                }
-                if (p.iconStyle == IconStyle.Tinted) {
-                    Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                        GlassText("Tint colour", style = GlassType.Callout)
-                        Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Swatch(GlassColors.Accent, p.tintedIconColor == 0) { app.polish.settings.setTintedIconColor(0) }
-                            listOf(0xFFFFD60A, 0xFFFFFFFF, 0xFF64D2FF, 0xFF30D158, 0xFFFF9F0A, 0xFFBF5AF2).map { it.toInt() }.forEach { c ->
-                                Swatch(Color(c), p.tintedIconColor == c) { app.polish.settings.setTintedIconColor(c) }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        item { IconStyleGroup() }
         item {
             GlassListGroup(title = "Icon pack") {
                 GlassRow("Icon pack", subtitle = packs?.firstOrNull { it.packageName == settings.iconPack }?.label ?: settings.iconPack.ifEmpty { "System icons" }, onClick = { nav.push("iconpack") })
@@ -300,6 +281,30 @@ private fun IconStyleScreen(nav: SettingsNav) {
         }
     }
 }
+
+/** Icon appearance (Auto, Default, Dark, Clear, Tinted) and the Tinted colour. Also in Home's Customise sheet. */
+@Composable
+internal fun IconStyleGroup() {
+    val app = GlassApp.from(LocalContext.current)
+    val p = app.polish.settings.state.collectAsState().value ?: return
+    GlassListGroup(footer = "Packs that ship dark or tinted artwork use it. Apps a pack doesn't cover: Dark moves the logo onto a dark tile, Clear shows it in white on glass, Tinted in one colour. Auto follows the system dark mode.") {
+        Column(Modifier.padding(12.dp)) {
+            GlassSegmented(IconStyle.entries.map { it.title }, p.iconStyle.ordinal, { app.polish.settings.setIconStyle(IconStyle.entries[it]) })
+        }
+        if (p.iconStyle == IconStyle.Tinted) {
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                GlassText("Tint colour", style = GlassType.Callout)
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Swatch(GlassColors.Accent, p.tintedIconColor == 0) { app.polish.settings.setTintedIconColor(0) }
+                    TINT_SWATCHES.forEach { c -> Swatch(Color(c), p.tintedIconColor == c) { app.polish.settings.setTintedIconColor(c) } }
+                }
+            }
+        }
+    }
+}
+
+private val TINT_SWATCHES = listOf(0xFFFFD60A, 0xFFFFFFFF, 0xFF64D2FF, 0xFF30D158, 0xFFFF9F0A, 0xFFBF5AF2).map { it.toInt() }
 
 /** Searchable entry point for repairing individual icons without changing the whole pack. */
 @Composable
