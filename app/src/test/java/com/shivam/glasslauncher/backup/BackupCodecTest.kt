@@ -19,7 +19,7 @@ class BackupCodecTest {
         files = mapOf(
             "layout.json" to layout,
             IconOverrideStore.FILE_NAME to IconOverrideStore.encode(mapOf(
-                "com.a/.Main" to IconOverride.Custom("def.png"),
+                "com.a/.Main" to IconOverride.Pack("com.shivam.glassicons", "phone"),
                 "com.d/.D" to IconOverride.Custom("abc.png"),
             )),
             PinnedShortcutStore.FILE_NAME to PinnedShortcutStore.encode(listOf(PinnedShortcut("com.android.chrome", "site-1", "News", 0L))),
@@ -62,7 +62,7 @@ class BackupCodecTest {
     fun nestedStoresRoundTrip() {
         val back = BackupCodec.decode(BackupCodec.encode(sample))
         val overrides = IconOverrideStore.decode(back.files.getValue(IconOverrideStore.FILE_NAME))
-        assertEquals(IconOverride.Custom("def.png"), overrides["com.a/.Main"])
+        assertEquals(IconOverride.Pack("com.shivam.glassicons", "phone"), overrides["com.a/.Main"])
         assertEquals(IconOverride.Custom("abc.png"), overrides["com.d/.D"])
         assertEquals("News", PinnedShortcutStore.decode(back.files.getValue(PinnedShortcutStore.FILE_NAME)).single().label)
     }
@@ -78,12 +78,7 @@ class BackupCodecTest {
         assertEquals(1, s.customIcons)
         assertEquals(2, s.iconOverrides)
         assertEquals(1, s.pinnedShortcuts)
-    }
-
-    @Test
-    fun oldIconPackOverridesAreDropped() {
-        val old = """{"com.a/.Main":{"t":"pack","pkg":"com.x","d":"phone"},"com.d/.D":{"t":"custom","f":"abc.png"}}"""
-        assertEquals(mapOf("com.d/.D" to IconOverride.Custom("abc.png")), IconOverrideStore.decode(old))
+        assertEquals("com.shivam.glassicons", s.iconPack)
     }
 
     @Test(expected = BackupFormatException::class)

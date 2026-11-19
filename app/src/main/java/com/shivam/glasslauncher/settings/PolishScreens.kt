@@ -50,6 +50,8 @@ import com.shivam.glasslauncher.backup.BackupData
 import com.shivam.glasslauncher.backup.BackupManager
 import com.shivam.glasslauncher.backup.BackupSummary
 import com.shivam.glasslauncher.icons.IconOverride
+import com.shivam.glasslauncher.icons.IconPack
+import com.shivam.glasslauncher.icons.IconPackInfo
 import com.shivam.glasslauncher.polish.Fonts
 import com.shivam.glasslauncher.polish.GlassWallpaper
 import com.shivam.glasslauncher.polish.IconStyle
@@ -122,7 +124,7 @@ private fun PolishHub(nav: SettingsNav) {
                 GlassRow("Wallpapers", subtitle = app.polish.wallpapers.byId(p.wallpaperId)?.name ?: "${app.polish.wallpapers.all.size} wallpapers · Wallpaper Studio", icon = GlassIcons.Home, iconTint = Color(0xFF64D2FF), onClick = { nav.push("wallpapers") })
                 GlassRow("Theme", subtitle = when (p.themeSource) { ThemeSource.Default -> "Default"; ThemeSource.Wallpaper -> "From wallpaper"; ThemeSource.Manual -> "Custom colours" }, icon = GlassIcons.Palette, iconTint = GlassColors.Accent, onClick = { nav.push("theme") })
                 GlassRow("Font", subtitle = Fonts.entry(p.fontId).name, icon = GlassIcons.Pencil, iconTint = Color(0xFFFF9F0A), onClick = { nav.push("fonts") })
-                GlassRow("Icon style", subtitle = p.iconStyle.title, icon = GlassIcons.Grid, iconTint = Color(0xFF30D158), onClick = { nav.push("iconstyle") })
+                GlassRow("Icon style", subtitle = "${p.iconStyle.title} · ${settings.iconPack.ifEmpty { "System icons" }}", icon = GlassIcons.Grid, iconTint = Color(0xFF30D158), onClick = { nav.push("iconstyle") })
             }
         }
         item {
@@ -264,6 +266,7 @@ private fun IconStyleScreen(nav: SettingsNav) {
     val p = app.polish.settings.state.collectAsState().value ?: return
     val settings = app.settings.state.collectAsState().value ?: return
     val apps by app.apps.apps.collectAsState()
+    val packs by produceState<List<IconPackInfo>?>(null) { value = withContext(Dispatchers.IO) { IconPack.installed(context) } }
     ScreenScaffold("Icon style", nav) {
         item {
             Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
@@ -271,7 +274,7 @@ private fun IconStyleScreen(nav: SettingsNav) {
             }
         }
         item {
-            GlassListGroup(footer = "Each app keeps its own icon. Dark moves the logo onto a dark tile, Clear shows it in white on glass, Tinted in one colour. Auto follows the system dark mode.") {
+            GlassListGroup(footer = "Packs that ship dark or tinted artwork use it. Apps a pack doesn't cover: Dark moves the logo onto a dark tile, Clear shows it in white on glass, Tinted in one colour. Auto follows the system dark mode.") {
                 Column(Modifier.padding(12.dp)) {
                     GlassSegmented(IconStyle.entries.map { it.title }, p.iconStyle.ordinal, { app.polish.settings.setIconStyle(IconStyle.entries[it]) })
                 }
@@ -290,8 +293,8 @@ private fun IconStyleScreen(nav: SettingsNav) {
             }
         }
         item {
-            GlassListGroup(footer = "Greyscale removes the colour from every app icon.") {
-                GlassSwitchRow("Greyscale icons", settings.greyscaleIcons, { app.settings.setGreyscaleIcons(it) })
+            GlassListGroup(title = "Icon pack") {
+                GlassRow("Icon pack", subtitle = packs?.firstOrNull { it.packageName == settings.iconPack }?.label ?: settings.iconPack.ifEmpty { "System icons" }, onClick = { nav.push("iconpack") })
                 GlassRow("Individual app icons", subtitle = "Fix a missing icon or choose different artwork for one app", icon = GlassIcons.Pencil, onClick = { nav.push("appicons") })
             }
         }
@@ -317,7 +320,7 @@ private fun AppIconsScreen(nav: SettingsNav) {
             GlassTextField(query, { query = it }, placeholder = "Search apps", variant = GlassVariant.Clear)
         }
         item {
-            GlassText("Choose an app, then pick a picture from Photos to use as its icon.",
+            GlassText("Choose an app, then select artwork from an installed pack or Photos. Apps missing from a pack keep their own logo.",
                 Modifier.padding(horizontal = 8.dp, vertical = 4.dp), style = GlassType.Footnote, color = com.shivam.glasslauncher.ui.glass.LocalScreenContentColor.current)
         }
         if (entries.isEmpty()) item { GlassText("No apps match", Modifier.padding(16.dp), color = com.shivam.glasslauncher.ui.glass.LocalScreenContentColor.current) }
@@ -332,7 +335,7 @@ private fun AppIconsScreen(nav: SettingsNav) {
     }
 }
 
-/** Long-press → Edit Icon: pick a photo, or go back to the app's own icon. */
+/** Long-press → Edit Icon: pick any installed pack's icon, a photo, or go back to the default. */
 @Composable
 private fun IconEditScreen(nav: SettingsNav, appKey: String, toast: GlassToastState) {
     val context = LocalContext.current
@@ -341,6 +344,9 @@ private fun IconEditScreen(nav: SettingsNav, appKey: String, toast: GlassToastSt
     val entry = apps.firstOrNull { it.key == appKey }
     val overrides by app.polish.iconOverrides.overrides.collectAsState()
     val scope = rememberCoroutineScope()
+    val packs by produceState<List<IconPackInfo>?>(null) { value = withContext(Dispatchers.IO) { IconPack.installed(context) } }
+    var openPack by remember { mutableStateOf<String?>(null) }
+    var query by remember { mutableStateOf("") }
     val photo = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
@@ -372,11 +378,68 @@ private fun IconEditScreen(nav: SettingsNav, appKey: String, toast: GlassToastSt
         }
         item {
             GlassListGroup {
-                GlassRow("Default icon", subtitle = "The app's own icon", onClick = { app.polish.iconOverrides.set(appKey, null); toast.show("Icon reset") }, showChevron = false) {
+                GlassRow("Default icon", subtitle = "Use the icon pack or the app's own icon", onClick = { app.polish.iconOverrides.set(appKey, null); toast.show("Icon reset") }, showChevron = false) {
                     if (overrides[appKey] == null) GlassIcon(GlassIcons.Check, size = 18.dp, tint = GlassColors.Accent)
                 }
                 GlassRow("Choose from Photos", icon = GlassIcons.Plus, onClick = { photo.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
                     if (overrides[appKey] is IconOverride.Custom) GlassIcon(GlassIcons.Check, size = 18.dp, tint = GlassColors.Accent)
+                }
+            }
+        }
+        item {
+            GlassListGroup(title = "From an icon pack", footer = if (packs?.isEmpty() == true) "No icon packs installed. Install an ADW/Nova-compatible pack, or choose a photo above." else null) {
+                packs?.forEach { pack ->
+                    GlassRow(pack.label, subtitle = if (openPack == pack.packageName) "Tap an icon to use it" else null, onClick = { openPack = if (openPack == pack.packageName) null else pack.packageName; query = "" }, showChevron = false) {
+                        GlassIcon(if (openPack == pack.packageName) GlassIcons.Minus else GlassIcons.Plus, size = 18.dp)
+                    }
+                }
+            }
+        }
+        val pkg = openPack
+        if (pkg != null && entry != null) {
+            item("pack-search") {
+                GlassTextField(query, { query = it }, placeholder = "Search icons", variant = GlassVariant.Clear)
+            }
+            item("pack-grid-$pkg") {
+                val names by produceState<List<String>?>(null, pkg) {
+                    value = withContext(Dispatchers.IO) {
+                        val pack = app.icons.loadPack(pkg)
+                        val all = pack?.allDrawableNames().orEmpty()
+                        // The pack's own icon for this app first.
+                        val mapped = pack?.drawableNameFor(entry.component)
+                        if (mapped != null) listOf(mapped) + (all - mapped) else all
+                    }
+                }
+                val list = names
+                if (list == null) {
+                    GlassText("Loading icons…", Modifier.padding(16.dp), color = Color.White)
+                } else {
+                    val filtered = if (query.isBlank()) list else list.filter { it.contains(query.trim().replace(' ', '_'), ignoreCase = true) }
+                    PackIconGrid(pkg, filtered.take(400), (overrides[appKey] as? IconOverride.Pack)?.takeIf { it.packageName == pkg }?.drawable) { name ->
+                        app.polish.iconOverrides.set(appKey, IconOverride.Pack(pkg, name))
+                        toast.show("Icon updated")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PackIconGrid(pkg: String, names: List<String>, selected: String?, onPick: (String) -> Unit) {
+    val app = GlassApp.from(LocalContext.current)
+    GlassSurface(Modifier.fillMaxWidth(), shape = GlassShape.Card, role = null) {
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (names.isEmpty()) GlassText("No icons match", Modifier.padding(8.dp), style = GlassType.Callout, secondary = true)
+            names.chunked(5).forEach { row ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { name ->
+                        val bmp by produceState<ImageBitmap?>(null, pkg, name) { value = withContext(Dispatchers.IO) { app.icons.renderPackIcon(pkg, name, 144) } }
+                        GlassSurface(Modifier.weight(1f).aspectRatio(1f), shape = GlassShape.rounded(14.dp), variant = GlassVariant.Clear, highlighted = name == selected, onClick = { onPick(name) }, contentAlignment = Alignment.Center) {
+                            bmp?.let { Image(it, name, Modifier.fillMaxSize().padding(6.dp)) }
+                        }
+                    }
+                    repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
@@ -478,6 +541,7 @@ private fun BackupScreen(nav: SettingsNav, toast: GlassToastState) {
                         listOf(
                             "Home Screen" to "${s.homeApps} apps, ${s.folders} folders",
                             "Settings" to "${s.settingsCount} values",
+                            "Icon pack" to (s.iconPack ?: "System icons"),
                             "Hidden apps" to "${s.hiddenApps}",
                             "Locked apps" to "${s.lockedApps}",
                             "Per-app icons" to "${s.iconOverrides} (${s.customIcons} pictures)",

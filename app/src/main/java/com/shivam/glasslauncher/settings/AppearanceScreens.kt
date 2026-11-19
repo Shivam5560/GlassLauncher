@@ -135,8 +135,9 @@ private fun GlobalAppearanceScreen(nav: SettingsNav, settings: LauncherSettings)
                 }
             }
             item("icons") {
-                GlassListGroup(title = "Icon appearance", footer = "Every app keeps its own icon, masked to the shape you choose.") {
-                    GlassRow("Icon style", subtitle = "Default, Dark, Clear or Tinted", icon = GlassIcons.Palette, iconTint = Color(0xFF30D158), onClick = { nav.push("iconstyle") })
+                GlassListGroup(title = "Icon appearance", footer = "Shape applies to icons Glass draws itself; icon pack artwork keeps its own shape.") {
+                    GlassRow("Icon pack", subtitle = settings.iconPack.ifEmpty { "System icons" }, icon = GlassIcons.Grid, iconTint = GlassColors.Orange, onClick = { nav.push("iconpack") })
+                    GlassRow("Icon style", subtitle = "Light, dark or tinted pack artwork", icon = GlassIcons.Palette, iconTint = Color(0xFF30D158), onClick = { nav.push("iconstyle") })
                     Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                         GlassText("Adaptive shape", style = GlassType.Callout)
                         Spacer(Modifier.height(8.dp))

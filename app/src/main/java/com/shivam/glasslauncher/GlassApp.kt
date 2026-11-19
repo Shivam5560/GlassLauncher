@@ -47,6 +47,9 @@ class GlassApp : Application() {
                 .collect { (on, strength) -> com.shivam.glasslauncher.ui.glass.TrueTone.configure(this@GlassApp, on, strength) }
         }
         scope.launch {
+            settings.state.filterNotNull().map { it.iconPack }.distinctUntilChanged().collect { icons.setIconPack(it) }
+        }
+        scope.launch {
             apps.packageChanges.collect { if (it > 0) icons.invalidatePackage(apps.lastChangedPackage) }
         }
         scope.launch {

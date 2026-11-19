@@ -47,8 +47,8 @@ and works on any Android 12+ phone (minSdk 31).
   Remove, Hide, Lock, App info and Uninstall. Notification badges come from a
   `NotificationListenerService`.
 - **Hidden and locked apps.** Locked apps need BiometricPrompt (or your screen lock) before launching.
-- **App icons.** Every app keeps its own icon from the phone, masked to an iOS squircle
-  (superellipse, n = 5). Icon packs are not supported.
+- **Icon packs.** ADW/Nova packs are detected and their `appfilter.xml` parsed. Unmapped icons are
+  masked to a squircle using the pack's iconback, mask and upon.
 - **Drag and drop.** Long-press and drag icons between cells, pages (dwell at the edge), the dock and
   folders. Long-press an app in the app drawer and keep moving to drag it onto Home.
 - **Glass Gestures.** An AccessibilityService with thin overlay zones:
@@ -61,11 +61,15 @@ and works on any Android 12+ phone (minSdk 31).
 
 ## Features (phase 4)
 
-- **Icon appearance (iOS):** Settings → Customise → Icon style: Auto (follows dark mode), Default,
-  Dark (logo on a dark tile), Clear (white glyph on glass) or Tinted (one-colour glyph in the accent
-  or a chosen colour). Clear and Tinted use the app's Android 13 monochrome layer when it has one.
-- **Per-app icons:** long-press an app → Edit Icon, or Settings → Icon style → Individual app icons.
-  Choose a photo, or go back to the app's own icon.
+- **Installed icon packs:** standard ADW/Nova packs remain supported. The old standalone
+  Glass Icons companion app and its generator have been retired. Unmapped apps retain their
+  original logos, styled with the selected pack's background and mask when available.
+- **Icon variants:** Settings → Customise → Icon style: Auto (follows dark mode), Default, Dark,
+  Clear or Tinted. Packs supply `_dark` / `_tinted` artwork where they have it; apps a pack doesn't
+  cover get Clear (white glyph on glass) or Tinted (one-colour glyph), from the app's Android 13
+  monochrome layer when it has one.
+- **Per-app icons:** long-press an app → Edit Icon, or Settings → Icon pack → Individual app icons.
+  Search for an app and choose artwork from an installed pack, a photo, or Default.
 - **Pinned shortcuts:** "Add to Home screen" from other apps opens a glass confirmation sheet.
 - **Wallpapers:** 20 original wallpapers (mesh gradients, ribbons, caustics, stone and quiet landscapes),
   each a light and dark pair at 1440×3200, rendered by `tools/wallpapers/generate_wallpapers.py`.
@@ -76,6 +80,12 @@ and works on any Android 12+ phone (minSdk 31).
 - **Font picker:** bundled OFL fonts plus downloadable Google Fonts via Google Play services, with a
   bundled fallback.
 - **Backup & restore:** one JSON file through the Storage Access Framework, with a restore preview.
+
+### Icon pack variant convention
+
+For every drawable `name` mapped in `appfilter.xml`, a pack may ship `name_dark` (dark glass tile,
+coloured glyph) and `name_tinted` (white monochrome glyph on transparent; the launcher draws the
+tile and tints the glyph). Glass Launcher picks them by icon style and falls back to `name`.
 
 ## Install
 
@@ -92,7 +102,7 @@ artwork taken from it). The RSS/news feed page is out of scope.
 - **Readable glass:** dark-tinted glass by default; text and icons pick white or near-black from
   the measured backdrop luminance (WCAG AA, never white on light). Gentler lens defaults
   (refraction 0.3, chroma 0.15, specular 0.45). Settings sections are one glass card with divider
-  rows.
+  rows. Installed icon packs are selected explicitly in Settings.
 - **Clean default home:** a large centred clock / date / weather / next-event header, rounded photo
   and calendar widgets, a label-free 4-column grid, the floating glass dock and page pill.
 - **App drawer (swipe up):** apps sorted automatically into Internet, Media, Social, Games,
@@ -156,7 +166,7 @@ user is told in-app. `REVIEW.md` lists the code-review rules (glass only, no scr
 - **Phase 3 — Dynamic Island, Control Center and Notification Center:** an island overlay around
   the punch-hole camera, a glass Control Center (Settings panels for radios), and a Notification
   Center with inline reply.
-- **Phase 4 — Icons and wallpapers:** per-app icon overrides,
+- **Phase 4 — Icons and wallpapers:** installed icon packs and per-app overrides,
   original light/dark wallpapers (set through Glass for Path A refraction), font picker,
   backup/restore.
 

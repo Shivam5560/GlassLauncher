@@ -41,6 +41,8 @@ import com.shivam.glasslauncher.GlassApp
 import com.shivam.glasslauncher.data.AppEntry
 import com.shivam.glasslauncher.data.LauncherSettings
 import com.shivam.glasslauncher.gestures.GlassGestureService
+import com.shivam.glasslauncher.icons.IconPack
+import com.shivam.glasslauncher.icons.IconPackInfo
 import com.shivam.glasslauncher.overlay.OverlayScreens
 import com.shivam.glasslauncher.overlay.OverlaySettingsScreen
 import com.shivam.glasslauncher.ui.glass.Backdrop
@@ -100,6 +102,7 @@ fun SettingsScreen(
     when (nav.current) {
         "glass" -> GlassTuningScreen(nav, settings)
         "wallpaper" -> WallpaperScreen(nav, wallpaper, toast)
+        "iconpack" -> IconPackScreen(nav, settings)
         "gestures" -> GesturesScreen(nav, settings, resumeTick)
         "excluded" -> AppToggleScreen(nav, "Gesture exclusions", "Back-swipe edges are switched off in these apps (the home swipe stays). Use it for games and apps with their own edge swipes.", byPackage = true, isOn = { it.packageName in settings.gestures.excludedApps }) { e, on ->
             val set = settings.gestures.excludedApps.let { if (on) it + e.packageName else it - e.packageName }
@@ -293,6 +296,42 @@ private fun WallpaperScreen(nav: SettingsNav, wallpaper: WallpaperSource.Snapsho
                 GlassRow("Grant All files access", subtitle = if (app.wallpaper.canReadWallpaper()) "Granted" else "Not granted", icon = GlassIcons.Lock, onClick = {
                     if (!SystemChecks.launchFirst(activity, SystemChecks.allFilesIntents(context))) toast.show("Not available on this phone")
                 })
+            }
+        }
+    }
+}
+
+@Composable
+private fun IconPackScreen(nav: SettingsNav, settings: LauncherSettings) {
+    val context = LocalContext.current
+    val app = GlassApp.from(context)
+    val packs by produceState<List<IconPackInfo>?>(null) { value = withContext(Dispatchers.IO) { IconPack.installed(context) } }
+    ScreenScaffold("Icon pack", nav) {
+        item {
+            GlassListGroup(footer = "Removes the colour from every app icon.") {
+                GlassSwitchRow("Greyscale icons", settings.greyscaleIcons, { app.settings.setGreyscaleIcons(it) })
+            }
+        }
+        item {
+            GlassListGroup(footer = "Packs using the standard ADW/Nova format are detected. Icons a pack doesn't cover are masked to the squircle with the pack's back/mask.") {
+                GlassRow("System icons", onClick = { app.settings.setIconPack("") }, showChevron = false) {
+                    if (settings.iconPack.isEmpty()) GlassIcon(GlassIcons.Check, size = 18.dp, tint = GlassColors.Accent)
+                }
+                val list = packs
+                when {
+                    list == null -> GlassRow("Looking for icon packs…")
+                    list.isEmpty() -> GlassRow("No icon packs installed", subtitle = "Install one from the Play Store, then come back.")
+                    else -> list.forEach { p ->
+                        GlassRow(p.label, subtitle = p.packageName, onClick = { app.settings.setIconPack(p.packageName) }, showChevron = false) {
+                            if (settings.iconPack == p.packageName) GlassIcon(GlassIcons.Check, size = 18.dp, tint = GlassColors.Accent)
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            GlassListGroup(footer = "For an app a pack doesn't cover, choose its icon from a pack or Photos without changing the other apps.") {
+                GlassRow("Individual app icons", icon = GlassIcons.Pencil, onClick = { nav.push("appicons") })
             }
         }
     }
