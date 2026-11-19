@@ -52,7 +52,6 @@ data class BackupSummary(
     val customIcons: Int,
     val iconOverrides: Int,
     val pinnedShortcuts: Int,
-    val iconPack: String?,
 )
 
 class BackupFormatException(message: String) : Exception(message)
@@ -160,7 +159,6 @@ object BackupCodec {
             customIcons = data.customIcons.size,
             iconOverrides = overrides,
             pinnedShortcuts = pinned,
-            iconPack = (settings.firstOrNull { it.name == "icon_pack" }?.value as? String)?.takeIf { it.isNotEmpty() },
         )
     }
 }

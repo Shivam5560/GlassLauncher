@@ -32,6 +32,8 @@ sealed interface Slot {
     data class Page(val page: Int, val index: Int) : Slot
     data class Dock(val index: Int) : Slot
     data class InFolder(val folderId: String, val index: Int) : Slot
+    /** An app dragged in from the app drawer or App Library; any copy already on Home moves. */
+    data class Outside(val appKey: String) : Slot
 }
 
 /**
@@ -64,6 +66,7 @@ data class HomeLayout(
         is Slot.Page -> pages.getOrNull(slot.page)?.getOrNull(slot.index)
         is Slot.Dock -> dock.getOrNull(slot.index)
         is Slot.InFolder -> findFolder(slot.folderId)?.apps?.getOrNull(slot.index)?.let { AppItem(it) }
+        is Slot.Outside -> AppItem(slot.appKey)
     }
 
     fun findFolder(id: String): FolderItem? =
@@ -273,6 +276,13 @@ object LayoutOps {
                 }
                 removed
             }
+            is Slot.Outside -> {
+                // Clear the app's existing place in this working copy (no page is dropped until build()).
+                for (row in pages) for (i in row.indices) row[i] = filterItem(row[i]) { it != slot.appKey }
+                for (i in dock.indices) dock[i] = filterItem(dock[i]) { it != slot.appKey }
+                known = known + slot.appKey
+                null
+            }
         }
     }
 
@@ -400,7 +410,7 @@ object LayoutOps {
                         when (from) {
                             is Slot.Page -> w.pages[from.page][from.index] = displaced
                             is Slot.Dock -> w.dock[from.index] = displaced
-                            is Slot.InFolder -> w.placeInFirstFree(displaced)
+                            is Slot.InFolder, is Slot.Outside -> w.placeInFirstFree(displaced)
                         }
                     }
                 }

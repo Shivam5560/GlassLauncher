@@ -27,6 +27,27 @@ class LayoutOpsTest {
         assertEquals(AppItem("a2"), out.pages[0][0])
     }
 
+    @Test fun dragInFromDrawerPlacesApp() {
+        val l = LayoutOps.initial(apps.take(3), emptyList(), emptySet())
+        val out = LayoutOps.move(l, Slot.Outside("new"), DropTarget.Cell(0, 5, merge = false))
+        assertEquals(AppItem("new"), out.pages[0][5])
+        assertTrue("new" in out.known)
+    }
+
+    @Test fun dragInMovesExistingCopy() {
+        val l = LayoutOps.initial(apps.take(3), emptyList(), emptySet())
+        val out = LayoutOps.move(l, Slot.Outside("a1"), DropTarget.DockCell(0, merge = false))
+        assertEquals(AppItem("a1"), out.dock[0])
+        assertEquals(1, (out.pages.flatten() + out.dock).count { it == AppItem("a1") })
+        assertNull(out.pages[0][0])
+    }
+
+    @Test fun dragInOntoAppMakesFolder() {
+        val l = LayoutOps.initial(apps.take(2), emptyList(), emptySet())
+        val out = LayoutOps.move(l, Slot.Outside("new"), DropTarget.Cell(0, 0, merge = true), "Folder")
+        assertEquals(listOf("a1", "new"), (out.pages[0][0] as FolderItem).apps)
+    }
+
     @Test fun insertShiftsRight() {
         val l = LayoutOps.initial(apps.take(4), emptyList(), emptySet())
         val moved = LayoutOps.move(l, Slot.Page(0, 3), DropTarget.Cell(0, 0, merge = false))

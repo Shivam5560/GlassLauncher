@@ -68,7 +68,7 @@ internal fun SettingsDashboard(nav: SettingsNav, settings: LauncherSettings, wal
             item("quick-actions") {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     QuickTile("Wallpapers", "Set the mood", GlassIcons.Home, Modifier.weight(1f)) { open("wallpapers") }
-                    QuickTile("Icon packs", "Make it yours", GlassIcons.Grid, Modifier.weight(1f)) { open("iconpack") }
+                    QuickTile("Icon style", "Make it yours", GlassIcons.Grid, Modifier.weight(1f)) { open("iconstyle") }
                 }
             }
             if (!defaultHome) {
@@ -130,7 +130,7 @@ private fun DestinationRow(route: String, open: (String) -> Unit) {
 private fun destinationIcon(route: String): ImageVector = when (route) {
     "home", "wallpaper", "wallpapers" -> GlassIcons.Home
     "appearance", "iconstyle" -> GlassIcons.Sparkle
-    "drawer", "widgets", "iconpack", "appicons" -> GlassIcons.Grid
+    "drawer", "widgets", "appicons" -> GlassIcons.Grid
     "glass", "theme" -> GlassIcons.Palette
     "fonts" -> GlassIcons.Pencil
     "homegestures", "gestures" -> GlassIcons.Hand

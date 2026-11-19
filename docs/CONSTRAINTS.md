@@ -28,7 +28,7 @@ Status legend: ✅ works as designed · ⚠️ works with a caveat · ❌ not po
 | Badges | ⚠️ | Needs notification access. Counts are per notification, not each app's own unread number. |
 | Locked apps | ⚠️ | Lock prompt only when opened **from our launcher**. Opening from notifications or recents bypasses it. State this in the UI. |
 | Hidden apps | ⚠️ | Hidden from our grid, library and search only. Still visible in system settings. |
-| Icon packs | ✅ | ADW/Nova `appfilter.xml`. Unmapped icons → squircle mask. |
+| App icons | ✅ | Each app's own icon, squircle-masked. Icon packs removed (2026-11-20). |
 
 ## Phase 2 — Widgets & Today view
 
@@ -64,7 +64,7 @@ Status legend: ✅ works as designed · ⚠️ works with a caveat · ❌ not po
 
 | Feature | Status | Ifs and buts → fallback |
 |---|---|---|
-| Icon packs | ✅ | Use installed ADW/Nova packs or the app's original icon. The standalone Glass Icons module and generator are retired. Never redraw brand logos; use existing pack artwork or a user-selected photo for per-app overrides. |
+| Icon packs | ❌ | Removed on 2026-11-20: Glass uses each app's own icon in the iOS appearances (Default, Dark, Clear, Tinted). Never redraw brand logos. |
 | Icon variants (light / dark / tinted) | ⚠️ | Our convention: `<name>_dark` and `<name>_tinted` next to `<name>`. Only packs that ship them change with the style; other packs fall back to their normal drawable. Tinted glyphs are drawn by Glass on its own dark tile in the accent (or chosen) colour. |
 | Per-app icon picker | ✅ | Long-press → Edit Icon → any installed pack's drawable, a photo (Photo Picker, no storage permission) or Default. Stored in `files/icon_overrides.json` + `files/custom_icons/`. |
 | Pinned shortcuts | ⚠️ | `ACTION_CONFIRM_PIN_SHORTCUT` only reaches the default Home app, and `LauncherApps.startShortcut` / `pinShortcuts` only work while Glass is default. Accepted shortcuts are listed (open / remove) in Settings → Customise → Pinned shortcuts and exposed as `PinnedShortcutStore.shortcuts` for the home grid (Phase 2 owns grid placement). System check shows a row. |

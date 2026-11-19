@@ -16,8 +16,6 @@ import java.security.MessageDigest
 
 /** A per-app icon chosen with long-press → Edit Icon. */
 sealed interface IconOverride {
-    /** A drawable from any installed icon pack. */
-    data class Pack(val packageName: String, val drawable: String) : IconOverride
     /** A picture the user picked, saved as `files/custom_icons/<file>`. */
     data class Custom(val file: String) : IconOverride
 }
@@ -88,7 +86,6 @@ class IconOverrideStore(private val context: Context, private val scope: Corouti
             val root = JSONObject()
             map.forEach { (key, o) ->
                 root.put(key, when (o) {
-                    is IconOverride.Pack -> JSONObject().put("t", "pack").put("pkg", o.packageName).put("d", o.drawable)
                     is IconOverride.Custom -> JSONObject().put("t", "custom").put("f", o.file)
                 })
             }
@@ -101,7 +98,7 @@ class IconOverrideStore(private val context: Context, private val scope: Corouti
             for (key in root.keys()) {
                 val o = root.optJSONObject(key) ?: continue
                 when (o.optString("t")) {
-                    "pack" -> out[key] = IconOverride.Pack(o.getString("pkg"), o.getString("d"))
+                    // "pack" entries came from icon packs, which Glass no longer reads: dropped.
                     "custom" -> out[key] = IconOverride.Custom(File(o.getString("f")).name)
                 }
             }

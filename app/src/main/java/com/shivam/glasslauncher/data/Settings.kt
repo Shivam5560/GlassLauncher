@@ -97,7 +97,6 @@ data class Appearance(
 data class LauncherSettings(
     val glass: GlassStyle = GlassStyle(),
     val gestures: GestureSettings = GestureSettings(),
-    val iconPack: String = "",
     val hidden: Set<String> = emptySet(),
     val locked: Set<String> = emptySet(),
     /** Labels under home-screen icons: white with a soft shadow, as on iOS. */
@@ -108,7 +107,6 @@ data class LauncherSettings(
     val autostartConfirmed: Boolean = false,
     val restrictedSettingsConfirmed: Boolean = false,
     /** True once the user (or an icon pack's Apply button) picked an icon pack, "System icons" included. */
-    val iconPackChosen: Boolean = false,
     val appearance: Appearance = Appearance(),
     val drawerLaunchView: DrawerLaunchView = DrawerLaunchView.LastCategory,
     val drawerTransition: DrawerTransition = DrawerTransition.Slide,
@@ -149,7 +147,6 @@ class SettingsRepository(private val context: Context, private val scope: Corout
         val tone = stringPreferencesKey("glass_tone")
         val tilt = booleanPreferencesKey("glass_tilt")
         val liquid = booleanPreferencesKey("glass_liquid")
-        val iconPack = stringPreferencesKey("icon_pack")
         val hidden = stringSetPreferencesKey("hidden_apps")
         val locked = stringSetPreferencesKey("locked_apps")
         val doubleTap = booleanPreferencesKey("double_tap_lock")
@@ -257,7 +254,6 @@ class SettingsRepository(private val context: Context, private val scope: Corout
                 pauseWithKeyboard = p[K.gKeyboard] ?: d.gestures.pauseWithKeyboard,
                 pauseForApps = p[K.gPauseApps] ?: d.gestures.pauseForApps,
             ),
-            iconPack = p[K.iconPack] ?: d.iconPack,
             hidden = p[K.hidden] ?: d.hidden,
             locked = p[K.locked] ?: d.locked,
             showLabels = p[K.labels] ?: d.showLabels,
@@ -265,7 +261,6 @@ class SettingsRepository(private val context: Context, private val scope: Corout
             onboardingDone = p[K.onboarding] ?: d.onboardingDone,
             autostartConfirmed = p[K.autostartConfirmed] ?: false,
             restrictedSettingsConfirmed = p[K.restrictedConfirmed] ?: false,
-            iconPackChosen = p[K.iconPack] != null,
             appearance = Appearance(
                 iconScale = p[K.iconScale] ?: d.appearance.iconScale,
                 dockScale = p[K.dockScale] ?: d.appearance.dockScale,
@@ -349,10 +344,6 @@ class SettingsRepository(private val context: Context, private val scope: Corout
     fun setAutostartConfirmed(v: Boolean) = edit { it[K.autostartConfirmed] = v }
     fun setRestrictedConfirmed(v: Boolean) = edit { it[K.restrictedConfirmed] = v }
 
-    fun setIconPack(pkg: String) = edit { it[K.iconPack] = pkg }
-
-    /** Writes the icon pack and waits until it is on disk (used by the cross-app Apply intent). */
-    suspend fun setIconPackNow(pkg: String) { context.settingsStore.edit { it[K.iconPack] = pkg } }
 
     fun setAppearance(a: Appearance) = edit {
         it[K.iconScale] = a.iconScale

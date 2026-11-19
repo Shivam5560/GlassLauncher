@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 val Context.polishStore: DataStore<Preferences> by preferencesDataStore(name = "polish")
 
 /** Which variant of an icon pack's artwork to use (see README, "Icon pack variant convention"). */
-enum class IconStyle(val title: String) { Auto("Auto"), Light("Light"), Dark("Dark"), Tinted("Tinted") }
+enum class IconStyle(val title: String) { Auto("Auto"), Light("Default"), Dark("Dark"), Clear("Clear"), Tinted("Tinted") }
 
 /** Where accent and glass tint come from. */
 enum class ThemeSource(val title: String) { Default("Default"), Wallpaper("Wallpaper"), Manual("Custom") }
