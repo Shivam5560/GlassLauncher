@@ -75,6 +75,9 @@ and works on any Android 12+ phone (minSdk 31).
   each a light and dark pair at 1440×3200, rendered by `tools/wallpapers/generate_wallpapers.py`.
   The glass picker has categories, previews with a live glass panel, auto light/dark switching, and
   sets them through Glass so refraction works (Path A).
+- **Your own wallpapers:** Wallpapers → Add from Photos takes one picture, or two as a light and
+  dark pair (the brighter becomes Light). They are stored privately in Glass, listed under My
+  Wallpapers, and can be renamed or removed; nothing is added to the app or the repo.
 - **Theme:** Default, From wallpaper (accent and glass tint from the wallpaper's colours) or Custom
   (theme editor).
 - **Font picker:** bundled OFL fonts plus downloadable Google Fonts via Google Play services, with a

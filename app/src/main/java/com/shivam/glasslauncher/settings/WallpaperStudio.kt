@@ -4,6 +4,9 @@ import android.graphics.Bitmap
 import android.graphics.Matrix
 import android.graphics.Paint
 import android.graphics.ColorMatrixColorFilter
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -40,8 +43,18 @@ internal fun WallpaperGalleryScreen(nav: SettingsNav) {
     val night by app.polish.night.collectAsState()
     var category by rememberSaveable { mutableStateOf("All") }
     var showDark by rememberSaveable { mutableStateOf(night) }
-    val all by produceState<List<GlassWallpaper>>(emptyList()) {
+    var added by remember { mutableIntStateOf(0) }
+    val all by produceState<List<GlassWallpaper>>(emptyList(), added) {
         value = withContext(Dispatchers.IO) { app.polish.wallpapers.all }
+    }
+    val scope = rememberCoroutineScope()
+    // One picture, or two for a light and dark pair (Glass decides which is which).
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(2)) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            val w = withContext(Dispatchers.IO) { app.polish.wallpapers.import(uris) }
+            if (w != null) { added++; nav.push("wallpaper:${w.id}") }
+        }
     }
     val categories = listOf("All", "Favorites") + all.map { it.category }.distinct()
     val list = all.filter { category == "All" || (category == "Favorites" && it.id in p.wallpaperFavorites) || it.category == category }
@@ -55,6 +68,13 @@ internal fun WallpaperGalleryScreen(nav: SettingsNav) {
                     Spacer(Modifier.height(12.dp))
                     GlassSegmented(listOf("Light", "Dark"), if (showDark) 1 else 0, { showDark = it == 1 })
                 }
+            }
+        }
+        item {
+            GlassListGroup(footer = "Choose one picture, or two to make a light and dark pair. They appear under ${GlassWallpapers.USER_CATEGORY}.") {
+                GlassRow("Add from Photos", icon = GlassIcons.Plus, onClick = {
+                    pick.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                })
             }
         }
         if (list.isEmpty()) item {
@@ -137,6 +157,27 @@ internal fun WallpaperDetailScreen(nav: SettingsNav, id: String, toast: GlassToa
                 GlassSliderRow("Dim", dim, 0f..0.6f, { "${(it * 100).toInt()}%" }, { dim = it })
                 GlassSliderRow("Warmth", warmth, -1f..1f, { if (it == 0f) "Neutral" else "${(it * 100).toInt()}" }, { warmth = it })
                 GlassRow("Reset adjustments", onClick = { zoom = 1f; x = w.focusX; y = w.focusY; dim = 0f; warmth = 0f })
+            }
+        }
+        // Your own wallpapers: rename or remove (not while applied, since the id is in use).
+        if (w.user && p.wallpaperId != id) item {
+            var name by rememberSaveable(id) { mutableStateOf(w.name) }
+            val scope = rememberCoroutineScope()
+            GlassListGroup(title = "Your wallpaper") {
+                Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    GlassTextField(name, { name = it }, Modifier.weight(1f), placeholder = "Name", variant = GlassVariant.Clear)
+                    Spacer(Modifier.width(8.dp))
+                    GlassButton("Rename", enabled = name.isNotBlank() && name != w.name, onClick = {
+                        scope.launch {
+                            val newId = withContext(Dispatchers.IO) { app.polish.wallpapers.rename(id, name) }
+                            if (newId != null && newId != id) { nav.pop(); nav.push("wallpaper:$newId") }
+                        }
+                    })
+                }
+                GlassRow("Remove wallpaper", onClick = {
+                    app.scope.launch(Dispatchers.IO) { app.polish.wallpapers.remove(id) }
+                    nav.pop()
+                })
             }
         }
         item {
